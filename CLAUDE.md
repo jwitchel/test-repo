@@ -44,6 +44,13 @@ The project is organized into 7 sprints:
 ### Additional Tasks
 - **Issue #35**: Relationship Categorization UI (added after initial sprint planning)
 
+## Important Configuration Notes
+- **Docker Ports** (non-standard to avoid conflicts):
+  - PostgreSQL: 5434 (instead of 5432)
+  - Redis: 6380 (instead of 6379)
+- Project structure: Next.js app at repository root (not in subdirectory)
+- Node.js dependencies already installed - run `npm install` after cloning
+
 ## Common Task Operations
 
 ### Updating Task Status
@@ -111,6 +118,17 @@ git checkout -b task-X.X-description
 2. Work on the branch throughout the task
 3. Create PR when ready for review
 4. Merge to main after approval
+
+### Task Completion Checklist
+1. Create feature branch (already documented)
+2. Complete all subtasks - mark with [x] in issue body
+3. Run validation commands before committing
+4. Commit with descriptive messages
+5. Push branch and create PR
+6. After PR merge:
+   - `git checkout main && git pull origin main`
+   - `git branch -d feature-branch-name`
+   - Issue should auto-close from PR
 
 ## Testing Commands
 When completing tasks, always run:
@@ -185,3 +203,5 @@ git checkout -b task-X.X-description
 - Authentication architecture uses Option 1 (centralized in Express)
 - Real-time logging is emphasized throughout for debugging
 - Always use shadcn/ui components for UI consistency
+- **GitHub CLI**: Remember `gh project list` does NOT accept --repo flag, only --owner
+- **Subtask Updates**: Always update subtasks in issue body, never use comments unless requested
