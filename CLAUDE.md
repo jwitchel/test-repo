@@ -53,11 +53,14 @@ gh project item-edit --owner jwitchel --id ITEM_ID --field-id STATUS_FIELD_ID --
 ```
 
 ### Editing Task Content
+
+**IMPORTANT**: NEVER add comments to issues unless specifically instructed by the user. Always update subtask checkboxes directly in the main issue body using `gh issue edit`.
+
 ```bash
-# Edit issue body/description
+# Edit issue body/description (preferred method for updating subtasks)
 gh issue edit ISSUE_NUMBER --repo jwitchel/test-repo --body "New content here"
 
-# Add comments to an issue
+# Add comments ONLY when explicitly requested by user
 gh issue comment ISSUE_NUMBER --repo jwitchel/test-repo --body "Progress update..."
 ```
 
