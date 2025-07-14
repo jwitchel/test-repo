@@ -3,22 +3,18 @@
 ## Project Overview
 This is an AI Email Assistant application that generates email reply drafts matching the user's personal writing tone. The project is managed through GitHub Issues and Projects.
 
-## GitHub Project Access
-
-### Finding the Project
+## GitHub CLI Reference
 
 **IMPORTANT**: The `gh project list` command does NOT accept --repo flag. Only use --owner flag.
 
+### Finding Projects and Issues
 ```bash
 # List all projects for an owner (CORRECT)
 gh project list --owner jwitchel
 
 # View project details (replace PROJECT_NUMBER with actual number)
 gh project view PROJECT_NUMBER --owner jwitchel
-```
 
-### Accessing Issues
-```bash
 # List all issues in the repository
 gh issue list --repo jwitchel/test-repo --limit 100
 
@@ -27,6 +23,42 @@ gh issue view ISSUE_NUMBER --repo jwitchel/test-repo
 
 # Search for specific tasks
 gh issue list --repo jwitchel/test-repo --search "Sprint 1"
+
+# List all issues with specific label
+gh issue list --repo jwitchel/test-repo --label "Sprint 3"
+
+# Export issues to JSON
+gh issue list --repo jwitchel/test-repo --json number,title,body,labels --limit 100 > issues.json
+```
+
+### Managing Tasks
+```bash
+# Create a new issue and add to project
+gh issue create --repo jwitchel/test-repo --title "Task Title" --body "Task description" --project PROJECT_NUMBER
+
+# Edit issue body/description (preferred method for updating subtasks)
+gh issue edit ISSUE_NUMBER --repo jwitchel/test-repo --body "New content here"
+
+# Add comments ONLY when explicitly requested by user
+gh issue comment ISSUE_NUMBER --repo jwitchel/test-repo --body "Progress update..."
+```
+
+### Project Management
+```bash
+# List project fields (to get field IDs)
+gh project field-list PROJECT_NUMBER --owner jwitchel
+
+# List items in project
+gh project item-list PROJECT_NUMBER --owner jwitchel --limit 100
+
+# Move task to "In Progress"
+gh project item-edit --owner jwitchel --id ITEM_ID --field-id STATUS_FIELD_ID --project-id PROJECT_ID --text "In Progress"
+
+# Mark task as completed
+gh project item-edit --owner jwitchel --id ITEM_ID --field-id STATUS_FIELD_ID --project-id PROJECT_ID --text "Done"
+
+# Archive completed items
+gh project item-archive PROJECT_NUMBER --owner jwitchel --id ITEM_ID
 ```
 
 ## Project Structure
@@ -48,38 +80,11 @@ The project is organized into 7 sprints indicated by the first number in the Tas
 - Project structure: Next.js app at repository root (not in subdirectory)
 - Node.js dependencies already installed - run `npm install` after cloning
 
-## Common Task Operations
-
-### Updating Task Status
-```bash
-# Move task to "In Progress"
-gh project item-edit --owner jwitchel --id ITEM_ID --field-id STATUS_FIELD_ID --project-id PROJECT_ID --text "In Progress"
-
-# Mark task as completed
-gh project item-edit --owner jwitchel --id ITEM_ID --field-id STATUS_FIELD_ID --project-id PROJECT_ID --text "Done"
-```
-
-### Working with Subtasks
+## Working with Subtasks
 
 **IMPORTANT**: Subtasks are the individual checkboxes (- [ ]) in the issue description. They should be performed ONE AT A TIME unless otherwise instructed by the user. Complete each subtask fully before moving to the next one.
 
-### Editing Task Content
-
 **IMPORTANT**: NEVER add comments to issues unless specifically instructed by the user. Always update subtask checkboxes directly in the main issue body using `gh issue edit`.
-
-```bash
-# Edit issue body/description (preferred method for updating subtasks)
-gh issue edit ISSUE_NUMBER --repo jwitchel/test-repo --body "New content here"
-
-# Add comments ONLY when explicitly requested by user
-gh issue comment ISSUE_NUMBER --repo jwitchel/test-repo --body "Progress update..."
-```
-
-### Creating New Tasks
-```bash
-# Create a new issue and add to project
-gh issue create --repo jwitchel/test-repo --title "Task Title" --body "Task description" --project PROJECT_NUMBER
-```
 
 ## Key Architecture Decisions
 
@@ -152,58 +157,11 @@ npm run typecheck
 npm test
 ```
 
-## Useful GitHub CLI Commands
-
-### Project Management
-```bash
-# List project fields (to get field IDs)
-gh project field-list PROJECT_NUMBER --owner jwitchel
-
-# List items in project
-gh project item-list PROJECT_NUMBER --owner jwitchel --limit 100
-
-# Archive completed items
-gh project item-archive PROJECT_NUMBER --owner jwitchel --id ITEM_ID
-```
-
-### Bulk Operations
-```bash
-# List all issues with specific label
-gh issue list --repo jwitchel/test-repo --label "Sprint 3"
-
-# Export issues to JSON
-gh issue list --repo jwitchel/test-repo --json number,title,body,labels --limit 100 > issues.json
-```
-
 ## Project Files
 - **complete_project_plan.md**: Master project specification document
 - **CLAUDE.md**: This file - instructions for Claude
 - **.github/**: GitHub Actions workflows (when created)
 - **src/**: Source code directory (when created)
-
-## Quick Reference
-
-### Find Project Number
-```bash
-gh project list --owner jwitchel
-```
-
-### View All Tasks
-```bash
-gh issue list --repo jwitchel/test-repo --limit 50
-```
-
-### Start Working on a Task
-```bash
-# View task details
-gh issue view ISSUE_NUMBER --repo jwitchel/test-repo
-
-# Create feature branch
-git checkout -b task-X.X-description
-
-# Update task status in project (if needed)
-# First get the item ID and field IDs using project commands above
-```
 
 ## Notes for Future Sessions
 - All new tasks should be assigned to the project and given the "Backlog" status initially
