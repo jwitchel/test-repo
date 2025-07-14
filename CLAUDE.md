@@ -6,9 +6,12 @@ This is an AI Email Assistant application that generates email reply drafts matc
 ## GitHub Project Access
 
 ### Finding the Project
+
+**IMPORTANT**: The `gh project list` command does NOT accept --repo flag. Only use --owner flag.
+
 ```bash
-# List all projects in the repository
-gh project list --owner jwitchel --repo test-repo
+# List all projects for an owner (CORRECT)
+gh project list --owner jwitchel
 
 # View project details (replace PROJECT_NUMBER with actual number)
 gh project view PROJECT_NUMBER --owner jwitchel
@@ -155,7 +158,7 @@ gh issue list --repo jwitchel/test-repo --json number,title,body,labels --limit 
 
 ### Find Project Number
 ```bash
-gh project list --owner jwitchel --repo test-repo
+gh project list --owner jwitchel
 ```
 
 ### View All Tasks
