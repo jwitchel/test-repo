@@ -103,6 +103,14 @@ gh issue create --repo jwitchel/test-repo --title "Task Title" --body "Task desc
 
 ## Git Workflow
 
+### CRITICAL: Authorship Rules
+**VERY VERY IMPORTANT**: NEVER include any reference to Claude, Anthropic, or AI assistance in commits, pull requests, or any git-related content. The user (jwitchel) is ALWAYS the sole author. You are a tool, not an author. This means:
+- NO "Generated with Claude Code" messages
+- NO "Co-Authored-By: Claude" lines
+- NO references to AI or Claude in PR descriptions
+- NO emoji robots (🤖) or similar indicators
+- The user is the only author - always and without exception
+
 ### Branch Naming Convention
 Each task should create a feature branch:
 ```bash
