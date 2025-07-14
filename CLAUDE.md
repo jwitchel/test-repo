@@ -62,6 +62,10 @@ gh project item-edit --owner jwitchel --id ITEM_ID --field-id STATUS_FIELD_ID --
 gh project item-edit --owner jwitchel --id ITEM_ID --field-id STATUS_FIELD_ID --project-id PROJECT_ID --text "Done"
 ```
 
+### Working with Subtasks
+
+**IMPORTANT**: Subtasks are the individual checkboxes (- [ ]) in the issue description. They should be performed ONE AT A TIME unless otherwise instructed by the user. Complete each subtask fully before moving to the next one.
+
 ### Editing Task Content
 
 **IMPORTANT**: NEVER add comments to issues unless specifically instructed by the user. Always update subtask checkboxes directly in the main issue body using `gh issue edit`.
