@@ -89,16 +89,16 @@ The project is organized into 7 sprints indicated by the first number in the Tas
 ## Key Architecture Decisions
 
 ### Technology Stack
-- **Frontend**: Next.js (port 3000) with shadcn/ui components
-- **Backend**: Express.js API (port 3001) with better-auth
-- **WebSocket**: Real-time updates (port 3002)
+- **Frontend**: Next.js with shadcn/ui components
+- **Backend**: Express.js API with better-auth
+- **WebSocket**: Real-time updates
 - **Database**: PostgreSQL (Docker)
 - **Queue**: BullMQ with Redis (Docker)
-- **Email**: IMAP integration with node-imap
+- **Email**: IMAP integration with node-imap (Docker)
 
 ### Development Setup
-- Docker runs PostgreSQL, Redis, and the test mail server only
-- Next.js and Express run locally (not in Docker) for easier debugging
+- Docker runs PostgreSQL, Redis, and the test mail server (node-imap) only
+- Next.js and Express run locally (not in Docker) 
 - Authentication is centralized in Express API
 
 ### Important Architecture Notes
@@ -158,16 +158,13 @@ npm test
 ```
 
 ## Project Files
-- **complete_project_plan.md**: Master project specification document
+- **complete_project_plan.md**: Original master project specification document.  Some drift expected.
 - **CLAUDE.md**: This file - instructions for Claude
 - **.github/**: GitHub Actions workflows (when created)
-- **src/**: Source code directory (when created)
+- **src/**: Source code directory 
 
 ## Notes for Future Sessions
 - All new tasks should be assigned to the project and given the "Backlog" status initially
 - Each task has detailed subtasks, code examples, and acceptance criteria
-- Authentication architecture is centralized in Express
-- Real-time logging on a webpage using websockets is emphasized throughout for debugging
-- Always use shadcn/ui components for UI consistency
 - **GitHub CLI**: Remember `gh project list` does NOT accept --repo flag, only --owner
 - **Subtask Updates**: Always update subtasks in issue body, never use comments unless requested
