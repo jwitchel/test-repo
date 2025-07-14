@@ -32,17 +32,14 @@ gh issue list --repo jwitchel/test-repo --search "Sprint 1"
 ## Project Structure
 
 ### Sprints and Milestones
-The project is organized into 7 sprints:
-- **Sprint 1**: Foundation Setup (Issues #4-7)
-- **Sprint 2**: Email Integration (Issues #8-12)
-- **Sprint 3**: Tone Analysis Engine (Issues #13-17)
-- **Sprint 4**: Draft Generation (Issues #18-21)
-- **Sprint 5**: Testing & Error Handling (Issues #22-24)
-- **Sprint 6**: Polish & Optimization (Issues #25-28)
-- **Sprint 7**: Production Readiness (Issues #29-33)
-
-### Additional Tasks
-- **Issue #35**: Relationship Categorization UI (added after initial sprint planning)
+The project is organized into 7 sprints indicated by the first number in the Task name (e.g. 1.3 is Sprint 1 Task 3).  Issue # is not an indicator of what sprint it's in:
+- **Sprint 1**: Foundation Setup 
+- **Sprint 2**: Email Integration
+- **Sprint 3**: Tone Analysis Engine
+- **Sprint 4**: Draft Generation 
+- **Sprint 5**: Testing & Error Handling
+- **Sprint 6**: Polish & Optimization 
+- **Sprint 7**: Production Readiness
 
 ## Important Configuration Notes
 - **Docker Ports** (non-standard to avoid conflicts):
@@ -95,7 +92,7 @@ gh issue create --repo jwitchel/test-repo --title "Task Title" --body "Task desc
 - **Email**: IMAP integration with node-imap
 
 ### Development Setup
-- Docker runs PostgreSQL and Redis only
+- Docker runs PostgreSQL, Redis, and the test mail server only
 - Next.js and Express run locally (not in Docker) for easier debugging
 - Authentication is centralized in Express API
 
@@ -132,7 +129,7 @@ git checkout -b task-X.X-description
 4. Merge to main after approval
 
 ### Task Completion Checklist
-1. Create feature branch (already documented)
+1. Confirm you're on a feature branch
 2. Complete all subtasks - mark with [x] in issue body
 3. Run validation commands before committing
 4. Commit with descriptive messages
@@ -209,11 +206,10 @@ git checkout -b task-X.X-description
 ```
 
 ## Notes for Future Sessions
-- The project uses GitHub Issues #4-35 for task tracking
-- All tasks are in the "Backlog" status initially
+- All new tasks should be assigned to the project and given the "Backlog" status initially
 - Each task has detailed subtasks, code examples, and acceptance criteria
-- Authentication architecture uses Option 1 (centralized in Express)
-- Real-time logging is emphasized throughout for debugging
+- Authentication architecture is centralized in Express
+- Real-time logging on a webpage using websockets is emphasized throughout for debugging
 - Always use shadcn/ui components for UI consistency
 - **GitHub CLI**: Remember `gh project list` does NOT accept --repo flag, only --owner
 - **Subtask Updates**: Always update subtasks in issue body, never use comments unless requested
