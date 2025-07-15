@@ -107,6 +107,30 @@ The project is organized into 7 sprints indicated by the first number in the Tas
 3. **Relationship System**: Category-based (not individual-based) with user-defined mappings
 4. **UI Components**: Always use shadcn/ui for consistency
 
+## UI Components (shadcn/ui)
+
+The project uses shadcn/ui with Tailwind CSS v4, Zinc base colors for neutral elements, and Indigo accent colors for primary actions. Components are initialized with oklch color values for better color accuracy.
+
+### Available Components
+- Button, Card, Input, Label, Alert (with success/info variants)
+- Accordion, Badge, Skeleton, Dialog, Form
+- Sonner (for toast notifications - replaces deprecated toast/toaster)
+
+### Toast Notifications
+Use the custom hook at `@/hooks/use-toast`:
+```typescript
+const { success, error, info } = useToast()
+```
+
+### Component Testing
+Visit `/components-test` to see all components in action.
+
+### Important Notes
+- Colors use oklch format due to Tailwind v4
+- Zinc color palette for grays/neutrals, Indigo for primary colors
+- Alert component has custom success and info variants
+- Toast notifications use Sonner with custom color overrides for success (green), error (red), and info (blue)
+
 ## Git Workflow
 
 ### CRITICAL: Authorship Rules
