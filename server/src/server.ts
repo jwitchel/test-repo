@@ -8,6 +8,14 @@ import { auth } from './lib/auth';
 // Load environment variables
 dotenv.config();
 
+// Validate required environment variables
+if (!process.env.ENCRYPTION_KEY) {
+  console.error('❌ ENCRYPTION_KEY environment variable is required');
+  console.error('   Please set ENCRYPTION_KEY in your .env file');
+  console.error('   Generate one with: openssl rand -base64 32');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3002;
 
