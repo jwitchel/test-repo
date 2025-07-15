@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth';
 
 // Load environment variables
@@ -44,18 +45,19 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
 }));
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
 // Request logging middleware
 app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
 
-// Better Auth routes - handles /auth/signup, /auth/signin, etc.
-app.use('/auth', auth.handler);
+// Better Auth routes - handles /api/auth/signup, /api/auth/signin, etc.
+// IMPORTANT: Don't use express.json() before better-auth
+app.all('/api/auth/*', toNodeHandler(auth));
+
+// Body parsing middleware (after better-auth)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -69,8 +71,16 @@ app.get('/health', (_req, res) => {
 // Protected route middleware
 export const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> => {
   try {
+    // Create a headers object that better-auth expects
+    const headers = new Headers();
+    Object.entries(req.headers).forEach(([key, value]) => {
+      if (value) {
+        headers.set(key, Array.isArray(value) ? value[0] : value);
+      }
+    });
+
     const session = await auth.api.getSession({
-      headers: req.headers as any, // Type cast to handle Headers vs IncomingHttpHeaders
+      headers: headers,
     });
 
     if (!session) {
@@ -93,7 +103,7 @@ import authRoutes from './routes/auth';
 import emailAccountRoutes from './routes/email-accounts';
 import toneProfileRoutes from './routes/tone-profile';
 
-app.use('/api/auth', authRoutes);
+app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
 app.use('/api/tone-profile', toneProfileRoutes);
 
@@ -132,7 +142,7 @@ process.on('SIGINT', () => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔐 Auth endpoints: http://localhost:${PORT}/auth/*`);
+  console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
 });
 
 export { app, pool, auth };

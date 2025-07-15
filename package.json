@@ -19,15 +19,18 @@
     "test:mail:stop": "docker-compose -f docker-compose.test.yml down",
     "test:mail:setup": "bash scripts/setup-test-accounts.sh",
     "test:mail:logs": "docker logs test-mailserver -f",
-    "test:mail:reset": "npm run test:mail:stop && rm -rf test-mail-data && npm run test:mail:start && npm run test:mail:setup"
+    "test:mail:reset": "npm run test:mail:stop && rm -rf test-mail-data && npm run test:mail:start && npm run test:mail:setup",
+    "create-test-users": "node scripts/create-test-users.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
+    "@noble/hashes": "^1.8.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "bcryptjs": "^3.0.2",
     "better-auth": "^1.2.12",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
