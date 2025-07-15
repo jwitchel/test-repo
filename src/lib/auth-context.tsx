@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
+import { createContext, useContext, useState, ReactNode } from 'react'
 import { authClient } from './auth-client'
 
 interface User {
@@ -8,8 +8,9 @@ interface User {
   email: string
   emailVerified?: boolean
   name?: string
-  createdAt?: string
-  updatedAt?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  image?: string | null
 }
 
 interface AuthContextType {
