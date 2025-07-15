@@ -1,10 +1,17 @@
 module.exports = {
+  preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: ['**/*.test.js'],
+  roots: ['<rootDir>/server/src'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.integration.test.ts'],
   testPathIgnorePatterns: ['/node_modules/', '/.next/'],
-  moduleFileExtensions: ['js', 'json'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   collectCoverageFrom: [
-    'src/**/*.js',
-    '!src/**/*.test.js'
-  ]
+    'server/src/**/*.{ts,tsx}',
+    '!server/src/**/*.d.ts',
+    '!server/src/**/*.test.ts',
+    '!server/src/**/*.integration.test.ts'
+  ],
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/server/src/$1'
+  }
 };
