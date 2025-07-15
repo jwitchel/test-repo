@@ -101,6 +101,29 @@ gh issue create --repo jwitchel/test-repo --title "Task Title" --body "Task desc
 3. **Relationship System**: Category-based (not individual-based) with user-defined mappings
 4. **UI Components**: Always use shadcn/ui for consistency
 
+## UI Components (shadcn/ui)
+
+The project uses shadcn/ui with Tailwind CSS v4 and the Neutral color theme. Components are initialized with oklch color values for better color accuracy.
+
+### Available Components
+- Button, Card, Input, Label, Alert (with success/info variants)
+- Accordion, Badge, Skeleton, Dialog, Form
+- Sonner (for toast notifications - replaces deprecated toast/toaster)
+
+### Toast Notifications
+Use the custom hook at `@/hooks/use-toast`:
+```typescript
+const { success, error, info } = useToast()
+```
+
+### Component Testing
+Visit `/components-test` to see all components in action.
+
+### Important Notes
+- Colors use oklch format due to Tailwind v4
+- Alert component has custom success and info variants
+- Toast notifications use Sonner instead of the deprecated toast component
+
 ## Git Workflow
 
 ### Branch Naming Convention

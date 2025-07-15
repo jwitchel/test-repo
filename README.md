@@ -52,6 +52,40 @@ docker compose down
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## UI Components
+
+This project uses [shadcn/ui](https://ui.shadcn.com/) components with the Neutral color theme. The following components are pre-installed and ready to use:
+
+- **Button** - Various button styles (default, secondary, destructive, outline, ghost, link)
+- **Card** - Container components with header, content, and footer sections
+- **Input** & **Label** - Form input elements
+- **Alert** - Notification alerts with default, success, info, and destructive variants
+- **Accordion** - Collapsible content sections
+- **Badge** - Small status indicators
+- **Skeleton** - Loading placeholder components
+- **Dialog** - Modal dialogs
+- **Form** - React Hook Form integration
+- **Sonner** - Toast notifications (replaces deprecated toast component)
+
+### Toast Notifications
+
+The project includes a custom toast hook for easy notifications:
+
+```typescript
+import { useToast } from "@/hooks/use-toast"
+
+const { success, error, info } = useToast()
+
+// Usage
+success("Operation completed!")
+error("Something went wrong!")
+info("Here's some information")
+```
+
+### Component Examples
+
+View all components in action by visiting `/components-test` when running the development server.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
