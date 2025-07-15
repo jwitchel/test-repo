@@ -3,6 +3,36 @@
 ## Project Overview
 This is an AI Email Assistant application that generates email reply drafts matching the user's personal writing tone. The project is managed through GitHub Issues and Projects.
 
+## Current Project State (End of Sprint 1)
+
+### ✅ What's Working
+- **Authentication System**: Full auth flow with better-auth
+  - Sign up, sign in, sign out functionality
+  - Protected routes with automatic redirects
+  - Session persistence with httpOnly cookies
+  - Cross-origin auth between Next.js (3001) and Express (3002)
+- **Frontend**: Next.js with TypeScript on port 3001
+- **Backend**: Express.js API on port 3002
+- **Database**: PostgreSQL on port 5434 (Docker)
+- **Cache**: Redis on port 6380 (Docker)
+- **UI Components**: shadcn/ui with Zinc/Indigo theme
+
+### 🚀 Quick Development Start
+```bash
+# Start Docker services
+docker compose up -d
+
+# Start both frontend and backend
+npm run dev:all
+
+# Create test users (if needed)
+npm run create-test-users
+```
+
+Test users available:
+- test1@example.com / password123
+- test2@example.com / password456
+
 ## GitHub CLI Reference
 
 **IMPORTANT**: The `gh project list` command does NOT accept --repo flag. Only use --owner flag.
@@ -65,7 +95,7 @@ gh project item-archive PROJECT_NUMBER --owner jwitchel --id ITEM_ID
 
 ### Sprints and Milestones
 The project is organized into 7 sprints indicated by the first number in the Task name (e.g. 1.3 is Sprint 1 Task 3).  Issue # is not an indicator of what sprint it's in:
-- **Sprint 1**: Foundation Setup 
+- **Sprint 1**: Foundation Setup ✅ COMPLETED
 - **Sprint 2**: Email Integration
 - **Sprint 3**: Tone Analysis Engine
 - **Sprint 4**: Draft Generation 
@@ -77,8 +107,11 @@ The project is organized into 7 sprints indicated by the first number in the Tas
 - **Docker Ports** (non-standard to avoid conflicts):
   - PostgreSQL: 5434 (instead of 5432)
   - Redis: 6380 (instead of 6379)
+- **Application Ports**:
+  - Next.js frontend: 3001 (instead of 3000)
+  - Express backend: 3002
 - Project structure: Next.js app at repository root (not in subdirectory)
-- Node.js dependencies already installed - run `npm install` after cloning
+- Express server in `/server` directory
 
 ## Working with Subtasks
 
@@ -100,12 +133,25 @@ The project is organized into 7 sprints indicated by the first number in the Tas
 - Docker runs PostgreSQL, Redis, and the test mail server (node-imap) only
 - Next.js and Express run locally (not in Docker) 
 - Authentication is centralized in Express API
+- Frontend and backend communicate via CORS-enabled API
 
 ### Important Architecture Notes
-1. **Authentication**: All auth handled by Express API using better-auth
-2. **Real-time Logging**: WebSocket connections for debugging IMAP, parsing, tone analysis
-3. **Relationship System**: Category-based (not individual-based) with user-defined mappings
-4. **UI Components**: Always use shadcn/ui for consistency
+1. **Authentication**: 
+   - All auth handled by Express API using better-auth
+   - Uses scrypt password hashing (from @noble/hashes)
+   - Session table requires: id, userId, expiresAt, token, createdAt, updatedAt, ipAddress, userAgent
+   - httpOnly cookies for security (no JWT)
+2. **Database**: 
+   - PostgreSQL with better-auth tables (user, account, session)
+   - Account table stores hashed passwords
+   - User table stores profile information
+3. **API Communication**:
+   - Frontend uses better-auth client library
+   - Automatic cookie handling for sessions
+   - CORS configured for localhost:3001 ↔ localhost:3002
+4. **Real-time Logging**: WebSocket connections for debugging IMAP, parsing, tone analysis
+5. **Relationship System**: Category-based (not individual-based) with user-defined mappings
+6. **UI Components**: Always use shadcn/ui for consistency
 
 ## UI Components (shadcn/ui)
 
@@ -147,8 +193,10 @@ Each task should create a feature branch:
 git checkout -b task-X.X-description
 # Examples:
 # task-1.1-nextjs-init
-# task-2.3-imap-integration
-# task-3.4-tone-api
+# task-1.2-docker-setup
+# task-1.3-shadcn-setup
+# task-1.4a-express-api
+# task-1.4b-auth-frontend
 ```
 
 ### Task Workflow
@@ -174,21 +222,46 @@ When completing tasks, always run:
 # Linting
 npm run lint
 
-# Type checking  
-npm run typecheck
+# Type checking (if available)
+npx tsc --noEmit
+
+# Server TypeScript check
+npm run server:build
 
 # Tests (if available)
 npm test
 ```
 
+## Common Issues and Solutions
+
+### Authentication Issues
+1. **Password hashing**: better-auth uses scrypt from @noble/hashes, not bcrypt
+2. **Session table**: Must have all required columns (see Architecture Notes)
+3. **CORS errors**: Ensure trustedOrigins includes both localhost:3001 and localhost:3002
+
+### Database Issues
+1. **Connection refused**: Check Docker is running and using port 5434
+2. **Missing tables**: better-auth auto-creates tables on first use
+3. **Test users**: Use `npm run create-test-users` script
+
+### Development Tips
+1. Use `npm run dev:all` to start both servers
+2. Check server logs in terminal for debugging
+3. Browser DevTools Network tab helps debug auth issues
+4. Clear cookies if session problems persist
+
 ## Project Files
-- **complete_project_plan.md**: Original master project specification document.  Some drift expected.
+- **README.md**: User-facing documentation with setup instructions
 - **CLAUDE.md**: This file - instructions for Claude
-- **.github/**: GitHub Actions workflows (when created)
-- **src/**: Source code directory 
+- **complete_project_plan.md**: Original master project specification document
+- **.env.example**: Template for environment variables
+- **docker-compose.yml**: Docker services configuration
+- **/scripts**: Utility scripts for development
 
 ## Notes for Future Sessions
 - All new tasks should be assigned to the project and given the "Backlog" status initially
 - Each task has detailed subtasks, code examples, and acceptance criteria
 - **GitHub CLI**: Remember `gh project list` does NOT accept --repo flag, only --owner
 - **Subtask Updates**: Always update subtasks in issue body, never use comments unless requested
+- **Authentication**: Full system working - use test users for development
+- **Validation**: Always run lint before committing

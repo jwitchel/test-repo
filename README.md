@@ -1,102 +1,214 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Email Assistant
 
-## Getting Started
+An AI-powered email assistant that generates email reply drafts matching your personal writing tone. Built with Next.js, Express.js, and better-auth.
 
-First, run the development server:
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ 
+- Docker and Docker Compose
+- PostgreSQL client (optional, for direct DB access)
+
+### Setup Instructions
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/jwitchel/test-repo.git
+   cd test-repo
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   cp .env.example .env.local
+   ```
+
+   Update `.env` with your values:
+   ```env
+   # Database (using Docker PostgreSQL on port 5434)
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5434/aiemaildb
+   
+   # Redis (using Docker Redis on port 6380)
+   REDIS_URL=redis://localhost:6380
+   
+   # Authentication
+   BETTER_AUTH_SECRET=your-secret-key-here
+   ENCRYPTION_KEY=your-encryption-key-here
+   
+   # API URL for frontend
+   NEXT_PUBLIC_API_URL=http://localhost:3002
+   ```
+
+4. **Start Docker services**
+   ```bash
+   docker compose up -d
+   ```
+   
+   This starts:
+   - PostgreSQL on port 5434 (non-standard to avoid conflicts)
+   - Redis on port 6380 (non-standard to avoid conflicts)
+
+5. **Initialize the database**
+   ```bash
+   npm run db:test
+   ```
+
+6. **Start the development servers**
+   ```bash
+   npm run dev:all
+   ```
+   
+   This runs:
+   - Next.js frontend on http://localhost:3001
+   - Express.js backend on http://localhost:3002
+
+7. **Create test users (optional)**
+   ```bash
+   npm run create-test-users
+   ```
+   
+   This creates:
+   - test1@example.com / password123
+   - test2@example.com / password456
+
+## 📁 Project Structure
+
+```
+test-repo/
+├── src/                    # Next.js frontend source
+│   ├── app/               # App router pages
+│   ├── components/        # React components
+│   ├── lib/              # Utilities and contexts
+│   └── hooks/            # Custom React hooks
+├── server/                # Express.js backend
+│   ├── src/              # Server source code
+│   │   ├── routes/       # API routes
+│   │   └── lib/          # Server utilities
+│   └── tsconfig.json     # Server TypeScript config
+├── scripts/               # Utility scripts
+├── docker-compose.yml     # Docker services config
+└── package.json          # Project dependencies
+```
+
+## 🛠️ Available Scripts
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Development
+npm run dev              # Start Next.js frontend (port 3001)
+npm run server          # Start Express backend (port 3002)
+npm run dev:all         # Start both frontend and backend
+
+# Docker & Database
+docker compose up -d     # Start PostgreSQL & Redis
+docker compose down      # Stop services
+npm run db:test         # Test database connection
+npm run create-test-users # Create test user accounts
+
+# Code Quality
+npm run lint            # Run ESLint
+npm run build          # Build Next.js for production
+npm run server:build   # Build Express server
+
+# Testing
+npm test               # Run tests (when available)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔑 Authentication
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The project uses [better-auth](https://www.better-auth.com/) for authentication with:
+- Email/password authentication
+- Secure httpOnly cookie sessions
+- Protected routes with automatic redirects
+- Cross-origin authentication between frontend (3001) and backend (3002)
 
-## Docker Setup
+### Authentication Flow
+1. User signs up/signs in at `/signup` or `/signin`
+2. Backend creates secure session cookie
+3. Protected routes (e.g., `/dashboard`) require authentication
+4. Unauthenticated users are redirected to sign in
 
-This project uses Docker for PostgreSQL and Redis. To start the services:
+## 🎨 UI Components
 
-```bash
-docker compose up -d
-```
+The project uses [shadcn/ui](https://ui.shadcn.com/) components with:
+- **Zinc** color palette for neutral elements
+- **Indigo** color palette for primary actions
+- Pre-configured components including Button, Card, Form, Alert, etc.
+- Toast notifications via custom `useToast()` hook
 
-**Note: Non-standard ports are used to avoid conflicts:**
-- PostgreSQL: Port `5434` (instead of default 5432)
-- Redis: Port `6380` (instead of default 6379)
+View all components at http://localhost:3001/components-test
 
-### Docker Commands
+## 📊 Current Project Status
 
-```bash
-# Start services
-docker compose up -d
+### ✅ Sprint 1 Completed
+- [x] Task 1.1: Next.js initialization with TypeScript
+- [x] Task 1.2: Docker setup (PostgreSQL, Redis) 
+- [x] Task 1.3: shadcn/ui component library setup
+- [x] Task 1.4a: Express.js API setup with better-auth
+- [x] Task 1.4b: Frontend authentication implementation
 
-# Check service health
-docker compose ps
+### 🚧 What's Working
+- Full authentication system (sign up, sign in, sign out)
+- Protected routes with session management
+- PostgreSQL database with better-auth tables
+- Express.js API server with CORS support
+- Next.js frontend with TypeScript
+- shadcn/ui components with custom theme
 
-# Test connections
-./test-docker.sh
+### 📋 What's Next
+- Sprint 2: Email Integration (IMAP setup, email account management)
+- Sprint 3: Tone Analysis Engine
+- Sprint 4: Draft Generation
+- Sprint 5: Testing & Error Handling
+- Sprint 6: Polish & Optimization
+- Sprint 7: Production Readiness
 
-# View logs
-docker compose logs postgres
-docker compose logs redis
+## 🐛 Troubleshooting
 
-# Stop services
-docker compose down
-```
+### Common Issues
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Port conflicts**
+   - PostgreSQL uses port 5434 (not standard 5432)
+   - Redis uses port 6380 (not standard 6379)
+   - Next.js uses port 3001 (not standard 3000)
+   - Express uses port 3002
 
-## UI Components
+2. **Database connection errors**
+   - Ensure Docker is running: `docker compose ps`
+   - Check logs: `docker compose logs postgres`
+   - Verify connection: `npm run db:test`
 
-This project uses [shadcn/ui](https://ui.shadcn.com/) components with Zinc base colors and Indigo accent colors. The following components are pre-installed and ready to use:
+3. **Authentication errors**
+   - Ensure both servers are running: `npm run dev:all`
+   - Check NEXT_PUBLIC_API_URL is set to http://localhost:3002
+   - Clear browser cookies if session issues persist
 
-- **Button** - Various button styles (default, secondary, destructive, outline, ghost, link)
-- **Card** - Container components with header, content, and footer sections
-- **Input** & **Label** - Form input elements
-- **Alert** - Notification alerts with default, success, info, and destructive variants
-- **Accordion** - Collapsible content sections
-- **Badge** - Small status indicators
-- **Skeleton** - Loading placeholder components
-- **Dialog** - Modal dialogs
-- **Form** - React Hook Form integration
-- **Sonner** - Toast notifications (replaces deprecated toast component)
+4. **Missing environment variables**
+   - Copy `.env.example` to both `.env` and `.env.local`
+   - Generate secure keys for BETTER_AUTH_SECRET and ENCRYPTION_KEY
+   - Ensure DATABASE_URL uses port 5434
 
-### Toast Notifications
+## 🏗️ Architecture Decisions
 
-The project includes a custom toast hook for easy notifications:
+- **Monorepo structure**: Frontend and backend in same repository
+- **Authentication**: Centralized in Express API using better-auth
+- **Database**: PostgreSQL for all data (no separate auth DB)
+- **Session management**: Secure httpOnly cookies (no JWT)
+- **Real-time updates**: WebSocket support planned for email sync
+- **Queue system**: BullMQ with Redis for background jobs
 
-```typescript
-import { useToast } from "@/hooks/use-toast"
+## 🤝 Contributing
 
-const { success, error, info } = useToast()
+This project uses GitHub Issues and Projects for task management. Each task:
+- Has a feature branch (e.g., `task-1.4b-auth-frontend`)
+- Includes detailed subtasks in the issue description
+- Requires PR review before merging to main
 
-// Usage
-success("Operation completed!")
-error("Something went wrong!")
-info("Here's some information")
-```
+## 📝 License
 
-### Component Examples
-
-View all components in action by visiting `/components-test` when running the development server.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private project - not for public distribution.
