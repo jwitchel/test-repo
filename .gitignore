@@ -55,3 +55,7 @@ next-env.d.ts
 # Docker volumes (if used locally)
 postgres_data/
 redis_data/
+
+# Test mail server data
+test-mail-data/
+test-mail-config/
