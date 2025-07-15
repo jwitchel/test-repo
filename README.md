@@ -54,7 +54,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## UI Components
 
-This project uses [shadcn/ui](https://ui.shadcn.com/) components with the Neutral color theme. The following components are pre-installed and ready to use:
+This project uses [shadcn/ui](https://ui.shadcn.com/) components with Zinc base colors and Indigo accent colors. The following components are pre-installed and ready to use:
 
 - **Button** - Various button styles (default, secondary, destructive, outline, ghost, link)
 - **Card** - Container components with header, content, and footer sections

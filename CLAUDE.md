@@ -103,7 +103,7 @@ gh issue create --repo jwitchel/test-repo --title "Task Title" --body "Task desc
 
 ## UI Components (shadcn/ui)
 
-The project uses shadcn/ui with Tailwind CSS v4 and the Neutral color theme. Components are initialized with oklch color values for better color accuracy.
+The project uses shadcn/ui with Tailwind CSS v4, Zinc base colors for neutral elements, and Indigo accent colors for primary actions. Components are initialized with oklch color values for better color accuracy.
 
 ### Available Components
 - Button, Card, Input, Label, Alert (with success/info variants)
@@ -121,8 +121,9 @@ Visit `/components-test` to see all components in action.
 
 ### Important Notes
 - Colors use oklch format due to Tailwind v4
+- Zinc color palette for grays/neutrals, Indigo for primary colors
 - Alert component has custom success and info variants
-- Toast notifications use Sonner instead of the deprecated toast component
+- Toast notifications use Sonner with custom color overrides for success (green), error (red), and info (blue)
 
 ## Git Workflow
 
