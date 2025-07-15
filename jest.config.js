@@ -13,5 +13,9 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/server/src/$1'
-  }
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(jose)/)'
+  ],
+  extensionsToTreatAsEsm: ['.ts']
 };
