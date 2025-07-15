@@ -21,6 +21,7 @@
 # production
 /build
 /dist/
+server/dist/
 
 # misc
 .DS_Store

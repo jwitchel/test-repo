@@ -8,6 +8,8 @@
     "start": "next start -p 3001",
     "lint": "next lint",
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "server": "nodemon server/src/server.ts",
     "server:build": "tsc -p server/tsconfig.json",
     "server:prod": "node server/dist/server.js",
