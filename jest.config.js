@@ -15,7 +15,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/server/src/$1'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(jose)/)'
+    'node_modules/(?!(jose|better-auth)/)'
   ],
   extensionsToTreatAsEsm: ['.ts']
 };
