@@ -22,7 +22,10 @@
     "test:mail:setup": "bash scripts/setup-test-accounts.sh",
     "test:mail:logs": "docker logs test-mailserver -f",
     "test:mail:reset": "npm run test:mail:stop && rm -rf test-mail-data && npm run test:mail:start && npm run test:mail:setup",
-    "create-test-users": "node scripts/create-test-users.js"
+    "create-test-users": "node scripts/create-test-users.js",
+    "seed": "node scripts/seed-test-data.js",
+    "seed:db": "node scripts/create-test-users.js",
+    "seed:mail": "bash scripts/setup-test-accounts.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
