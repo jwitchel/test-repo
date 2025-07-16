@@ -26,6 +26,7 @@
     "validate-extraction": "cd server && npx tsx src/lib/validate-extraction.ts",
     "inject-test-emails": "cd server && npx tsx src/lib/inject-test-emails.ts",
     "demo:websocket": "cd server && npx tsx src/scripts/demo-websocket-processing.ts",
+    "demo:pipeline": "cd server && npx tsx src/scripts/demo-highland-pipeline.ts",
     "seed": "node scripts/seed-test-data.js",
     "seed:db": "node scripts/create-test-users.js",
     "seed:mail": "bash scripts/setup-test-accounts.sh"
@@ -42,6 +43,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@types/cookie": "^0.6.0",
     "@types/email-reply-parser": "^1.4.2",
+    "@types/highland": "^2.13.0",
     "bcryptjs": "^3.0.2",
     "better-auth": "^1.2.12",
     "chalk": "^5.4.1",
@@ -52,6 +54,7 @@
     "dotenv": "^17.2.0",
     "email-reply-parser": "^2.0.1",
     "express": "^4.21.2",
+    "highland": "^2.13.5",
     "html-to-text": "^9.0.5",
     "imap": "^0.8.19",
     "kysely": "^0.28.2",
