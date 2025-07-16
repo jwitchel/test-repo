@@ -63,6 +63,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/imap": "^0.8.42",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.7",
     "@types/pg": "^8.15.4",

@@ -113,11 +113,13 @@ import authRoutes from './routes/auth';
 import emailAccountRoutes from './routes/email-accounts';
 import toneProfileRoutes from './routes/tone-profile';
 import mockImapRoutes, { stopAllMockClients } from './routes/mock-imap';
+import imapRoutes from './routes/imap';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
 app.use('/api/tone-profile', toneProfileRoutes);
 app.use('/api/mock-imap', mockImapRoutes);
+app.use('/api/imap', imapRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -139,12 +141,19 @@ const server = createServer(app);
 // Create WebSocket server for IMAP logs
 const wsServer = createImapLogsWebSocketServer(server);
 
+// Import IMAP pool for cleanup
+import { imapPool } from './lib/imap-pool';
+
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully');
   
   // Stop all mock IMAP clients
   stopAllMockClients();
+  
+  // Close IMAP connection pool
+  await imapPool.closeAll();
+  console.log('IMAP connection pool closed');
   
   // Close WebSocket server first
   await wsServer.close();
@@ -161,6 +170,10 @@ process.on('SIGINT', async () => {
   
   // Stop all mock IMAP clients
   stopAllMockClients();
+  
+  // Close IMAP connection pool
+  await imapPool.closeAll();
+  console.log('IMAP connection pool closed');
   
   // Close WebSocket server first
   await wsServer.close();
@@ -179,6 +192,7 @@ server.listen(PORT, () => {
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
   console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws/imap-logs`);
   console.log(`🎭 Mock IMAP API: http://localhost:${PORT}/api/mock-imap/*`);
+  console.log(`📧 IMAP API: http://localhost:${PORT}/api/imap/*`);
 });
 
 export { app, pool, auth, server, wsServer };
