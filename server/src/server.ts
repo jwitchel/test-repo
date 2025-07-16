@@ -4,6 +4,8 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth';
+import { createServer } from 'http';
+import { createImapLogsWebSocketServer } from './websocket/imap-logs';
 
 // Load environment variables
 dotenv.config();
@@ -110,10 +112,12 @@ export const requireAuth = async (req: express.Request, res: express.Response, n
 import authRoutes from './routes/auth';
 import emailAccountRoutes from './routes/email-accounts';
 import toneProfileRoutes from './routes/tone-profile';
+import mockImapRoutes, { stopAllMockClients } from './routes/mock-imap';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
 app.use('/api/tone-profile', toneProfileRoutes);
+app.use('/api/mock-imap', mockImapRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -129,17 +133,39 @@ app.use('*', (_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+// Create HTTP server
+const server = createServer(app);
+
+// Create WebSocket server for IMAP logs
+const wsServer = createImapLogsWebSocketServer(server);
+
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully');
+  
+  // Stop all mock IMAP clients
+  stopAllMockClients();
+  
+  // Close WebSocket server first
+  await wsServer.close();
+  
+  // Close database pool
   pool.end(() => {
     console.log('Database pool closed');
     process.exit(0);
   });
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('Received SIGINT, shutting down gracefully');
+  
+  // Stop all mock IMAP clients
+  stopAllMockClients();
+  
+  // Close WebSocket server first
+  await wsServer.close();
+  
+  // Close database pool
   pool.end(() => {
     console.log('Database pool closed');
     process.exit(0);
@@ -147,10 +173,12 @@ process.on('SIGINT', () => {
 });
 
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
+  console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws/imap-logs`);
+  console.log(`🎭 Mock IMAP API: http://localhost:${PORT}/api/mock-imap/*`);
 });
 
-export { app, pool, auth };
+export { app, pool, auth, server, wsServer };
