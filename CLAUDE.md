@@ -152,6 +152,11 @@ The project is organized into 7 sprints indicated by the first number in the Tas
 4. **Real-time Logging**: WebSocket connections for debugging IMAP, parsing, tone analysis
 5. **Relationship System**: Category-based (not individual-based) with user-defined mappings
 6. **UI Components**: Always use shadcn/ui for consistency
+7. **IMAP Implementation**: 
+   - Production-ready IMAP client with connection pooling
+   - Real-time operation logging via WebSocket
+   - Support for all major email providers
+   - Comprehensive error handling and retry logic
 
 ## UI Components (shadcn/ui)
 
@@ -230,7 +235,19 @@ npm run server:build
 
 # Tests (if available)
 npm test
+
+# Test IMAP with Docker email server
+npm run test:mail:start  # Start test email server
+npm run test:mail:setup  # Create test accounts
+npm test -- imap         # Run IMAP tests
 ```
+
+## IMAP Testing
+The project includes a Docker test email server for IMAP development:
+- Test accounts: user1@testmail.local, user2@testmail.local, user3@testmail.local
+- Password: testpass123
+- IMAP ports: 1143 (non-SSL), 1993 (SSL)
+- Real IMAP implementation with connection pooling and logging
 
 ## Common Issues and Solutions
 

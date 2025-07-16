@@ -8,40 +8,49 @@ import {
   EmailAccountResponse,
   ImapConnectionError 
 } from '../types/email-account';
+import { ImapOperations } from '../lib/imap-operations';
 
 const router = express.Router();
 
-// Mock IMAP connection test - will be implemented in Task 2.3
-async function testImapConnection(config: CreateEmailAccountRequest): Promise<void> {
-  // Simulate connection delay
-  await new Promise(resolve => setTimeout(resolve, 100));
+// Real IMAP connection test
+async function testImapConnection(
+  config: CreateEmailAccountRequest,
+  userId: string
+): Promise<void> {
+  // Create a temporary account config for testing
+  const tempAccount = {
+    id: 'temp-test',
+    userId,
+    email: config.email_address,
+    imapHost: config.imap_host,
+    imapPort: config.imap_port,
+    imapUsername: config.imap_username,
+    imapPasswordEncrypted: encryptPassword(config.imap_password),
+    imapSecure: config.imap_secure
+  };
+
+  const imapOps = new ImapOperations(tempAccount);
   
-  // For now, we'll mock the test using our test email server accounts
-  // This will be replaced with actual IMAP testing in Task 2.3
-  const testAccounts = [
-    'user1@testmail.local',
-    'user2@testmail.local',
-    'user3@testmail.local'
-  ];
-  
-  // Mock validation - accept test accounts and common email providers
-  const isTestAccount = testAccounts.includes(config.email_address.toLowerCase());
-  const isCommonProvider = ['gmail.com', 'outlook.com', 'yahoo.com'].some(domain => 
-    config.email_address.toLowerCase().endsWith(domain)
-  );
-  
-  if (!isTestAccount && !isCommonProvider) {
-    // Simulate unknown host error for other domains
-    throw new ImapConnectionError('Unknown host', 'ENOTFOUND');
+  try {
+    const success = await imapOps.testConnection();
+    
+    if (!success) {
+      throw new ImapConnectionError('Connection test failed', 'CONNECTION_FAILED');
+    }
+    
+    console.log(`IMAP connection test passed for ${config.email_address}`);
+  } catch (error: any) {
+    // Map common IMAP errors to our error types
+    if (error.code === 'AUTHENTICATIONFAILED' || error.message?.includes('Authentication')) {
+      throw new ImapConnectionError('Authentication failed', 'AUTHENTICATIONFAILED');
+    } else if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT' || error.message?.includes('connect')) {
+      throw new ImapConnectionError('Cannot connect to IMAP server', 'ENOTFOUND');
+    } else if (error.code === 'CONNECTION_FAILED') {
+      throw error;
+    } else {
+      throw new ImapConnectionError(`IMAP error: ${error.message}`, 'UNKNOWN');
+    }
   }
-  
-  // Simulate auth failure for test accounts with wrong password
-  if (isTestAccount && config.imap_password !== 'testpass123') {
-    throw new ImapConnectionError('Authentication failed', 'AUTHENTICATIONFAILED');
-  }
-  
-  // Connection successful
-  console.log(`IMAP connection test passed for ${config.email_address}`);
 }
 
 // Get user's email accounts
@@ -98,9 +107,9 @@ router.post('/', requireAuth, validateEmailAccount, async (req, res): Promise<vo
       return;
     }
     
-    // Test IMAP connection (mocked for now)
+    // Test IMAP connection
     try {
-      await testImapConnection(accountData);
+      await testImapConnection(accountData, userId);
     } catch (error) {
       if (error instanceof ImapConnectionError) {
         if (error.code === 'AUTHENTICATIONFAILED') {

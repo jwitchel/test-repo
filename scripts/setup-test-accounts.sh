@@ -8,8 +8,8 @@ sleep 10
 # Create test accounts
 echo "Creating test email accounts..."
 docker exec test-mailserver setup email add user1@testmail.local testpass123
-docker exec test-mailserver setup email add user2@testmail.local testpass123
-docker exec test-mailserver setup email add user3@testmail.local testpass123
+docker exec test-mailserver setup email add user2@testmail.local testpass456
+docker exec test-mailserver setup email add user3@testmail.local testpass789
 
 # Create IMAP folders
 echo "Creating IMAP folders..."

@@ -68,14 +68,20 @@ An AI-powered email assistant that generates email reply drafts matching your pe
    - Next.js frontend on http://localhost:3001
    - Express.js backend on http://localhost:3002
 
-7. **Create test users (optional)**
+7. **Seed test data (optional)**
    ```bash
-   npm run create-test-users
+   npm run seed
    ```
    
-   This creates:
-   - test1@example.com / password123
-   - test2@example.com / password456
+   This creates both database users and email accounts:
+   - user1@testmail.local / testpass123
+   - user2@testmail.local / testpass456
+   
+   Alternative commands:
+   ```bash
+   npm run seed:db    # Create only database test users
+   npm run seed:mail  # Create only email test accounts
+   ```
 
 ## 📁 Project Structure
 
@@ -105,10 +111,10 @@ npm run server          # Start Express backend (port 3002)
 npm run dev:all         # Start both frontend and backend
 
 # Docker & Database
-docker compose up -d     # Start PostgreSQL & Redis
-docker compose down      # Stop services
+docker compose up -d     # Start PostgreSQL, Redis & test mail server
+docker compose down      # Stop all services
 npm run db:test         # Test database connection
-npm run create-test-users # Create test user accounts
+npm run seed            # Create test users (DB + email accounts)
 
 # Code Quality
 npm run lint            # Run ESLint
