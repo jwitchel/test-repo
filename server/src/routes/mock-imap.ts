@@ -184,6 +184,13 @@ router.post('/scenario', requireAuth, async (req, res): Promise<void> => {
         });
         break;
 
+      case 'process-email':
+        await mockClient.simulateEmailProcessing();
+        res.json({ 
+          message: 'Simulated email processing with text extraction' 
+        });
+        break;
+
       default:
         res.status(400).json({ error: 'Invalid scenario' });
         return;

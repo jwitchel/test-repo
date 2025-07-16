@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -23,7 +23,8 @@ const TEST_SEQUENCES = {
 const SCENARIOS = {
   'new-email': 'New Email Notification',
   'connection-loss': 'Connection Loss',
-  'sync-folder': 'Sync Folder'
+  'sync-folder': 'Sync Folder',
+  'process-email': 'Process Sent Email'
 };
 
 export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
@@ -33,12 +34,7 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
   const [messageCount, setMessageCount] = useState(10);
   const { success, error: showError } = useToast();
 
-  // Check if mock operations are running on mount
-  useEffect(() => {
-    checkStatus();
-  }, [emailAccountId]);
-
-  const checkStatus = async () => {
+  const checkStatus = useCallback(async () => {
     try {
       const response = await fetch('http://localhost:3002/api/mock-imap/status', {
         credentials: 'include'
@@ -46,7 +42,10 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
       
       if (response.ok) {
         const data = await response.json();
-        const isActive = data.mockClients.some((client: any) => 
+        interface MockClient {
+          emailAccountId: string;
+        }
+        const isActive = data.mockClients.some((client: MockClient) => 
           client.emailAccountId === emailAccountId
         );
         setIsRunning(isActive);
@@ -54,7 +53,12 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
     } catch (err) {
       console.error('Failed to check status:', err);
     }
-  };
+  }, [emailAccountId]);
+
+  // Check if mock operations are running on mount
+  useEffect(() => {
+    checkStatus();
+  }, [emailAccountId, checkStatus]);
 
   const startOperations = async () => {
     setIsLoading(true);
@@ -76,7 +80,7 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
         const data = await response.json();
         showError(data.error || 'Failed to start operations');
       }
-    } catch (err) {
+    } catch {
       showError('Network error');
     } finally {
       setIsLoading(false);
@@ -100,7 +104,7 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
         const data = await response.json();
         showError(data.error || 'Failed to stop operations');
       }
-    } catch (err) {
+    } catch {
       showError('Network error');
     } finally {
       setIsLoading(false);
@@ -121,13 +125,13 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        await response.json();
         success(`Completed ${sequence} sequence`);
       } else {
         const data = await response.json();
         showError(data.error || 'Failed to run sequence');
       }
-    } catch (err) {
+    } catch {
       showError('Network error');
     } finally {
       setIsLoading(false);
@@ -137,7 +141,13 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
   const runScenario = async (scenario: string) => {
     setIsLoading(true);
     try {
-      const body: any = { 
+      interface ScenarioBody {
+        emailAccountId: string;
+        scenario: string;
+        folderName?: string;
+        messageCount?: number;
+      }
+      const body: ScenarioBody = { 
         emailAccountId,
         scenario 
       };
@@ -155,13 +165,13 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        success(data.message);
+        const result = await response.json();
+        success(result.message);
       } else {
         const data = await response.json();
         showError(data.error || 'Failed to run scenario');
       }
-    } catch (err) {
+    } catch {
       showError('Network error');
     } finally {
       setIsLoading(false);

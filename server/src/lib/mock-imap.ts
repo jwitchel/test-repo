@@ -1,4 +1,6 @@
 import { imapLogger, ImapLogger } from './imap-logger';
+import { emailProcessor, ProcessingContext } from './email-processor';
+import { testEmailGenerator } from './test-sent-emails';
 
 interface MockImapOperation {
   name: string;
@@ -255,6 +257,55 @@ export class MockImapClient {
       raw: `A021 FETCH 1:${messageCount} (FLAGS UID)`,
       response: `[Synced ${messageCount} messages]\nA021 OK Fetch completed.`,
       level: 'info'
+    });
+  }
+
+  // Simulate processing a sent email
+  async simulateEmailProcessing(): Promise<void> {
+    // Get a random test email
+    const testEmails = testEmailGenerator.generateTestEmails();
+    const randomEmail = testEmails[Math.floor(Math.random() * testEmails.length)];
+    
+    // Simulate fetching the email
+    await this.runOperation({
+      name: 'Fetch Sent Email',
+      duration: 200,
+      command: 'FETCH',
+      raw: `A030 FETCH ${Math.floor(Math.random() * 100) + 1} BODY[]`,
+      response: `* FETCH (BODY[] {${randomEmail.textContent.length}}\n[EMAIL CONTENT]\n)\nA030 OK Fetch completed.`,
+      level: 'info'
+    });
+    
+    // Process the email
+    const context: ProcessingContext = {
+      userId: this.userId,
+      emailAccountId: this.emailAccountId
+    };
+    
+    const parsedMail = testEmailGenerator.convertToParsedMail(randomEmail);
+    const processed = emailProcessor.processEmail(parsedMail as any, context);
+    
+    // Log the processing result
+    imapLogger.log(this.userId, {
+      userId: this.userId,
+      emailAccountId: this.emailAccountId,
+      level: 'info',
+      command: 'EMAIL_PROCESS_DEMO',
+      data: {
+        parsed: {
+          emailId: randomEmail.id,
+          category: randomEmail.category,
+          subject: randomEmail.subject,
+          originalLength: processed.originalPlainLength,
+          extractedLength: processed.userTextPlain.length,
+          extractedText: processed.userTextPlain,
+          expectedText: randomEmail.expectedExtraction,
+          reductionPercentage: processed.originalPlainLength > 0
+            ? Math.round((1 - processed.userTextPlain.length / processed.originalPlainLength) * 100)
+            : 0,
+          isCorrect: processed.userTextPlain === randomEmail.expectedExtraction
+        }
+      }
     });
   }
 }
