@@ -123,7 +123,12 @@ export class ReplyExtractor {
         { selector: 'p', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
         { selector: 'br', options: { leadingLineBreaks: 1 } },
         { selector: 'div', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
-        { selector: 'h1,h2,h3,h4,h5,h6', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
+        { selector: 'h1', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
+        { selector: 'h2', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
+        { selector: 'h3', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
+        { selector: 'h4', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
+        { selector: 'h5', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
+        { selector: 'h6', options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
         // Remove images alt text as they're not user content
         { selector: 'img', format: 'skip' },
         // Preserve link text but not URLs
