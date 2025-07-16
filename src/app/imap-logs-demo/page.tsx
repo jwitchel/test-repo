@@ -23,7 +23,7 @@ const DEMO_ACCOUNT_ID = 'demo-account-001'
 
 export default function ImapLogsDemoPage() {
   const { } = useAuth()
-  const { error: showError } = useToast()
+  const { } = useToast()
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string>(DEMO_ACCOUNT_ID)
   const [, setIsLoading] = useState(true)

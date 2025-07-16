@@ -18,7 +18,7 @@ interface ImapLogEntry {
   command: string;
   data: {
     raw?: string;
-    parsed?: any;
+    parsed?: unknown;
     response?: string;
     duration?: number;
     error?: string;
@@ -31,6 +31,8 @@ interface ImapLogViewerProps {
 }
 
 export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps) {
+  // TODO: Use emailAccountId to filter logs for specific email account
+  console.log('Viewing logs for account:', emailAccountId);
   const [logs, setLogs] = useState<ImapLogEntry[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -248,7 +250,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
               <div className="mt-2 text-sm">
                 <p>Troubleshooting tips:</p>
                 <ul className="list-disc list-inside mt-1">
-                  <li>Ensure you're signed in to your account</li>
+                  <li>Ensure you&apos;re signed in to your account</li>
                   <li>Check that the backend server is running on port 3002</li>
                   <li>Try refreshing the page</li>
                 </ul>
@@ -289,7 +291,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
 
                   {/* Column 2: Parsed (4 cols) */}
                   <div className="col-span-4">
-                    {log.data.parsed && (
+                    {log.data.parsed !== undefined && log.data.parsed !== null && (
                       <>
                         <span className="text-zinc-500">Parsed:</span>
                         <pre className="bg-zinc-50 dark:bg-zinc-900 p-1 rounded overflow-x-auto mt-0.5 text-[10px]">

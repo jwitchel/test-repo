@@ -205,8 +205,23 @@ View all components at http://localhost:3001/components-test
 - **Authentication**: Centralized in Express API using better-auth
 - **Database**: PostgreSQL for all data (no separate auth DB)
 - **Session management**: Secure httpOnly cookies (no JWT)
-- **Real-time updates**: WebSocket support planned for email sync
+- **Real-time updates**: WebSocket support for email processing logs
 - **Queue system**: BullMQ with Redis for background jobs
+- **Email parsing**: Uses [email-reply-parser](https://github.com/crisp-oss/email-reply-parser) for extracting user content
+- **HTML conversion**: Uses [html-to-text](https://www.npmjs.com/package/html-to-text) for reliable HTML parsing
+
+## 🔌 Real-time Features
+
+### WebSocket Integration
+The application includes real-time logging for email processing operations through WebSocket connections. This provides immediate visibility into:
+
+- IMAP operations (connect, login, fetch, etc.)
+- Email parsing and text extraction
+- Processing metrics and performance data
+
+For detailed information about the WebSocket architecture and integration, see [server/src/websocket/INTEGRATION.md](server/src/websocket/INTEGRATION.md).
+
+**Demo Page**: Visit http://localhost:3001/imap-logs-demo after signing in to see the real-time logging in action.
 
 ## 🤝 Contributing
 
