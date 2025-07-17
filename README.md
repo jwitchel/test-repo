@@ -53,6 +53,7 @@ An AI-powered email assistant that generates email reply drafts matching your pe
    This starts:
    - PostgreSQL on port 5434 (non-standard to avoid conflicts)
    - Redis on port 6380 (non-standard to avoid conflicts)
+   - Qdrant on ports 6333/6334 (vector database for tone learning)
 
 5. **Initialize the database**
    ```bash
@@ -96,6 +97,7 @@ test-repo/
 │   ├── src/              # Server source code
 │   │   ├── routes/       # API routes
 │   │   └── lib/          # Server utilities
+│   │       └── vector/   # Vector services (embeddings, Qdrant)
 │   └── tsconfig.json     # Server TypeScript config
 ├── scripts/               # Utility scripts
 ├── docker-compose.yml     # Docker services config
@@ -111,10 +113,17 @@ npm run server          # Start Express backend (port 3002)
 npm run dev:all         # Start both frontend and backend
 
 # Docker & Database
-docker compose up -d     # Start PostgreSQL, Redis & test mail server
+docker compose up -d     # Start PostgreSQL, Redis, Qdrant & test mail server
 docker compose down      # Stop all services
 npm run db:test         # Test database connection
 npm run seed            # Create test users (DB + email accounts)
+
+# Qdrant Vector Database
+npm run qdrant:up       # Start Qdrant container
+npm run qdrant:down     # Stop Qdrant container
+npm run qdrant:logs     # View Qdrant logs
+npm run qdrant:reset    # Reset Qdrant data
+npm run test:vector     # Test vector services
 
 # Code Quality
 npm run lint            # Run ESLint
@@ -209,6 +218,7 @@ View all components at http://localhost:3001/components-test
 - **Queue system**: BullMQ with Redis for background jobs
 - **Email parsing**: Uses [email-reply-parser](https://github.com/crisp-oss/email-reply-parser) for extracting user content
 - **HTML conversion**: Uses [html-to-text](https://www.npmjs.com/package/html-to-text) for reliable HTML parsing
+- **Vector storage**: Qdrant database with relationship-aware search - see [Vector Services Documentation](server/src/lib/vector/README.md)
 
 ## 🔌 Real-time Features
 
