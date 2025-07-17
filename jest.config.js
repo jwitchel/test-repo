@@ -12,10 +12,12 @@ module.exports = {
     '!server/src/**/*.integration.test.ts'
   ],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/server/src/$1'
+    '^@/(.*)$': '<rootDir>/server/src/$1',
+    '^@xenova/transformers$': '<rootDir>/__mocks__/@xenova/transformers.js',
+    '^@qdrant/js-client-rest$': '<rootDir>/__mocks__/@qdrant/js-client-rest.js'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(jose|better-auth|@xenova/transformers)/)'
+    'node_modules/(?!(jose|better-auth)/)'
   ],
   extensionsToTreatAsEsm: ['.ts']
 };

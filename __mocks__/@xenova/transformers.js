@@ -1,8 +1,8 @@
 // Mock implementation of @xenova/transformers for testing
 
-export const pipeline = jest.fn().mockImplementation(async (task: string, model: string) => {
+exports.pipeline = jest.fn().mockImplementation(async (task, model) => {
   // Return a mock pipeline function
-  return async (text: string, options?: any) => {
+  return async (text, options) => {
     // Add small delay to simulate processing
     await new Promise(resolve => setImmediate(resolve));
     

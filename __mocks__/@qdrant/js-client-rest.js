@@ -1,16 +1,8 @@
 // Mock implementation of Qdrant client for testing
 
-interface MockPoint {
-  id: number | string;
-  vector: number[];
-  payload: any;
-}
-
-export class QdrantClient {
-  private collections: Map<string, MockPoint[]> = new Map();
-  
-  constructor(config?: any) {
-    // Mock constructor
+class QdrantClient {
+  constructor(config) {
+    this.collections = new Map();
   }
   
   async getCollections() {
@@ -19,12 +11,12 @@ export class QdrantClient {
     };
   }
   
-  async createCollection(name: string, config: any) {
+  async createCollection(name, config) {
     this.collections.set(name, []);
     return { status: 'ok' };
   }
   
-  async getCollection(name: string) {
+  async getCollection(name) {
     const points = this.collections.get(name) || [];
     return {
       points_count: points.length,
@@ -41,7 +33,7 @@ export class QdrantClient {
     };
   }
   
-  async upsert(collectionName: string, { points }: { points: MockPoint[] }) {
+  async upsert(collectionName, { points }) {
     const collection = this.collections.get(collectionName) || [];
     
     for (const point of points) {
@@ -57,16 +49,16 @@ export class QdrantClient {
     return { status: 'ok' };
   }
   
-  async search(collectionName: string, params: any) {
+  async search(collectionName, params) {
     const collection = this.collections.get(collectionName) || [];
-    const results: any[] = [];
+    const results = [];
     
     // Simple mock search - filter by payload conditions and return all matching
     for (const point of collection) {
       let matches = true;
       
       // Check filter conditions
-      if (params.filter?.must) {
+      if (params.filter && params.filter.must) {
         for (const condition of params.filter.must) {
           if (condition.key === 'userId' && point.payload.userId !== condition.match.value) {
             matches = false;
@@ -138,14 +130,14 @@ export class QdrantClient {
     return results.slice(0, params.limit || 10);
   }
   
-  async scroll(collectionName: string, params: any) {
+  async scroll(collectionName, params) {
     const collection = this.collections.get(collectionName) || [];
-    const points: any[] = [];
+    const points = [];
     
     for (const point of collection) {
       let matches = true;
       
-      if (params.filter?.must) {
+      if (params.filter && params.filter.must) {
         for (const condition of params.filter.must) {
           if (condition.key === 'userId' && point.payload.userId !== condition.match.value) {
             matches = false;
@@ -171,12 +163,12 @@ export class QdrantClient {
     };
   }
   
-  async retrieve(collectionName: string, { ids }: { ids: (string | number)[] }) {
+  async retrieve(collectionName, { ids }) {
     const collection = this.collections.get(collectionName) || [];
     return collection.filter(point => ids.includes(point.id));
   }
   
-  async setPayload(collectionName: string, { points, payload }: any) {
+  async setPayload(collectionName, { points, payload }) {
     const collection = this.collections.get(collectionName) || [];
     
     for (const pointId of points) {
@@ -189,10 +181,10 @@ export class QdrantClient {
     return { status: 'ok' };
   }
   
-  async delete(collectionName: string, params: any) {
+  async delete(collectionName, params) {
     const collection = this.collections.get(collectionName) || [];
     const filtered = collection.filter(point => {
-      if (params.filter?.must) {
+      if (params.filter && params.filter.must) {
         for (const condition of params.filter.must) {
           if (condition.key === 'userId' && point.payload.userId === condition.match.value) {
             return false; // Delete this point
@@ -206,3 +198,5 @@ export class QdrantClient {
     return { status: 'ok' };
   }
 }
+
+exports.QdrantClient = QdrantClient;

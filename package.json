@@ -34,7 +34,8 @@
     "qdrant:reset": "docker compose down qdrant && rm -rf qdrant_storage && docker compose up -d qdrant",
     "seed:db": "node scripts/create-test-users.js",
     "seed:mail": "bash scripts/setup-test-accounts.sh",
-    "test:vector": "cd server && npx tsx src/scripts/test-vector-services.ts"
+    "test:vector": "cd server && npx tsx src/scripts/test-vector-services.ts",
+    "test:vector:comprehensive": "cd server && npx tsx src/scripts/comprehensive-vector-test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
