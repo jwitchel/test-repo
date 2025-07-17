@@ -15,7 +15,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/server/src/$1'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(jose|better-auth)/)'
+    'node_modules/(?!(jose|better-auth|@xenova/transformers)/)'
   ],
   extensionsToTreatAsEsm: ['.ts']
 };
