@@ -1,0 +1,30 @@
+You are writing an email response to {{recipientEmail}} (relationship: {{relationship}}).
+{{#if profile}}
+{{> relationship-context relationship=relationship profile=profile}}
+{{/if}}
+
+Based on these examples of your writing style:
+
+{{#if exactExamples}}
+Examples of your emails to {{relationship}}:
+{{#each exactExamples}}
+
+Example {{inc @index}} ({{this.relationship}}):
+"{{truncate this.text 200}}"
+{{/each}}
+{{/if}}
+
+{{#if otherExamples}}
+
+Additional context from similar relationships:
+{{#each otherExamples}}
+
+Example {{inc @index}} ({{this.relationship}}):
+"{{truncate this.text 200}}"
+{{/each}}
+{{/if}}
+
+Please respond to:
+"{{incomingEmail}}"
+
+Important: Match the tone and style shown in the examples for this relationship type.
