@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { EmailIngestPipeline, ProcessedEmail } from './email-ingest-pipeline';
+import { EmailIngestPipeline } from './email-ingest-pipeline';
 import { ExampleSelector } from './example-selector';
 import { PromptFormatter } from './prompt-formatter';
-import { extractEmailFeatures } from './types';
+import { extractEmailFeatures, ProcessedEmail } from './types';
 
 // Mock implementations for testing without dependencies
 class MockVectorStore {
@@ -109,13 +109,18 @@ async function testPipelineWithMocks() {
     );
 
     const testEmail: ProcessedEmail = {
+      uid: 'test-uid-1',
       messageId: 'test-email-1',
-      to: ['friend@gmail.com'],
-      toName: 'John Doe',
+      inReplyTo: null,
+      date: new Date(),
+      from: [{ address: 'user@example.com', name: 'Test User' }],
+      to: [{ address: 'friend@gmail.com', name: 'John Doe' }],
+      cc: [],
+      bcc: [],
       subject: 'Re: Lunch tomorrow?',
-      date: new Date().toISOString(),
-      extractedText: "Sounds great! Let's meet at noon at our usual spot.",
-      responseTime: 60
+      textContent: "Sounds great! Let's meet at noon at our usual spot.",
+      htmlContent: null,
+      extractedText: "Sounds great! Let's meet at noon at our usual spot."
     };
 
     // Process single email
@@ -135,20 +140,32 @@ async function testPipelineWithMocks() {
     console.log('3️⃣ Testing batch processing...');
     const batchEmails: ProcessedEmail[] = [
       {
+        uid: 'batch-uid-1',
         messageId: 'batch-1',
-        to: ['spouse@gmail.com'],
+        inReplyTo: null,
+        date: new Date(),
+        from: [{ address: 'user@example.com', name: 'Test User' }],
+        to: [{ address: 'spouse@gmail.com', name: 'Spouse' }],
+        cc: [],
+        bcc: [],
         subject: 'Re: Groceries',
-        date: new Date().toISOString(),
-        extractedText: "I'll pick up milk on my way home. Love you!",
-        responseTime: 15
+        textContent: "I'll pick up milk on my way home. Love you!",
+        htmlContent: null,
+        extractedText: "I'll pick up milk on my way home. Love you!"
       },
       {
+        uid: 'batch-uid-2',
         messageId: 'batch-2',
-        to: ['boss@company.com'],
+        inReplyTo: null,
+        date: new Date(),
+        from: [{ address: 'user@example.com', name: 'Test User' }],
+        to: [{ address: 'boss@company.com', name: 'Boss' }],
+        cc: [],
+        bcc: [],
         subject: 'Re: Q3 Report',
-        date: new Date().toISOString(),
-        extractedText: "I've completed the analysis. The report is attached for your review.",
-        responseTime: 240
+        textContent: "I've completed the analysis. The report is attached for your review.",
+        htmlContent: null,
+        extractedText: "I've completed the analysis. The report is attached for your review."
       }
     ];
 

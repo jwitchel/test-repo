@@ -1,4 +1,46 @@
-// Temporary type definitions until the actual modules are implemented
+// Type definitions for the tone learning pipeline
+
+export interface ProcessedEmail {
+  uid: string;
+  messageId: string;
+  inReplyTo: string | null;
+  date: Date;
+  from: Array<{ address: string; name?: string }>;
+  to: Array<{ address: string; name?: string }>;
+  cc: Array<{ address: string; name?: string }>;
+  bcc: Array<{ address: string; name?: string }>;
+  subject: string;
+  textContent: string | null;
+  htmlContent: string | null;
+  extractedText: string;
+  relationship?: {
+    type: string;
+    confidence: number;
+    detectionMethod: string;
+  };
+}
+
+export interface GeneratedDraft {
+  id: string;
+  userId: string;
+  incomingEmailId: string;
+  recipientEmail: string;
+  subject: string;
+  body: string;
+  relationship: {
+    type: string;
+    confidence: number;
+    detectionMethod: string;
+  };
+  examplesUsed: string[];
+  metadata: {
+    promptTemplate: string;
+    exampleCount: number;
+    diversityScore?: number;
+    timestamp: string;
+  };
+  createdAt: Date;
+}
 
 export interface EmailFeatures {
   relationshipHints: {

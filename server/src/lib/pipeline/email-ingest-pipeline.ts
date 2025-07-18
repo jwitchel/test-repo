@@ -1,17 +1,7 @@
-import { extractEmailFeatures } from './types';
+import { extractEmailFeatures, ProcessedEmail } from './types';
 import { VectorStore } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
-
-export interface ProcessedEmail {
-  messageId: string;
-  to: string[];
-  toName?: string;
-  subject: string;
-  date: string;
-  extractedText: string;
-  responseTime?: number;
-}
 
 export interface BatchResult {
   success: number;
@@ -110,22 +100,34 @@ export class EmailIngestPipeline {
   async processEmail(userId: string, email: ProcessedEmail) {
     // Extract NLP features
     const features = extractEmailFeatures(email.extractedText, {
-      email: email.to[0],
-      name: email.toName
+      email: email.to[0]?.address || '',
+      name: email.to[0]?.name || ''
     });
     
-    // Detect relationship
-    const relationship = await this.relationshipDetector.detectRelationship({
-      userId,
-      recipientEmail: email.to[0],
-      subject: email.subject,
-      historicalContext: {
-        familiarityLevel: features.relationshipHints.familiarityLevel,
-        hasIntimacyMarkers: features.relationshipHints.intimacyMarkers.length > 0,
-        hasProfessionalMarkers: features.relationshipHints.professionalMarkers.length > 0,
-        formalityScore: features.stats.formalityScore
-      }
-    });
+    // Detect relationship - use existing relationship if provided (e.g., from test data)
+    let relationship: { relationship: string; confidence: number; method: string };
+    
+    if (email.relationship?.type) {
+      // Use the relationship from the email if it's already set
+      relationship = {
+        relationship: email.relationship.type,
+        confidence: email.relationship.confidence,
+        method: email.relationship.detectionMethod
+      };
+    } else {
+      // Otherwise, detect it
+      relationship = await this.relationshipDetector.detectRelationship({
+        userId,
+        recipientEmail: email.to[0]?.address || '',
+        subject: email.subject,
+        historicalContext: {
+          familiarityLevel: features.relationshipHints.familiarityLevel,
+          hasIntimacyMarkers: features.relationshipHints.intimacyMarkers.length > 0,
+          hasProfessionalMarkers: features.relationshipHints.professionalMarkers.length > 0,
+          formalityScore: features.stats.formalityScore
+        }
+      });
+    }
     
     // Generate embedding
     const { vector } = await this.embeddingService.embedText(email.extractedText);
@@ -139,9 +141,9 @@ export class EmailIngestPipeline {
         emailId: email.messageId,
         userId,
         extractedText: email.extractedText,
-        recipientEmail: email.to[0],
+        recipientEmail: email.to[0]?.address || '',
         subject: email.subject,
-        sentDate: email.date,
+        sentDate: email.date.toISOString(),
         features,
         relationship: {
           type: relationship.relationship,
@@ -149,8 +151,7 @@ export class EmailIngestPipeline {
           detectionMethod: relationship.method
         },
         frequencyScore: 1,
-        wordCount: features.stats.wordCount,
-        responseTimeMinutes: email.responseTime
+        wordCount: features.stats.wordCount
       }
     });
     

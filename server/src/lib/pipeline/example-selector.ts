@@ -181,19 +181,13 @@ export class ExampleSelector {
   
   private getAdjacentRelationships(relationship: string): string[] {
     const adjacencyMap: Record<string, string[]> = {
-      'spouse': ['family', 'close_friends'],
-      'family': ['spouse', 'close_friends'],
-      'close_friends': ['friends', 'family'],
-      'friends': ['close_friends', 'colleagues'],
-      'colleagues': ['friends', 'external'],
-      'manager': ['colleagues', 'external'],
-      'reports': ['colleagues', 'external'],
-      'clients': ['external', 'colleagues'],
-      'investors': ['clients', 'external'],
-      'external': ['colleagues', 'clients']
+      'spouse': ['friend', 'colleague'],
+      'friend': ['spouse', 'colleague'],
+      'colleague': ['friend', 'professional'],
+      'professional': ['colleague', 'friend']
     };
     
-    return adjacencyMap[relationship] || ['external'];
+    return adjacencyMap[relationship] || [];
   }
 
   private groupByFormality(candidates: EmailVector[]): Record<string, EmailVector[]> {

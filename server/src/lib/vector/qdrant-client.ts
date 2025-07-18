@@ -187,7 +187,7 @@ export class VectorStore {
     await this.initialize();
 
     const limit = params.limit || parseInt(process.env.VECTOR_SEARCH_LIMIT || '50');
-    const scoreThreshold = params.scoreThreshold || parseFloat(process.env.VECTOR_SCORE_THRESHOLD || '0.7');
+    const scoreThreshold = params.scoreThreshold || parseFloat(process.env.VECTOR_SCORE_THRESHOLD || '0.3');
 
     // Build filter conditions
     const must: any[] = [

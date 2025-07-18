@@ -42,7 +42,12 @@
     "test:templates": "cd server && npx tsx src/lib/pipeline/test-templates.ts",
     "test:qdrant": "npx tsx server/src/lib/pipeline/test-qdrant-connection.ts",
     "test:unit": "jest --config jest.config.unit.js",
-    "test:integration": "jest --config jest.config.integration.js"
+    "test:integration": "jest --config jest.config.integration.js",
+    "tone:load": "cd server && npx tsx src/lib/pipeline/test-data-loader.ts load",
+    "tone:clear": "cd server && npx tsx src/lib/pipeline/test-data-loader.ts clear",
+    "tone:reset": "cd server && npx tsx src/lib/pipeline/test-data-loader.ts reset",
+    "tone:demo": "cd server && npx tsx src/lib/pipeline/tone-learning-orchestrator.ts",
+    "tone:e2e": "cd server && npx tsx src/lib/pipeline/test-e2e-flow.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",

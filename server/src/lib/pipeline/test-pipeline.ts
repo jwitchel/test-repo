@@ -4,7 +4,8 @@ import { EmbeddingService } from '../vector/embedding-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
 import { RelationshipService } from '../relationships/relationship-service';
 import { ExampleSelector } from './example-selector';
-import { EmailIngestPipeline, ProcessedEmail } from './email-ingest-pipeline';
+import { EmailIngestPipeline } from './email-ingest-pipeline';
+import { ProcessedEmail } from './types';
 
 async function testPipeline() {
   console.log('🚀 Testing Pipeline Components\n');
@@ -42,31 +43,46 @@ async function testPipeline() {
     // Create sample emails
     const sampleEmails: ProcessedEmail[] = [
       {
+        uid: 'test-uid-1',
         messageId: 'test-1',
-        to: ['wife@gmail.com'],
-        toName: 'Sarah',
+        inReplyTo: null,
+        date: new Date(),
+        from: [{ address: 'john@example.com', name: 'John' }],
+        to: [{ address: 'wife@gmail.com', name: 'Sarah' }],
+        cc: [],
+        bcc: [],
         subject: 'Re: Dinner tonight?',
-        date: new Date().toISOString(),
-        extractedText: "Hey honey! I'll be home by 7pm. Love you!",
-        responseTime: 30
+        textContent: "Hey honey! I'll be home by 7pm. Love you!",
+        htmlContent: null,
+        extractedText: "Hey honey! I'll be home by 7pm. Love you!"
       },
       {
+        uid: 'test-uid-2',
         messageId: 'test-2',
-        to: ['mike@techcorp.com'],
-        toName: 'Mike Johnson',
+        inReplyTo: null,
+        date: new Date(),
+        from: [{ address: 'john@example.com', name: 'John' }],
+        to: [{ address: 'mike@techcorp.com', name: 'Mike Johnson' }],
+        cc: [],
+        bcc: [],
         subject: 'Re: Project update',
-        date: new Date().toISOString(),
-        extractedText: "Hi Mike, I've reviewed the proposal and it looks good. Let's schedule a meeting to discuss next steps.",
-        responseTime: 120
+        textContent: "Hi Mike, I've reviewed the proposal and it looks good. Let's schedule a meeting to discuss next steps.",
+        htmlContent: null,
+        extractedText: "Hi Mike, I've reviewed the proposal and it looks good. Let's schedule a meeting to discuss next steps."
       },
       {
+        uid: 'test-uid-3',
         messageId: 'test-3',
-        to: ['alex@gmail.com'],
-        toName: 'Alex',
+        inReplyTo: null,
+        date: new Date(),
+        from: [{ address: 'john@example.com', name: 'John' }],
+        to: [{ address: 'alex@gmail.com', name: 'Alex' }],
+        cc: [],
+        bcc: [],
         subject: 'Re: Weekend plans',
-        date: new Date().toISOString(),
-        extractedText: "Hey dude! Yeah, I'm totally up for hiking on Saturday. What time works for you?",
-        responseTime: 45
+        textContent: "Hey dude! Yeah, I'm totally up for hiking on Saturday. What time works for you?",
+        htmlContent: null,
+        extractedText: "Hey dude! Yeah, I'm totally up for hiking on Saturday. What time works for you?"
       }
     ];
 
