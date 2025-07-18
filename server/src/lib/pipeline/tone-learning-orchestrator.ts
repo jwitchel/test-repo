@@ -49,7 +49,11 @@ export class ToneLearningOrchestrator {
       this.vectorStore,
       this.embeddingService,
       this.relationshipDetector,
-      { batchSize: 50, parallelism: 5, errorThreshold: 0.1 }
+      { 
+        batchSize: parseInt(process.env.PIPELINE_BATCH_SIZE || '100'),
+        parallelism: parseInt(process.env.PIPELINE_PARALLELISM || '5'),
+        errorThreshold: parseFloat(process.env.PIPELINE_ERROR_THRESHOLD || '0.1')
+      }
     );
     this.testDataLoader = new TestDataLoader();
   }
@@ -97,7 +101,7 @@ export class ToneLearningOrchestrator {
     
     const {
       userId,
-      maxExamples = 5,
+      maxExamples = parseInt(process.env.EXAMPLE_COUNT || '25'),
       templateName = 'default',
       verbose = false
     } = config;
