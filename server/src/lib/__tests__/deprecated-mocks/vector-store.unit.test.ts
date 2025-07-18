@@ -6,8 +6,58 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Mock both external dependencies
-jest.mock('@xenova/transformers');
-jest.mock('@qdrant/js-client-rest');
+jest.mock('@xenova/transformers', () => ({
+  pipeline: jest.fn().mockResolvedValue({
+    call: jest.fn().mockResolvedValue({
+      data: new Float32Array(384).fill(0.1)
+    })
+  })
+}));
+jest.mock('@qdrant/js-client-rest', () => ({
+  QdrantClient: jest.fn().mockImplementation(() => ({
+    getCollections: jest.fn().mockResolvedValue({
+      collections: []
+    }),
+    createCollection: jest.fn().mockResolvedValue({}),
+    getCollection: jest.fn().mockResolvedValue({
+      name: 'user-emails',
+      points_count: 0,
+      indexed_vectors_count: 0,
+      status: 'green',
+      config: {
+        params: {
+          vectors: {
+            size: 384,
+            distance: 'Cosine'
+          }
+        }
+      }
+    }),
+    upsert: jest.fn().mockResolvedValue({}),
+    search: jest.fn().mockImplementation((collection, params) => {
+      // Simple mock search implementation
+      const results = [];
+      if (params.score_threshold && params.score_threshold > 0.9) {
+        return Promise.resolve(results);
+      }
+      results.push({
+        id: 1,
+        score: 0.95,
+        payload: {
+          originalId: 'test-id',
+          userId: params.filter?.must?.[0]?.match?.value || 'test-user',
+          extractedText: 'test text',
+          relationship: { type: 'colleagues', confidence: 0.9, detectionMethod: 'test' }
+        }
+      });
+      return Promise.resolve(results);
+    }),
+    scroll: jest.fn().mockResolvedValue({
+      points: []
+    }),
+    delete: jest.fn().mockResolvedValue({})
+  }))
+}));
 
 // Helper function to create test email
 function createTestEmail(
