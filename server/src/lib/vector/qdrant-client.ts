@@ -79,6 +79,9 @@ export class VectorStore {
       
       // Check if collection exists
       const collections = await this.client.getCollections();
+      if (!collections || !collections.collections) {
+        throw new Error('Failed to get collections from Qdrant');
+      }
       const exists = collections.collections.some(c => c.name === this.collectionName);
 
       if (!exists) {
@@ -89,7 +92,7 @@ export class VectorStore {
             distance: 'Cosine'
           },
           optimizers_config: {
-            indexing_threshold: 10000,
+            indexing_threshold: 0,  // Index immediately for testing
           }
         });
 
@@ -379,14 +382,20 @@ export class VectorStore {
   async getCollectionInfo() {
     await this.initialize();
     
-    const info = await this.client.getCollection(this.collectionName);
-    return {
-      name: this.collectionName,
-      vectorCount: info.points_count,
-      indexedVectorsCount: info.indexed_vectors_count || 0,
-      status: info.status,
-      config: info.config
-    };
+    try {
+      const info = await this.client.getCollection(this.collectionName);
+      return {
+        name: this.collectionName,
+        vectorCount: info.points_count || 0,
+        indexedVectorsCount: info.indexed_vectors_count || 0,
+        status: info.status,
+        config: info.config,
+        vectorsCount: info.vectors_count,
+        pointsCount: info.points_count
+      };
+    } catch (error) {
+      throw new Error(`Failed to get collection info: ${error}`);
+    }
   }
 
   async healthCheck(): Promise<boolean> {

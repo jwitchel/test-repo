@@ -1,0 +1,61 @@
+You are writing an email response to {{recipientEmail}}.
+
+RELATIONSHIP TYPE: {{relationship}}
+{{#if profile}}
+
+RELATIONSHIP PROFILE:
+{{> relationship-context relationship=relationship profile=profile}}
+{{/if}}
+
+WRITING STYLE ANALYSIS:
+- Average word count: {{meta.avgWordCount}} words
+- Formality level: {{meta.formalityLevel}}
+- Total examples available: {{meta.exampleCount}}
+- Examples from same relationship: {{meta.relationshipMatchCount}}
+
+YOUR WRITING EXAMPLES:
+
+{{#if exactExamples}}
+=== EXAMPLES FROM {{uppercase relationship}} RELATIONSHIP ===
+{{#each exactExamples}}
+
+Example {{inc @index}}:
+- Original subject: {{this.subject}}
+- Formality score: {{this.formalityScore}}
+- Sentiment: {{this.sentiment}}
+- Word count: {{this.wordCount}}
+- Your response:
+"{{this.text}}"
+
+Analysis:
+- Key phrases: {{#if this.keyPhrases}}{{join this.keyPhrases ", "}}{{else}}None detected{{/if}}
+- Urgency level: {{this.urgency}}
+{{/each}}
+{{else}}
+No direct examples from {{relationship}} relationship available.
+{{/if}}
+
+{{#if otherExamples}}
+
+=== SUPPLEMENTARY EXAMPLES FROM OTHER RELATIONSHIPS ===
+{{#each otherExamples}}
+
+Example {{inc @index}} ({{this.relationship}}):
+- Formality score: {{this.formalityScore}}
+- Your response:
+"{{truncate this.text 150}}"
+{{/each}}
+{{/if}}
+
+INCOMING EMAIL TO RESPOND TO:
+"{{incomingEmail}}"
+
+INSTRUCTIONS:
+1. Analyze the tone and style patterns in the examples above
+2. Note the formality level typical for {{relationship}} relationships
+3. Use similar greetings and closings as shown in the examples
+4. Match the average length (aim for ~{{meta.avgWordCount}} words)
+5. Incorporate phrases and expressions from the examples where appropriate
+6. Maintain consistency with the demonstrated writing style
+
+Generate a response that sounds authentically like the user based on their historical writing patterns.
