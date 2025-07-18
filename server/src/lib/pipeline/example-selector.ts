@@ -2,6 +2,7 @@ import { VectorStore } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { RelationshipService } from '../relationships/relationship-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
+import { withRetry } from './retry-utils';
 
 export interface SelectedExample {
   id: string;
@@ -27,12 +28,16 @@ export interface ExampleSelectionResult {
 }
 
 export class ExampleSelector {
+  private diversityWeight: number;
+  
   constructor(
     private vectorStore: VectorStore,
     private embeddingService: EmbeddingService,
     private relationshipService: RelationshipService,
     private relationshipDetector: RelationshipDetector
-  ) {}
+  ) {
+    this.diversityWeight = parseFloat(process.env.DIVERSITY_WEIGHT || '0.3');
+  }
   
   async selectExamples(params: {
     userId: string;
@@ -52,16 +57,20 @@ export class ExampleSelector {
       relationship.relationship
     );
     
-    // Step 3: Embed incoming email
-    const { vector } = await this.embeddingService.embedText(params.incomingEmail);
+    // Step 3: Embed incoming email with retry
+    const { vector } = await withRetry(
+      () => this.embeddingService.embedText(params.incomingEmail)
+    );
     
-    // Step 4: Search with relationship as PRIMARY filter
-    let examples = await this.vectorStore.searchSimilar({
+    // Step 4: Search with relationship as PRIMARY filter (with retry)
+    let examples = await withRetry(
+      () => this.vectorStore.searchSimilar({
       userId: params.userId,
       queryVector: vector,
       relationship: relationship.relationship,
       limit: 100
-    });
+    })
+    );
     
     // Step 5: If not enough examples, expand search
     if (examples.length < 10) {
@@ -70,12 +79,14 @@ export class ExampleSelector {
       const adjacentRelationships = this.getAdjacentRelationships(relationship.relationship);
       
       for (const adjacent of adjacentRelationships) {
-        const moreExamples = await this.vectorStore.searchSimilar({
+        const moreExamples = await withRetry(
+          () => this.vectorStore.searchSimilar({
           userId: params.userId,
           queryVector: vector,
           relationship: adjacent,
           limit: 50
-        });
+        })
+        );
         
         examples = [...examples, ...moreExamples];
         
@@ -83,11 +94,11 @@ export class ExampleSelector {
       }
     }
     
-    // Step 6: Apply diversity selection
-    const selected = this.selectDiverseExamples(
-      examples,
-      params.desiredCount || 25
-    );
+    // Step 6: Apply selection based on diversity weight
+    const desiredCount = params.desiredCount || parseInt(process.env.EXAMPLE_COUNT || '25');
+    const selected = this.diversityWeight > 0 
+      ? this.selectDiverseExamples(examples, desiredCount)
+      : this.selectBySimilarity(examples, desiredCount);
     
     return {
       relationship: relationship.relationship,
@@ -153,6 +164,16 @@ export class ExampleSelector {
     }
     
     return selected;
+  }
+  
+  private selectBySimilarity(candidates: EmailVector[], count: number): SelectedExample[] {
+    // Simple selection by similarity score when diversity weight is 0
+    return candidates.slice(0, count).map(c => ({
+      id: c.id,
+      text: c.metadata.extractedText,
+      metadata: c.metadata,
+      score: c.score || 0
+    }));
   }
   
   private calculateDiversityScore(examples: SelectedExample[]): number {
