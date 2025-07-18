@@ -131,7 +131,9 @@ npm run build          # Build Next.js for production
 npm run server:build   # Build Express server
 
 # Testing
-npm test               # Run tests (when available)
+npm test               # Run all tests (Note: Integration tests require Qdrant)
+npm run test:unit      # Run only unit tests (no external dependencies)
+npm run test:integration  # Run integration tests (requires Qdrant running)
 ```
 
 ## 🔑 Authentication

@@ -35,7 +35,14 @@
     "seed:db": "node scripts/create-test-users.js",
     "seed:mail": "bash scripts/setup-test-accounts.sh",
     "test:vector": "cd server && npx tsx src/scripts/test-vector-services.ts",
-    "test:vector:comprehensive": "cd server && npx tsx src/scripts/comprehensive-vector-test.ts"
+    "test:vector:comprehensive": "cd server && npx tsx src/scripts/comprehensive-vector-test.ts",
+    "test:pipeline": "cd server && npx tsx src/lib/pipeline/test-pipeline.ts",
+    "test:pipeline:mock": "cd server && npx tsx src/lib/pipeline/test-pipeline-mock.ts",
+    "test:prompt": "cd server && npx tsx src/lib/pipeline/test-prompt-formatter.ts",
+    "test:templates": "cd server && npx tsx src/lib/pipeline/test-templates.ts",
+    "test:qdrant": "npx tsx server/src/lib/pipeline/test-qdrant-connection.ts",
+    "test:unit": "jest --config jest.config.unit.js",
+    "test:integration": "jest --config jest.config.integration.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
@@ -50,6 +57,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@types/cookie": "^0.6.0",
     "@types/email-reply-parser": "^1.4.2",
+    "@types/handlebars": "^4.0.40",
     "@types/highland": "^2.13.0",
     "@xenova/transformers": "^2.17.2",
     "bcryptjs": "^3.0.2",
@@ -62,6 +70,7 @@
     "dotenv": "^17.2.0",
     "email-reply-parser": "^2.0.1",
     "express": "^4.21.2",
+    "handlebars": "^4.7.8",
     "highland": "^2.13.5",
     "html-to-text": "^9.0.5",
     "imap": "^0.8.19",
