@@ -2,6 +2,7 @@ import { extractEmailFeatures, ProcessedEmail } from './types';
 import { VectorStore } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
+import { withRetry } from './retry-utils';
 
 export interface BatchResult {
   success: number;
@@ -129,11 +130,19 @@ export class EmailIngestPipeline {
       });
     }
     
-    // Generate embedding
-    const { vector } = await this.embeddingService.embedText(email.extractedText);
+    // Generate embedding with retry
+    const { vector } = await withRetry(
+      () => this.embeddingService.embedText(email.extractedText),
+      {
+        onRetry: (error, attempt) => {
+          console.warn(`Embedding generation failed (attempt ${attempt}):`, error.message);
+        }
+      }
+    );
     
-    // Store in vector database
-    await this.vectorStore.upsertEmail({
+    // Store in vector database with retry
+    await withRetry(
+      () => this.vectorStore.upsertEmail({
       id: email.messageId,
       userId,
       vector,
@@ -153,7 +162,13 @@ export class EmailIngestPipeline {
         frequencyScore: 1,
         wordCount: features.stats.wordCount
       }
-    });
+    }),
+      {
+        onRetry: (error, attempt) => {
+          console.warn(`Vector store operation failed (attempt ${attempt}):`, error.message);
+        }
+      }
+    );
     
     return { relationship: relationship.relationship };
   }

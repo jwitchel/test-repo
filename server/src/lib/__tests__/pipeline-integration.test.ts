@@ -200,7 +200,7 @@ describe('Tone Learning Pipeline Integration', () => {
       
       // Should attempt to process all emails even if some fail
       expect(totalProcessed + totalErrors).toBe(edgeCaseEmails.length);
-    });
+    }, 10000); // Increase timeout for retry logic
     
     it('should handle malformed email metadata', async () => {
       const malformedEmail: ProcessedEmail = {
@@ -234,7 +234,7 @@ describe('Tone Learning Pipeline Integration', () => {
       }
       
       expect(didProcess).toBe(true);
-    });
+    }, 10000); // Increase timeout for retry logic
     
     it('should handle insufficient examples gracefully', async () => {
       // Ingest only one email
@@ -313,7 +313,7 @@ describe('Tone Learning Pipeline Integration', () => {
       expect(result.relationship.type).toBe('friend');
       // Examples might come from colleague relationship
       expect(result.examplesUsed.length).toBeGreaterThanOrEqual(0);
-    });
+    }, 10000); // Increase timeout for retry logic
   });
   
   describe('Test Data Loading', () => {
