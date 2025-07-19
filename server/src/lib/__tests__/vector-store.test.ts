@@ -1,13 +1,37 @@
+import { setupVectorMocks } from './__mocks__/setup-vector-mocks';
+
+// Get dynamic mocks
+const { mockQdrantClient } = setupVectorMocks();
+
+// Mock external dependencies first (before imports)
+jest.mock('@xenova/transformers', () => ({
+  pipeline: jest.fn().mockImplementation(async () => {
+    // Return a function that generates embeddings
+    return jest.fn().mockImplementation(async (text: string) => {
+      // Generate slightly different vectors based on text content
+      const baseValue = text.includes('unrelated') ? 0.5 : 0.1;
+      const vector = new Float32Array(384);
+      for (let i = 0; i < 384; i++) {
+        vector[i] = baseValue + (text.charCodeAt(i % text.length) % 10) * 0.01;
+      }
+      return {
+        data: vector,
+        shape: [1, 384]
+      };
+    });
+  })
+}));
+
+jest.mock('@qdrant/js-client-rest', () => ({
+  QdrantClient: jest.fn().mockImplementation(() => mockQdrantClient)
+}));
+
 import { VectorStore, EmailMetadata, EmailVector } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { UsageTracker } from '../vector/usage-tracker';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-// Mock both external dependencies
-jest.mock('@xenova/transformers');
-jest.mock('@qdrant/js-client-rest');
 
 // Helper function to create test email
 function createTestEmail(

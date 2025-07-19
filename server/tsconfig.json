@@ -32,5 +32,5 @@
     "types": ["node", "pg"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.integration.test.ts", "src/__tests__/**/*"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.integration.test.ts", "src/__tests__/**/*", "src/**/__tests__/**/*", "src/**/__mocks__/**/*"]
 }
