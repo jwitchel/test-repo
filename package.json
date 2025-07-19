@@ -70,6 +70,9 @@
     "chalk": "^4.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "compromise": "^14.14.4",
+    "compromise-sentences": "^0.3.0",
+    "compromise-stats": "^0.1.1",
     "cookie": "^1.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
@@ -91,6 +94,7 @@
     "sonner": "^2.0.6",
     "swr": "^2.3.4",
     "tailwind-merge": "^3.3.1",
+    "wink-sentiment": "^5.0.2",
     "ws": "^8.18.3",
     "zod": "^4.0.5"
   },
