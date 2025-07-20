@@ -30,9 +30,47 @@ const SAMPLE_TEXTS = [
   }
 ];
 
+interface NLPAnalysis {
+  sentiment: {
+    primary: string;
+    score: number;
+    confidence: number;
+    emotions: string[];
+  };
+  relationship: {
+    familiarity: string;
+    markers: {
+      greeting: string;
+      closing: string;
+      informal: number;
+      professional: number;
+      endearments: number;
+    };
+  };
+  tone: {
+    warmth: number;
+    formality: number;
+    politeness: number;
+    urgency: number;
+    directness: number;
+    enthusiasm: number;
+  };
+  style: {
+    vocabularyComplexity: string;
+    sentenceStructure: string;
+  };
+  context: string;
+  stats: {
+    wordCount: number;
+    sentenceCount: number;
+    avgWordsPerSentence: number;
+    formalityScore: number;
+  };
+}
+
 export default function NLPDemoPage() {
   const [text, setText] = useState('');
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<NLPAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
 
   const analyzeText = async () => {
@@ -148,7 +186,7 @@ export default function NLPDemoPage() {
                     <div className="flex justify-between">
                       <span>Primary:</span>
                       <Badge variant={
-                        analysis.sentiment.primary === 'positive' ? 'success' :
+                        analysis.sentiment.primary === 'positive' ? 'default' :
                         analysis.sentiment.primary === 'negative' ? 'destructive' :
                         'secondary'
                       }>
