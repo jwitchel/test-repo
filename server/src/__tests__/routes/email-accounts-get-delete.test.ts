@@ -80,7 +80,7 @@ describe('Email Accounts GET/DELETE Endpoints', () => {
         imap_username: 'user@example.com',
         imap_password_encrypted: 'encrypted_password_here',
         is_active: true,
-        last_sync: null,
+        last_sync: null as Date | null,
         created_at: new Date()
       };
 

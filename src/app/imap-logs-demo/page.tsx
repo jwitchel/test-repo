@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { ImapLogViewer } from '../../../components/imap-log-viewer'
-import { MockImapControls } from '../../../components/mock-imap-controls'
+import { ImapLogViewer } from '@/components/imap-log-viewer'
+import { MockImapControls } from '@/components/mock-imap-controls'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'

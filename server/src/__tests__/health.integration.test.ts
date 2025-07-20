@@ -83,12 +83,3 @@ describe('Health Check Integration', () => {
   });
 });
 
-// Separate test file would be better for this, but keeping it here for example
-describe('Integration Test with Full Server', () => {
-  it('should respond to health check on actual server', async () => {
-    // Skip this test as it requires the server to be running
-    // In a real scenario, this would be in a separate test file
-    // or we would dynamically import and start the server
-    expect(true).toBe(true);
-  });
-});

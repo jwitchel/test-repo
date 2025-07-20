@@ -26,9 +26,9 @@ The WebSocket integration provides real-time visibility into email processing op
 - Tracks metrics like processing time and text reduction percentage
 
 ### 4. Frontend Components
-- **ImapLogViewer** (`components/imap-log-viewer.tsx`): Real-time log display
-- **MockImapControls** (`components/mock-imap-controls.tsx`): Testing controls
-- **IMAP Logs Demo Page** (`app/imap-logs-demo/page.tsx`): Full demo interface
+- **ImapLogViewer** (`src/components/imap-log-viewer.tsx`): Real-time log display
+- **MockImapControls** (`src/components/mock-imap-controls.tsx`): Testing controls
+- **IMAP Logs Demo Page** (`src/app/imap-logs-demo/page.tsx`): Full demo interface
 
 ## Log Types
 

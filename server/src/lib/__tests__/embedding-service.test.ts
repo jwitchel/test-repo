@@ -206,7 +206,7 @@ describe('EmbeddingService', () => {
         await embeddingService.embedText('');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
-        expect(error.message).toContain('Cannot embed empty text');
+        expect((error as Error).message).toContain('Cannot embed empty text');
       }
     });
   });

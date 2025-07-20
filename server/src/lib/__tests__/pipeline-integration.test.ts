@@ -316,13 +316,6 @@ describe('Tone Learning Pipeline Integration', () => {
     }, 10000); // Increase timeout for retry logic
   });
   
-  describe('Test Data Loading', () => {
-    it.skip('should load Johns emails correctly', async () => {
-      // Skip this test in CI/test environment
-      // John's emails are in a different directory structure
-      // This would be tested with actual file system access
-    });
-  });
   
   describe('Prompt Generation Quality', () => {
     it('should generate contextually appropriate prompts', async () => {
