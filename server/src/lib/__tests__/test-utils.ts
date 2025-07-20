@@ -36,10 +36,10 @@ export class TestDataManager {
     const emails = this.getScenarioEmails(scenario);
     
     // Process emails through vector store
-    for (const email of emails) {
+    for (const _ of emails) {
       // This would normally go through the full pipeline
       // For tests, we're directly inserting
-      console.log(`Loading ${emails.length} emails for scenario: ${scenario}`);
+      console.log(`Loading ${emails.length} emails for user ${userId}, scenario: ${scenario}`);
     }
   }
   
