@@ -4,7 +4,7 @@ import { EmbeddingService } from '../vector/embedding-service';
 import { ExampleSelector } from './example-selector';
 import { PromptFormatterV2 } from './prompt-formatter-v2';
 import { EmailIngestPipeline } from './email-ingest-pipeline';
-import { TestDataLoader } from './test-data-loader';
+import { TestDataLoader } from '../../scripts/tools/test-data-loader';
 import { ProcessedEmail, GeneratedDraft } from './types';
 import { RelationshipService } from '../relationships/relationship-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';

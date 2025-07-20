@@ -1,5 +1,5 @@
 import { ToneLearningOrchestrator } from '../pipeline/tone-learning-orchestrator';
-import { TestDataLoader } from '../pipeline/test-data-loader';
+import { TestDataLoader } from '../../scripts/tools/test-data-loader';
 import { VectorStore } from '../vector/qdrant-client';
 import { ProcessedEmail } from '../pipeline/types';
 import { EmbeddingService } from '../vector/embedding-service';

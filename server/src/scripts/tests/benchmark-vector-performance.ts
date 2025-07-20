@@ -1,4 +1,4 @@
-import { embeddingService, vectorStore } from '../lib/vector';
+import { embeddingService, vectorStore } from '../../lib/vector';
 import dotenv from 'dotenv';
 
 dotenv.config();

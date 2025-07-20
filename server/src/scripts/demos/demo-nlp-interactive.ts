@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Interactive NLP Feature Demo
-const readline = require('readline');
-const { extractEmailFeatures } = require('./dist/lib/nlp-feature-extractor');
+import * as readline from 'readline';
+import { extractEmailFeatures } from '../../lib/nlp-feature-extractor';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -15,7 +15,7 @@ console.log("- wink-sentiment for sentiment analysis");
 console.log("- compromise.js for linguistic analysis");
 console.log("- Custom algorithms for relationship detection\n");
 
-function analyzeText(text, recipientEmail = 'recipient@example.com') {
+function analyzeText(text: string, recipientEmail: string = 'recipient@example.com') {
   const features = extractEmailFeatures(text, { email: recipientEmail });
   
   console.log("\n" + "=".repeat(60));
@@ -45,7 +45,7 @@ function analyzeText(text, recipientEmail = 'recipient@example.com') {
   // Tone
   console.log("\n🎨 TONE");
   const tone = features.tonalQualities;
-  const toneBar = (value) => {
+  const toneBar = (value: number) => {
     const width = 20;
     const filled = Math.round(value * width);
     return '█'.repeat(filled) + '░'.repeat(width - filled) + ` ${(value * 100).toFixed(0)}%`;
@@ -120,7 +120,7 @@ function prompt() {
       try {
         analyzeText(input);
       } catch (error) {
-        console.error("\n❌ Error analyzing text:", error.message);
+        console.error("\n❌ Error analyzing text:", (error as Error).message);
       }
     }
     

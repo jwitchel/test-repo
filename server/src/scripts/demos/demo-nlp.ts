@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Demo script for NLP Feature Extractor
-const { extractEmailFeatures } = require('./dist/lib/nlp-feature-extractor');
+import { extractEmailFeatures } from '../../lib/nlp-feature-extractor';
 
 // Sample emails to analyze
 const sampleEmails = [

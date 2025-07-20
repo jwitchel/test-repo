@@ -24,40 +24,46 @@ An AI-powered email assistant that generates email reply drafts matching your pe
    ```
 
 3. **Set up environment variables**
+   
+   Create the required environment files:
    ```bash
-   cp .env.example .env
-   cp .env.example .env.local
-   ```
-
-   Update `.env` with your values:
-   ```env
-   # Database (using Docker PostgreSQL on port 5434)
-   DATABASE_URL=postgresql://postgres:postgres@localhost:5434/aiemaildb
-   
-   # Redis (using Docker Redis on port 6380)
-   REDIS_URL=redis://localhost:6380
-   
-   # Authentication
+   # Create .env for backend (Express server)
+   cat > .env << 'EOF'
+   DATABASE_URL=postgresql://aiemailuser:aiemailpass@localhost:5434/aiemaildb
    BETTER_AUTH_SECRET=your-secret-key-here
    ENCRYPTION_KEY=your-encryption-key-here
+   PORT=3002
+   FRONTEND_URL=http://localhost:3001
+   NODE_ENV=development
+   EMAIL_PIPELINE_CONCURRENCY=1
+   QDRANT_URL=http://localhost:6333
+   EOF
    
-   # API URL for frontend
-   NEXT_PUBLIC_API_URL=http://localhost:3002
+   # Create .env.local for frontend (Next.js)
+   echo "NEXT_PUBLIC_API_URL=http://localhost:3002" > .env.local
+   ```
+   
+   **Note**: Docker services use hardcoded values in docker-compose.yml for consistency.
+   
+   For production, generate secure keys:
+   ```bash
+   openssl rand -base64 32  # For BETTER_AUTH_SECRET and ENCRYPTION_KEY
    ```
 
-4. **Start Docker services**
+4. **Start all Docker services**
    ```bash
-   docker compose up -d
+   npm run docker:up
    ```
    
    This starts:
    - PostgreSQL on port 5434 (non-standard to avoid conflicts)
    - Redis on port 6380 (non-standard to avoid conflicts)
    - Qdrant on ports 6333/6334 (vector database for tone learning)
+   - Test mail server on ports 1143/1993 (IMAP testing)
 
 5. **Initialize the database**
    ```bash
-   npm run db:test
+   npm run db:migrate
    ```
 
 6. **Start the development servers**
@@ -71,18 +77,12 @@ An AI-powered email assistant that generates email reply drafts matching your pe
 
 7. **Seed test data (optional)**
    ```bash
-   npm run seed
+   npm run seed        # Alias for db:seed
    ```
    
-   This creates both database users and email accounts:
-   - user1@testmail.local / testpass123
-   - user2@testmail.local / testpass456
-   
-   Alternative commands:
-   ```bash
-   npm run seed:db    # Create only database test users
-   npm run seed:mail  # Create only email test accounts
-   ```
+   This creates test database users:
+   - test1@example.com / password123
+   - test2@example.com / password456
 
 ## 📁 Project Structure
 
@@ -110,20 +110,46 @@ test-repo/
 # Development
 npm run dev              # Start Next.js frontend (port 3001)
 npm run server          # Start Express backend (port 3002)
-npm run dev:all         # Start both frontend and backend
+npm run dev:all         # Start both frontend and backend (kills existing processes first)
+npm run dev:kill-ports  # Kill processes on ports 3001 and 3002
 
-# Docker & Database
-docker compose up -d     # Start PostgreSQL, Redis, Qdrant & test mail server
-docker compose down      # Stop all services
-npm run db:test         # Test database connection
-npm run seed            # Create test users (DB + email accounts)
+# Individual Docker Services
+# PostgreSQL Database
+npm run postgres:up     # Start PostgreSQL
+npm run postgres:down   # Stop PostgreSQL
+npm run postgres:reset  # Reset PostgreSQL
+npm run postgres:logs   # View PostgreSQL logs
+
+# Redis Cache
+npm run redis:up        # Start Redis
+npm run redis:down      # Stop Redis
+npm run redis:reset     # Reset Redis
+npm run redis:logs      # View Redis logs
 
 # Qdrant Vector Database
-npm run qdrant:up       # Start Qdrant container
-npm run qdrant:down     # Stop Qdrant container
+npm run qdrant:up       # Start Qdrant
+npm run qdrant:down     # Stop Qdrant
+npm run qdrant:reset    # Reset Qdrant (removes data)
 npm run qdrant:logs     # View Qdrant logs
-npm run qdrant:reset    # Reset Qdrant data
-npm run test:vector     # Test vector services
+
+# Mail Server (IMAP Testing)
+npm run mail:up         # Start test mail server
+npm run mail:down       # Stop test mail server
+npm run mail:reset      # Reset mail server
+npm run mail:logs       # View mail server logs
+npm run mail:seed       # Create test email accounts
+
+# All Docker Services
+npm run docker:up       # Start ALL services (PostgreSQL, Redis, Qdrant, Mail)
+npm run docker:down     # Stop ALL services
+npm run docker:reset    # Reset ALL services
+npm run docker:logs     # View logs for all docker-compose services
+
+# Database Management
+npm run db:migrate      # Run database migrations
+npm run db:seed         # Create test users
+npm run seed            # Alias for db:seed
+npm run vector:test     # Test vector services
 
 # Code Quality
 npm run lint            # Run ESLint
@@ -131,9 +157,12 @@ npm run build          # Build Next.js for production
 npm run server:build   # Build Express server
 
 # Testing
-npm test               # Run all tests (Note: Integration tests require Qdrant)
+npm test               # Run all tests (requires Docker services)
 npm run test:unit      # Run only unit tests (no external dependencies)
-npm run test:integration  # Run integration tests (requires Qdrant running)
+npm run test:integration  # Run integration tests (requires all services)
+
+# System Management
+npm run system:reset   # Full reset: Docker, DB, and mail accounts
 ```
 
 ## 🔑 Authentication
@@ -163,7 +192,7 @@ View all components at http://localhost:3001/components-test
 ## Important Files
 - **complete_project_plan.md**: Master project specification document
 - **CLAUDE.md**: Instructions for Claude AI assistant
-- **.env.example**: Example environment variables
+- **TESTING.md**: Comprehensive testing guide
 
 ## 📊 Current Project Status
 
@@ -211,7 +240,7 @@ View all components at http://localhost:3001/components-test
    - Clear browser cookies if session issues persist
 
 4. **Missing environment variables**
-   - Copy `.env.example` to both `.env` and `.env.local`
+   - Create `.env` and `.env.local` files as shown in setup instructions
    - Generate secure keys for BETTER_AUTH_SECRET and ENCRYPTION_KEY
    - Ensure DATABASE_URL uses port 5434
 
@@ -238,7 +267,7 @@ The application includes real-time logging for email processing operations throu
 
 For detailed information about the WebSocket architecture and integration, see [server/src/websocket/INTEGRATION.md](server/src/websocket/INTEGRATION.md).
 
-**Demo Page**: Visit http://localhost:3001/imap-logs-demo after signing in to see the real-time logging in action.
+**Live Demo**: Visit http://localhost:3001/imap-logs-demo after signing in to see the real-time logging in action.
 
 ## 🤝 Contributing
 
