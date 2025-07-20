@@ -158,6 +158,11 @@ The project uses [shadcn/ui](https://ui.shadcn.com/) components with:
 
 View all components at http://localhost:3001/components-test
 
+## Important Files
+- **complete_project_plan.md**: Master project specification document
+- **CLAUDE.md**: Instructions for Claude AI assistant
+- **.env.example**: Example environment variables
+
 ## 📊 Current Project Status
 
 ### ✅ Sprint 1 Completed
