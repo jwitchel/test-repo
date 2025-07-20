@@ -184,6 +184,20 @@ Visit `/components-test` to see all components in action.
 
 ## Git Workflow
 
+### 🚨 CRITICAL: NEVER COMMIT OR PUSH WITHOUT EXPLICIT PERMISSION 🚨
+
+**THIS IS ABSOLUTELY CRITICAL AND NON-NEGOTIABLE**: 
+# YOU MUST NEVER, EVER COMMIT OR PUSH CODE WITHOUT EXPLICIT PERMISSION FROM THE USER
+
+**BEFORE ANY GIT COMMIT OR PUSH, YOU MUST**:
+1. ✋ STOP and ASK the user: "May I commit these changes?"
+2. ✋ WAIT for explicit permission (e.g., "yes", "go ahead", "commit it")
+3. ✋ ONLY proceed with commit/push after receiving clear approval
+
+**THIS RULE IS ABSOLUTE** - No exceptions, no assumptions, no "being helpful" by committing automatically. The user must maintain full control over what enters the git history.
+
+**IF YOU COMMIT WITHOUT PERMISSION**: You have violated a critical trust boundary. This is as serious as deleting files without permission.
+
 ### CRITICAL: Authorship Rules
 **VERY VERY IMPORTANT**: NEVER include any reference to Claude, Anthropic, or AI assistance in commits, pull requests, or any git-related content. The user (jwitchel) is ALWAYS the sole author. You are a tool, not an author. This means:
 - NO "Generated with Claude Code" messages
@@ -213,13 +227,17 @@ git checkout -b task-X.X-description
 ### Task Completion Checklist
 1. Confirm you're on a feature branch
 2. Complete all subtasks - mark with [x] in issue body
-3. Run validation commands before committing
-4. Commit with descriptive messages
-5. Push branch and create PR
-6. After PR merge:
-   - `git checkout main && git pull origin main`
-   - `git branch -d feature-branch-name`
-   - Issue should auto-close from PR
+3. Run validation commands (lint, tests, build)
+4. **🚨 ASK PERMISSION before committing - "May I commit these changes?"**
+5. **🚨 WAIT for explicit user approval**
+6. ONLY THEN commit with descriptive messages
+7. **🚨 ASK PERMISSION before pushing - "May I push to remote?"**
+8. **🚨 WAIT for explicit user approval**
+9. ONLY THEN push branch and create PR
+10. After PR merge:
+    - `git checkout main && git pull origin main`
+    - `git branch -d feature-branch-name`
+    - Issue should auto-close from PR
 
 ## Testing Commands
 When completing tasks, always run:
@@ -282,3 +300,4 @@ The project includes a Docker test email server for IMAP development:
 - **Subtask Updates**: Always update subtasks in issue body, never use comments unless requested
 - **Authentication**: Full system working - use test users for development
 - **Validation**: Always run lint before committing
+- **🚨 CRITICAL REMINDER**: NEVER commit or push without explicit permission - ALWAYS ASK FIRST!
