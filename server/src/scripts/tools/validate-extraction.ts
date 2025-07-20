@@ -1,5 +1,5 @@
-import { testEmailGenerator, TestEmail } from './test-sent-emails';
-import { replyExtractor } from './reply-extractor';
+import { testEmailGenerator, TestEmail } from '../../lib/test-sent-emails';
+import { replyExtractor } from '../../lib/reply-extractor';
 import chalk from 'chalk';
 
 interface ValidationResult {

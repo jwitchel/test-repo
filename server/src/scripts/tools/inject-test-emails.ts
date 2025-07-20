@@ -1,5 +1,5 @@
 import Imap from 'imap';
-import { testEmailGenerator } from './test-sent-emails';
+import { testEmailGenerator } from '../../lib/test-sent-emails';
 
 interface MailServerConfig {
   user: string;

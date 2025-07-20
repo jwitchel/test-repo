@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from 'fs/promises';
 import path from 'path';
-import { VectorStore } from '../vector/qdrant-client';
-import { EmbeddingService } from '../vector/embedding-service';
-import { EmailIngestPipeline } from './email-ingest-pipeline';
-import { ProcessedEmail } from './types';
-import { RelationshipDetector } from '../relationships/relationship-detector';
+import { VectorStore } from '../../lib/vector/qdrant-client';
+import { EmbeddingService } from '../../lib/vector/embedding-service';
+import { EmailIngestPipeline } from '../../lib/pipeline/email-ingest-pipeline';
+import { ProcessedEmail } from '../../lib/pipeline/types';
+import { RelationshipDetector } from '../../lib/relationships/relationship-detector';
 import chalk from 'chalk';
 
 interface JohnEmail {

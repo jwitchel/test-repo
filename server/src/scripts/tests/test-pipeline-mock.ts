@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { EmailIngestPipeline } from './email-ingest-pipeline';
-import { ExampleSelector } from './example-selector';
-import { PromptFormatter } from './prompt-formatter';
-import { extractEmailFeatures, ProcessedEmail } from './types';
+import { EmailIngestPipeline } from '../../lib/pipeline/email-ingest-pipeline';
+import { ExampleSelector } from '../../lib/pipeline/example-selector';
+import { PromptFormatter } from '../../lib/pipeline/prompt-formatter';
+import { extractEmailFeatures, ProcessedEmail } from '../../lib/pipeline/types';
 
 // Mock implementations for testing without dependencies
 class MockVectorStore {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { ToneLearningOrchestrator } from './tone-learning-orchestrator';
-import { ProcessedEmail } from './types';
+import { ToneLearningOrchestrator } from '../../lib/pipeline/tone-learning-orchestrator';
+import { ProcessedEmail } from '../../lib/pipeline/types';
 import chalk from 'chalk';
 
 /**

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { VectorStore } from '../vector/qdrant-client';
-import { EmbeddingService } from '../vector/embedding-service';
-import { RelationshipDetector } from '../relationships/relationship-detector';
-import { RelationshipService } from '../relationships/relationship-service';
-import { ExampleSelector } from './example-selector';
-import { EmailIngestPipeline } from './email-ingest-pipeline';
-import { ProcessedEmail } from './types';
+import { VectorStore } from '../../lib/vector/qdrant-client';
+import { EmbeddingService } from '../../lib/vector/embedding-service';
+import { RelationshipDetector } from '../../lib/relationships/relationship-detector';
+import { RelationshipService } from '../../lib/relationships/relationship-service';
+import { ExampleSelector } from '../../lib/pipeline/example-selector';
+import { EmailIngestPipeline } from '../../lib/pipeline/email-ingest-pipeline';
+import { ProcessedEmail } from '../../lib/pipeline/types';
 
 async function testPipeline() {
   console.log('🚀 Testing Pipeline Components\n');

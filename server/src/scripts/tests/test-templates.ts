@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { PromptFormatterV2 } from './prompt-formatter-v2';
-import { SelectedExample } from './example-selector';
-import { RelationshipProfile } from './types';
+import { PromptFormatterV2 } from '../../lib/pipeline/prompt-formatter-v2';
+import { SelectedExample } from '../../lib/pipeline/example-selector';
+import { RelationshipProfile } from '../../lib/pipeline/types';
 
 // Create sample examples
 const createSampleExamples = (): SelectedExample[] => [
