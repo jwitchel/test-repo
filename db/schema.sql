@@ -2,19 +2,13 @@
 DROP TABLE IF EXISTS draft_tracking;
 DROP TABLE IF EXISTS tone_profiles;
 DROP TABLE IF EXISTS email_accounts;
-DROP TABLE IF EXISTS users;
 
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  subscription_tier VARCHAR(50) DEFAULT 'free',
-  is_active BOOLEAN DEFAULT true
-);
+-- Note: The "user" table is created by better-auth-schema.sql
+-- We reference it with TEXT user_id columns
 
 CREATE TABLE email_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE,
   email_address VARCHAR(255) NOT NULL,
   imap_host VARCHAR(255) NOT NULL,
   imap_port INTEGER NOT NULL,
@@ -27,7 +21,7 @@ CREATE TABLE email_accounts (
 
 CREATE TABLE tone_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE,
   relationship_type VARCHAR(50) NOT NULL,
   profile_data JSONB NOT NULL,
   emails_analyzed INTEGER DEFAULT 0,
@@ -36,7 +30,7 @@ CREATE TABLE tone_profiles (
 
 CREATE TABLE draft_tracking (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE,
   email_account_id UUID REFERENCES email_accounts(id) ON DELETE CASCADE,
   original_message_id VARCHAR(255) NOT NULL,
   draft_message_id VARCHAR(255) NOT NULL,

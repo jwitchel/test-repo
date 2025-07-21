@@ -104,6 +104,62 @@ async function createTestUsers() {
       );
 
       console.log(`✅ Created user: ${testUser.email} (password: ${testUser.password})`);
+      
+      // Set up default relationships for the new user
+      const defaultRelationships = [
+        { type: 'spouse', display: 'Spouse/Partner' },
+        { type: 'family', display: 'Family' },
+        { type: 'close_friends', display: 'Close Friends' },
+        { type: 'friends', display: 'Friends' },
+        { type: 'colleagues', display: 'Colleagues' },
+        { type: 'manager', display: 'Manager/Boss' },
+        { type: 'clients', display: 'Clients' },
+        { type: 'external', display: 'External/Other' }
+      ];
+
+      for (const rel of defaultRelationships) {
+        await pool.query(
+          `INSERT INTO user_relationships (user_id, relationship_type, display_name, is_system_default)
+           VALUES ($1, $2, $3, true)
+           ON CONFLICT (user_id, relationship_type) DO NOTHING`,
+          [userId, rel.type, rel.display]
+        );
+      }
+      console.log(`   └─ Set up default relationships`);
+    }
+
+    // Also set up relationships for any existing users who don't have them
+    console.log('\n🔄 Checking relationships for existing users...');
+    const allUsers = await pool.query('SELECT id, email FROM "user"');
+    
+    for (const user of allUsers.rows) {
+      const relationshipCount = await pool.query(
+        'SELECT COUNT(*) FROM user_relationships WHERE user_id = $1',
+        [user.id]
+      );
+      
+      if (relationshipCount.rows[0].count === '0') {
+        console.log(`Setting up relationships for ${user.email}...`);
+        const defaultRelationships = [
+          { type: 'spouse', display: 'Spouse/Partner' },
+          { type: 'family', display: 'Family' },
+          { type: 'close_friends', display: 'Close Friends' },
+          { type: 'friends', display: 'Friends' },
+          { type: 'colleagues', display: 'Colleagues' },
+          { type: 'manager', display: 'Manager/Boss' },
+          { type: 'clients', display: 'Clients' },
+          { type: 'external', display: 'External/Other' }
+        ];
+
+        for (const rel of defaultRelationships) {
+          await pool.query(
+            `INSERT INTO user_relationships (user_id, relationship_type, display_name, is_system_default)
+             VALUES ($1, $2, $3, true)
+             ON CONFLICT (user_id, relationship_type) DO NOTHING`,
+            [user.id, rel.type, rel.display]
+          );
+        }
+      }
     }
 
     console.log('\n✨ Test users ready!');
