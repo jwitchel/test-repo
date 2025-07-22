@@ -26,6 +26,7 @@
     "redis:logs": "docker compose logs -f redis",
     "db:migrate": "node db/migrate.js",
     "db:seed": "node scripts/create-test-users.js",
+    "seed-sample-styles": "cd server && npx tsx src/scripts/seed-sample-styles.ts",
     "demo:person-service": "cd server && npx tsx src/scripts/demo-person-service.ts",
     "demo:nlp": "cd server && npx tsx src/scripts/demos/demo-nlp.ts",
     "demo:nlp:interactive": "cd server && npx tsx src/scripts/demos/demo-nlp-interactive.ts",
