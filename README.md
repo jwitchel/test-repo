@@ -75,14 +75,16 @@ An AI-powered email assistant that generates email reply drafts matching your pe
    - Next.js frontend on http://localhost:3001
    - Express.js backend on http://localhost:3002
 
-7. **Seed test data (optional)**
+7. **Seed demo data**
    ```bash
-   npm run seed        # Alias for db:seed
+   npm run seed        # Seeds all demo data (wipes existing data first)
    ```
    
-   This creates test database users:
-   - test1@example.com / password123
-   - test2@example.com / password456
+   This creates:
+   - Test users: test1@example.com / password123, test2@example.com / password456
+   - Sample emails demonstrating different writing styles
+   - Aggregated style patterns for colleague, friend, and manager relationships
+   - People (recipients) with relationship mappings
 
 ## 📁 Project Structure
 
@@ -147,8 +149,7 @@ npm run docker:logs     # View logs for all docker-compose services
 
 # Database Management
 npm run db:migrate      # Run database migrations
-npm run db:seed         # Create test users
-npm run seed            # Alias for db:seed
+npm run seed            # Seed all demo data (users, emails, styles, etc.)
 npm run vector:test     # Test vector services
 
 # Code Quality

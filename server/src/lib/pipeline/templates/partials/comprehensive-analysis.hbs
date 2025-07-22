@@ -74,10 +74,12 @@ Relationship Type: {{relationship}}
 {{#if exactExamples}}
 Examples from {{relationship}} relationships ({{exactExamples.length}} found):
 {{#each exactExamples}}
-Example {{inc @index}}:
+Example {{inc @index}} (Similarity Score: {{round this.score 3}}):
 "{{truncate this.text 250}}"
+{{#if this.subject}}Subject: {{this.subject}}{{/if}}
 {{#if this.formalityScore}}Formality: {{round this.formalityScore 2}}{{/if}}
 {{#if this.sentiment}}Sentiment: {{this.sentiment}}{{/if}}
+{{#if this.wordCount}}Word count: {{this.wordCount}}{{/if}}
 {{/each}}
 {{else}}
 No examples found for {{relationship}} relationship.
@@ -86,7 +88,7 @@ No examples found for {{relationship}} relationship.
 {{#if otherExamples}}
 Additional examples from other relationships:
 {{#each otherExamples}}
-Example {{inc @index}} ({{this.relationship}}):
+Example {{inc @index}} ({{this.relationship}}, Score: {{round this.score 3}}):
 "{{truncate this.text 200}}"
 {{/each}}
 {{/if}}

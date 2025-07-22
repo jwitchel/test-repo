@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ImapLogViewer } from '@/components/imap-log-viewer'
 import { MockImapControls } from '@/components/mock-imap-controls'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -105,8 +105,104 @@ export default function ImapLogsDemoPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   
   // Analysis results state
+  interface NLPFeatures {
+    sentiment: {
+      primary: string;
+      intensity: number;
+      confidence: number;
+      score: number;
+      magnitude: number;
+      emotions?: string[];
+      emojis?: string[];
+    };
+    tonalQualities: {
+      formality: number;
+      warmth: number;
+      enthusiasm: number;
+      urgency: number;
+      directness: number;
+      politeness: number;
+    };
+    linguisticStyle: {
+      vocabularyComplexity: string;
+      sentenceStructure: string;
+      conversationalMarkers?: string[];
+    };
+    contextType: string;
+    questions?: string[];
+    actionItems?: Array<{
+      type: string;
+      text: string;
+    }>;
+    relationshipHints: {
+      familiarityLevel: string;
+      linguisticMarkers: {
+        greetingStyle: string;
+        closingStyle: string;
+        endearments?: string[];
+        professionalPhrases?: string[];
+        informalLanguage?: string[];
+      };
+      formalityIndicators: {
+        hasTitle: boolean;
+        hasLastName: boolean;
+        hasCompanyReference: boolean;
+        sentenceComplexity: number;
+        vocabularySophistication: number;
+      };
+    };
+    stats: {
+      wordCount: number;
+      sentenceCount: number;
+      avgWordsPerSentence: number;
+      vocabularyComplexity: number;
+      formalityScore: number;
+      contractionDensity: number;
+    };
+    phrases?: Array<{ text: string; frequency: number }>;
+    contractions?: Array<{ contraction: string; expanded: string; count: number }>;
+    sentenceStarters?: Array<{ text: string; count: number }>;
+    closings?: Array<{ text: string; count: number }>;
+  }
+
+  interface StyleAggregation {
+    greetings: Array<{ text: string; frequency: number; percentage: number }>;
+    closings: Array<{ text: string; frequency: number; percentage: number }>;
+    emojis: Array<{ emoji: string; frequency: number; contexts: string[] }>;
+    contractions: { uses: boolean; frequency: number; examples: string[] };
+    sentimentProfile: { 
+      primaryTone: string; 
+      averageWarmth: number; 
+      averageFormality: number; 
+    };
+    vocabularyProfile: {
+      complexityLevel: string;
+      technicalTerms: string[];
+      commonPhrases: Array<{ phrase: string; frequency: number }>;
+    };
+    structuralPatterns: {
+      averageEmailLength: number;
+      averageSentenceLength: number;
+      paragraphingStyle: string;
+    };
+    emailCount: number;
+    confidenceScore: number;
+    lastUpdated?: string;
+  }
+
+  interface EnhancedProfile {
+    typicalFormality: string;
+    commonGreetings: string[];
+    commonClosings: string[];
+    useEmojis: boolean;
+    useHumor: boolean;
+    personName?: string;
+    relationshipType?: string;
+    aggregatedStyle?: StyleAggregation;
+  }
+
   interface AnalysisResults {
-    nlpFeatures: any;
+    nlpFeatures: NLPFeatures;
     relationship: {
       type: string;
       confidence: number;
@@ -117,7 +213,7 @@ export default function ImapLogsDemoPage() {
       email: string;
       emailCount: number;
     } | null;
-    styleAggregation: any;
+    styleAggregation: StyleAggregation | null;
     selectedExamples: Array<{
       text: string;
       relationship: string;
@@ -125,7 +221,7 @@ export default function ImapLogsDemoPage() {
       id: string;
     }>;
     llmPrompt: string;
-    enhancedProfile: any;
+    enhancedProfile: EnhancedProfile | null;
   }
   
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null)
@@ -216,6 +312,8 @@ export default function ImapLogsDemoPage() {
       }
 
       const results = await response.json()
+      console.log('Analysis results:', results)
+      console.log('Selected examples:', results.selectedExamples)
       setAnalysisResults(results)
       
       // Switch to NLP tab to show results
@@ -464,11 +562,11 @@ export default function ImapLogsDemoPage() {
                             </div>
                             
                             {/* Emotions */}
-                            {analysisResults.nlpFeatures.sentiment?.emotions?.length > 0 && (
+                            {analysisResults.nlpFeatures.sentiment?.emotions && analysisResults.nlpFeatures.sentiment.emotions.length > 0 && (
                               <div>
                                 <h4 className="text-sm font-semibold mb-2">Detected Emotions</h4>
                                 <div className="flex flex-wrap gap-2">
-                                  {analysisResults.nlpFeatures.sentiment.emotions.map((emotion: string, i: number) => (
+                                  {analysisResults.nlpFeatures.sentiment.emotions.map((emotion, i) => (
                                     <Badge key={i} variant="outline">
                                       {emotion}
                                     </Badge>
@@ -483,8 +581,8 @@ export default function ImapLogsDemoPage() {
                               <div className="grid grid-cols-2 gap-2 text-sm">
                                 <div>Words: {analysisResults.nlpFeatures.stats?.wordCount || 0}</div>
                                 <div>Sentences: {analysisResults.nlpFeatures.stats?.sentenceCount || 0}</div>
-                                <div>Avg sentence length: {analysisResults.nlpFeatures.stats?.avgSentenceLength?.toFixed(1) || '0'}</div>
-                                <div>Questions: {analysisResults.nlpFeatures.stats?.questionCount || 0}</div>
+                                <div>Avg sentence length: {analysisResults.nlpFeatures.stats?.avgWordsPerSentence?.toFixed(1) || '0'}</div>
+                                <div>Questions: {analysisResults.nlpFeatures.questions?.length || 0}</div>
                               </div>
                             </div>
                           </div>
@@ -543,7 +641,7 @@ export default function ImapLogsDemoPage() {
                                 <div>
                                   <p className="text-sm font-medium">Common Greetings:</p>
                                   <div className="flex flex-wrap gap-2 mt-1">
-                                    {analysisResults.styleAggregation.greetings.slice(0, 3).map((g: any, i: number) => (
+                                    {analysisResults.styleAggregation.greetings.slice(0, 3).map((g, i) => (
                                       <Badge key={i} variant="secondary">
                                         {g.text} ({g.percentage}%)
                                       </Badge>
@@ -556,7 +654,7 @@ export default function ImapLogsDemoPage() {
                                 <div className="mt-3">
                                   <p className="text-sm font-medium">Common Emojis:</p>
                                   <div className="flex gap-2 mt-1">
-                                    {analysisResults.styleAggregation.emojis.slice(0, 5).map((e: any, i: number) => (
+                                    {analysisResults.styleAggregation.emojis.slice(0, 5).map((e, i) => (
                                       <span key={i} className="text-xl">{e.emoji}</span>
                                     ))}
                                   </div>
@@ -576,7 +674,7 @@ export default function ImapLogsDemoPage() {
                         {analysisResults?.selectedExamples ? (
                           <div className="space-y-3">
                             <h4 className="text-sm font-semibold">Selected Examples ({analysisResults.selectedExamples.length})</h4>
-                            {analysisResults.selectedExamples.slice(0, 3).map((ex: any, i: number) => (
+                            {analysisResults.selectedExamples.slice(0, 3).map((ex, i) => (
                               <div key={i} className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-md">
                                 <div className="flex justify-between items-start mb-1">
                                   <Badge variant="outline" className="text-xs">

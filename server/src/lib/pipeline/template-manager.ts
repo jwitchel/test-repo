@@ -62,6 +62,7 @@ export interface EnhancedRelationshipProfile extends RelationshipProfile {
 export interface FormattedExample {
   text: string;
   relationship: string;
+  score?: number;
   subject?: string;
   formalityScore?: number;
   sentiment?: string;
@@ -185,6 +186,7 @@ export class TemplateManager {
     return examples.map(ex => ({
       text: ex.text,
       relationship: ex.metadata.relationship?.type || 'unknown',
+      score: ex.score,
       subject: ex.metadata.subject,
       formalityScore: ex.metadata.features?.stats?.formalityScore,
       sentiment: ex.metadata.features?.sentiment?.dominant,

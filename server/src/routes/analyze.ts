@@ -181,7 +181,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       queryVector: vector,
       relationship: detectedRelationship.relationship,
       limit: 5,
-      scoreThreshold: 0.7
+      scoreThreshold: 0.3
     });
     
     imapLogger.log(userId, {

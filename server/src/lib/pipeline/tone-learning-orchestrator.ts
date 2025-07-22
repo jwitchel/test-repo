@@ -4,7 +4,6 @@ import { EmbeddingService } from '../vector/embedding-service';
 import { ExampleSelector } from './example-selector';
 import { PromptFormatterV2 } from './prompt-formatter-v2';
 import { EmailIngestPipeline } from './email-ingest-pipeline';
-import { TestDataLoader } from '../../scripts/tools/test-data-loader';
 import { ProcessedEmail, GeneratedDraft } from './types';
 import { RelationshipService } from '../relationships/relationship-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
@@ -33,7 +32,6 @@ export class ToneLearningOrchestrator {
   private exampleSelector: ExampleSelector;
   private promptFormatter: PromptFormatterV2;
   private ingestionPipeline: EmailIngestPipeline;
-  private testDataLoader: TestDataLoader;
   
   constructor() {
     this.vectorStore = new VectorStore();
@@ -59,7 +57,6 @@ export class ToneLearningOrchestrator {
         errorThreshold: parseFloat(process.env.PIPELINE_ERROR_THRESHOLD || '0.1')
       }
     );
-    this.testDataLoader = new TestDataLoader();
   }
   
   async initialize(): Promise<void> {
@@ -231,10 +228,10 @@ export class ToneLearningOrchestrator {
   
   /**
    * Load test data (John's emails)
+   * @deprecated Use seed-demo.ts instead
    */
-  async loadTestData(userId: string = 'john-test-user'): Promise<void> {
-    await this.testDataLoader.initialize();
-    await this.testDataLoader.loadAllJohnEmails(userId);
+  async loadTestData(_userId: string = 'john-test-user'): Promise<void> {
+    console.log('loadTestData is deprecated. Use npm run seed instead.');
   }
   
   /**
@@ -264,84 +261,4 @@ export class ToneLearningOrchestrator {
       exampleUsage
     };
   }
-}
-
-// CLI interface for testing
-if (require.main === module) {
-  const orchestrator = new ToneLearningOrchestrator();
-  
-  async function runDemo() {
-    try {
-      await orchestrator.initialize();
-      
-      console.log(chalk.bold('🎭 Tone Learning Orchestrator Demo\n'));
-      
-      // Load test data
-      const userId = 'john-test-user';
-      console.log(chalk.blue('Loading John\'s test emails...'));
-      await orchestrator.loadTestData(userId);
-      
-      // Create a sample incoming email
-      const incomingEmail: ProcessedEmail = {
-        uid: 'demo-1',
-        messageId: '<demo@example.com>',
-        inReplyTo: null,
-        date: new Date(),
-        from: [{ address: 'client@example.com', name: 'Important Client' }],
-        to: [{ address: 'john@company.com', name: 'John Mitchell' }],
-        cc: [],
-        bcc: [],
-        subject: 'Performance issues with the platform',
-        textContent: 'Hi John, We\'re experiencing slow response times again. Can you look into this urgently?',
-        htmlContent: null,
-        extractedText: 'Hi John, We\'re experiencing slow response times again. Can you look into this urgently?',
-        relationship: {
-          type: 'professional',
-          confidence: 0.9,
-          detectionMethod: 'demo'
-        }
-      };
-      
-      // Generate drafts for different recipients
-      const recipients = [
-        { email: 'sarah@company.com', desc: 'to Sarah (coworker)' },
-        { email: 'jim@venturecapital.com', desc: 'to Jim (investor)' },
-        { email: 'lisa@example.com', desc: 'to Lisa (wife)' },
-        { email: 'mike@example.com', desc: 'to Mike (friend)' }
-      ];
-      
-      for (const recipient of recipients) {
-        console.log(chalk.bold(`\n📝 Generating draft ${recipient.desc}:`));
-        
-        const draft = await orchestrator.generateDraft({
-          incomingEmail,
-          recipientEmail: recipient.email,
-          config: {
-            userId,
-            maxExamples: 3,
-            templateName: 'verbose',
-            verbose: true
-          }
-        });
-        
-        console.log(chalk.green('\nDraft metadata:'));
-        console.log(JSON.stringify(draft.metadata, null, 2));
-      }
-      
-      // Show statistics
-      const stats = await orchestrator.getToneStatistics(userId);
-      console.log(chalk.bold('\n📊 Tone Learning Statistics:'));
-      console.log(chalk.gray(`Total emails: ${stats.totalEmails}`));
-      console.log(chalk.gray('Relationships:'));
-      Object.entries(stats.relationships).forEach(([rel, count]) => {
-        console.log(chalk.gray(`  - ${rel}: ${count}`));
-      });
-      
-    } catch (error) {
-      console.error(chalk.red('Error:'), error);
-      process.exit(1);
-    }
-  }
-  
-  runDemo();
 }
