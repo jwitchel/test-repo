@@ -3,6 +3,7 @@ import { TestDataLoader } from '../../scripts/tools/test-data-loader';
 import { VectorStore } from '../vector/qdrant-client';
 import { ProcessedEmail } from '../pipeline/types';
 import { EmbeddingService } from '../vector/embedding-service';
+import { personService } from '../relationships/person-service';
 
 describe('Tone Learning Pipeline Integration', () => {
   let orchestrator: ToneLearningOrchestrator;
@@ -20,17 +21,118 @@ describe('Tone Learning Pipeline Integration', () => {
     
     testDataLoader = new TestDataLoader();
     await testDataLoader.initialize();
+    
+    // Initialize person service
+    await personService.initialize();
   });
   
   afterAll(async () => {
     // Clean up test data
     await vectorStore.deleteUserData(testUserId);
+    
+    // Clean up people and relationships
+    const { Pool } = await import('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL || 'postgresql://aiemailuser:aiemailpass@localhost:5434/aiemaildb'
+    });
+    
+    await pool.query('DELETE FROM people WHERE user_id = $1', [testUserId]);
+    await pool.query('DELETE FROM user_relationships WHERE user_id = $1', [testUserId]);
+    await pool.end();
   });
   
   beforeEach(async () => {
     // Clear any existing test data
     await vectorStore.deleteUserData(testUserId);
+    
+    // Pre-populate expected relationships for test emails
+    await setupTestRelationships();
   });
+  
+  async function setupTestRelationships() {
+    // First ensure the user has the necessary relationship types
+    const { Pool } = await import('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL || 'postgresql://aiemailuser:aiemailpass@localhost:5434/aiemaildb'
+    });
+    
+    // Create test user if it doesn't exist
+    await pool.query(
+      `INSERT INTO "user" (id, email, name, "createdAt", "updatedAt") 
+       VALUES ($1, $2, $3, NOW(), NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      [testUserId, 'test-integration@example.com', 'Test Integration User']
+    );
+    
+    // Create default relationship types for the test user
+    const defaultRelationships = [
+      { type: 'spouse', display: 'Spouse' },
+      { type: 'friend', display: 'Friend' },
+      { type: 'colleague', display: 'Colleague' },
+      { type: 'professional', display: 'Professional' },
+      { type: 'external', display: 'External' }
+    ];
+    
+    for (const rel of defaultRelationships) {
+      await pool.query(
+        `INSERT INTO user_relationships (user_id, relationship_type, display_name, is_system_default)
+         VALUES ($1, $2, $3, true)
+         ON CONFLICT (user_id, relationship_type) DO NOTHING`,
+        [testUserId, rel.type, rel.display]
+      );
+    }
+    
+    // Create people with expected relationships
+    try {
+      await personService.createPerson({
+        userId: testUserId,
+        name: 'Sarah',
+        emailAddress: 'sarah@company.com',
+        relationshipType: 'colleague',
+        confidence: 1.0
+      });
+    } catch (error) {
+      // Ignore if already exists
+    }
+    
+    try {
+      await personService.createPerson({
+        userId: testUserId,
+        name: 'Lisa',
+        emailAddress: 'lisa@example.com',
+        relationshipType: 'spouse',
+        confidence: 1.0
+      });
+    } catch (error) {
+      // Ignore if already exists
+    }
+    
+    try {
+      await personService.createPerson({
+        userId: testUserId,
+        name: 'Mike',
+        emailAddress: 'mike@example.com',
+        relationshipType: 'friend',
+        confidence: 1.0
+      });
+    } catch (error) {
+      // Ignore if already exists
+    }
+    
+    try {
+      await personService.createPerson({
+        userId: testUserId,
+        name: 'Jim',
+        emailAddress: 'jim@venturecapital.com',
+        relationshipType: 'professional',
+        confidence: 1.0
+      });
+    } catch (error) {
+      // Ignore if already exists
+    }
+    
+    await pool.end();
+  }
   
   describe('End-to-End Pipeline Flow', () => {
     it('should process emails from ingestion to prompt generation', async () => {
