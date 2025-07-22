@@ -6,6 +6,7 @@ import { EmbeddingService } from '../../lib/vector/embedding-service';
 import { EmailIngestPipeline } from '../../lib/pipeline/email-ingest-pipeline';
 import { ProcessedEmail } from '../../lib/pipeline/types';
 import { RelationshipDetector } from '../../lib/relationships/relationship-detector';
+import { StyleAggregationService } from '../../lib/style/style-aggregation-service';
 import chalk from 'chalk';
 
 interface JohnEmail {
@@ -43,6 +44,7 @@ export class TestDataLoader {
       this.vectorStore,
       this.embeddingService,
       new RelationshipDetector(),
+      new StyleAggregationService(this.vectorStore),
       { batchSize: 50, parallelism: 5, errorThreshold: 0.1 }
     );
   }

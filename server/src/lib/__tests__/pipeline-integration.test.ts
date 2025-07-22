@@ -36,9 +36,19 @@ describe('Tone Learning Pipeline Integration', () => {
       connectionString: process.env.DATABASE_URL || 'postgresql://aiemailuser:aiemailpass@localhost:5434/aiemaildb'
     });
     
-    await pool.query('DELETE FROM people WHERE user_id = $1', [testUserId]);
-    await pool.query('DELETE FROM user_relationships WHERE user_id = $1', [testUserId]);
-    await pool.end();
+    try {
+      // Delete in correct order to respect foreign key constraints
+      await pool.query('DELETE FROM relationship_tone_preferences WHERE user_id = $1', [testUserId]);
+      await pool.query('DELETE FROM person_relationships WHERE user_id = $1', [testUserId]);
+      await pool.query('DELETE FROM person_emails WHERE person_id IN (SELECT id FROM people WHERE user_id = $1)', [testUserId]);
+      await pool.query('DELETE FROM people WHERE user_id = $1', [testUserId]);
+      await pool.query('DELETE FROM user_relationships WHERE user_id = $1', [testUserId]);
+      await pool.query('DELETE FROM "user" WHERE id = $1', [testUserId]);
+    } catch (error) {
+      console.error('Cleanup error:', error);
+    } finally {
+      await pool.end();
+    }
   });
   
   beforeEach(async () => {
@@ -75,7 +85,7 @@ describe('Tone Learning Pipeline Integration', () => {
     
     for (const rel of defaultRelationships) {
       await pool.query(
-        `INSERT INTO user_relationships (user_id, relationship_type, display_name, is_system_default)
+        `INSERT INTO user_relationships (user_id, relationship_type, display_name, is_active)
          VALUES ($1, $2, $3, true)
          ON CONFLICT (user_id, relationship_type) DO NOTHING`,
         [testUserId, rel.type, rel.display]

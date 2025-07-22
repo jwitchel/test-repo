@@ -1,13 +1,12 @@
 import { SelectedExample } from './example-selector';
-import { RelationshipProfile } from './types';
-import { TemplateManager } from './template-manager';
+import { TemplateManager, EnhancedRelationshipProfile } from './template-manager';
 
 export interface PromptFormatterParams {
   incomingEmail: string;
   recipientEmail: string;
   relationship: string;
   examples: SelectedExample[];
-  relationshipProfile?: RelationshipProfile | null;
+  relationshipProfile?: EnhancedRelationshipProfile | null;
 }
 
 export interface FormattedPrompt {

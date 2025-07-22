@@ -14,8 +14,8 @@ export interface PromptTemplateData {
   exactExamples?: FormattedExample[];
   otherExamples?: FormattedExample[];
   
-  // Relationship profile
-  profile?: RelationshipProfile | null;
+  // Relationship profile with aggregated style
+  profile?: EnhancedRelationshipProfile | null;
   
   // Metadata
   meta: {
@@ -24,6 +24,36 @@ export interface PromptTemplateData {
     avgWordCount: number;
     formalityLevel: string;
   };
+}
+
+// Enhanced profile that includes aggregated style patterns
+export interface EnhancedRelationshipProfile extends RelationshipProfile {
+  aggregatedStyle?: {
+    greetings: Array<{ text: string; frequency: number; percentage: number }>;
+    closings: Array<{ text: string; frequency: number; percentage: number }>;
+    emojis: Array<{ emoji: string; frequency: number; contexts: string[] }>;
+    contractions: { uses: boolean; frequency: number; examples: string[] };
+    sentimentProfile: { 
+      primaryTone: string; 
+      averageWarmth: number; 
+      averageFormality: number; 
+    };
+    vocabularyProfile: {
+      complexityLevel: string;
+      technicalTerms: string[];
+      commonPhrases: Array<{ phrase: string; frequency: number }>;
+    };
+    structuralPatterns: {
+      averageEmailLength: number;
+      averageSentenceLength: number;
+      paragraphingStyle: string;
+    };
+    emailCount: number;
+    confidenceScore: number;
+    lastUpdated?: string;
+  };
+  personName?: string;
+  relationshipType?: string;
 }
 
 export interface FormattedExample {
@@ -67,6 +97,18 @@ export class TemplateManager {
     // Uppercase helper
     Handlebars.registerHelper('uppercase', (text: string) => {
       return text ? text.toUpperCase() : '';
+    });
+    
+    // Percentage helper
+    Handlebars.registerHelper('percent', (value: number) => {
+      if (typeof value !== 'number') return '0';
+      return Math.round(value * 100);
+    });
+    
+    // Round helper
+    Handlebars.registerHelper('round', (value: number, decimals: number = 0) => {
+      if (typeof value !== 'number') return '0';
+      return value.toFixed(decimals);
     });
   }
 
@@ -165,7 +207,7 @@ export class TemplateManager {
       recipientEmail: string;
       relationship: string;
       examples: SelectedExample[];
-      relationshipProfile?: RelationshipProfile | null;
+      relationshipProfile?: EnhancedRelationshipProfile | null;
     }
   ): PromptTemplateData {
     const exactMatches = params.examples.filter(e => 

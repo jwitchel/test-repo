@@ -8,6 +8,7 @@ import { TestDataLoader } from '../../scripts/tools/test-data-loader';
 import { ProcessedEmail, GeneratedDraft } from './types';
 import { RelationshipService } from '../relationships/relationship-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
+import { StyleAggregationService } from '../style/style-aggregation-service';
 import chalk from 'chalk';
 
 export interface ToneLearningConfig {
@@ -28,6 +29,7 @@ export class ToneLearningOrchestrator {
   private embeddingService: EmbeddingService;
   private relationshipService: RelationshipService;
   private relationshipDetector: RelationshipDetector;
+  private styleAggregationService: StyleAggregationService;
   private exampleSelector: ExampleSelector;
   private promptFormatter: PromptFormatterV2;
   private ingestionPipeline: EmailIngestPipeline;
@@ -38,6 +40,7 @@ export class ToneLearningOrchestrator {
     this.embeddingService = new EmbeddingService();
     this.relationshipService = new RelationshipService();
     this.relationshipDetector = new RelationshipDetector();
+    this.styleAggregationService = new StyleAggregationService(this.vectorStore);
     this.exampleSelector = new ExampleSelector(
       this.vectorStore, 
       this.embeddingService,
@@ -49,6 +52,7 @@ export class ToneLearningOrchestrator {
       this.vectorStore,
       this.embeddingService,
       this.relationshipDetector,
+      this.styleAggregationService,
       { 
         batchSize: parseInt(process.env.PIPELINE_BATCH_SIZE || '100'),
         parallelism: parseInt(process.env.PIPELINE_PARALLELISM || '5'),
@@ -142,16 +146,26 @@ export class ToneLearningOrchestrator {
       console.log(chalk.gray(`  Confidence: ${(detectedRelationship.confidence * 100).toFixed(1)}%`));
     }
     
+    // Get enhanced profile with aggregated style
+    const enhancedProfile = await this.relationshipService.getEnhancedProfile(
+      userId,
+      recipientEmail
+    );
+    
     // Step 2: Format prompt with examples
     if (verbose) {
       console.log(chalk.blue('\n2️⃣ Formatting prompt...'));
+      if (enhancedProfile?.aggregatedStyle) {
+        console.log(chalk.gray(`  Using aggregated style from ${enhancedProfile.aggregatedStyle.emailCount} emails`));
+      }
     }
     
     const prompt = await this.promptFormatter.formatWithExamples({
       incomingEmail: incomingEmail.extractedText,
       recipientEmail,
       examples: exampleSelection.examples,
-      relationship: exampleSelection.relationship
+      relationship: exampleSelection.relationship,
+      relationshipProfile: enhancedProfile
     });
     
     if (verbose) {

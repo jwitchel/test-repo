@@ -115,6 +115,7 @@ import toneProfileRoutes from './routes/tone-profile';
 import mockImapRoutes, { stopAllMockClients } from './routes/mock-imap';
 import imapRoutes from './routes/imap';
 import relationshipsRoutes from './routes/relationships';
+import styleRoutes from './routes/style';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -122,6 +123,7 @@ app.use('/api/tone-profile', toneProfileRoutes);
 app.use('/api/mock-imap', mockImapRoutes);
 app.use('/api/imap', imapRoutes);
 app.use('/api', relationshipsRoutes);
+app.use('/', styleRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

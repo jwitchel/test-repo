@@ -431,10 +431,11 @@ describe('PersonService', () => {
 
     it('should return empty array for user with no people', async () => {
       const emptyUserId = 'empty-user-' + Date.now();
+      const emptyEmail = `empty-${Date.now()}@example.com`;
       await pool.query(
         `INSERT INTO "user" (id, email, name, "createdAt", "updatedAt")
          VALUES ($1, $2, $3, NOW(), NOW())`,
-        [emptyUserId, 'empty@example.com', 'Empty User']
+        [emptyUserId, emptyEmail, 'Empty User']
       );
 
       const people = await personService.listPeopleForUser({

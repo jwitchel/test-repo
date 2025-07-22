@@ -85,6 +85,22 @@ async function testPipelineWithMocks() {
     initialize: async () => console.log('   MockRelationshipService initialized'),
     getRelationshipProfile: async () => null
   } as any;
+  
+  const mockStyleAggregationService = {
+    aggregateStyleForUser: async () => ({
+      greetings: [],
+      closings: [],
+      emojis: [],
+      contractions: { uses: false, frequency: 0, examples: [] },
+      sentimentProfile: { primaryTone: 'neutral', averageWarmth: 0.5, averageFormality: 0.5 },
+      vocabularyProfile: { complexityLevel: 'moderate', technicalTerms: [], commonPhrases: [] },
+      structuralPatterns: { averageEmailLength: 100, averageSentenceLength: 15, paragraphingStyle: 'single' },
+      emailCount: 0,
+      lastUpdated: new Date().toISOString(),
+      confidenceScore: 0
+    }),
+    updateStylePreferences: async () => console.log('   Mock style preferences updated')
+  } as any;
 
   try {
     // Initialize
@@ -101,6 +117,7 @@ async function testPipelineWithMocks() {
       mockVectorStore,
       mockEmbeddingService,
       mockRelationshipDetector,
+      mockStyleAggregationService,
       {
         batchSize: 2,
         parallelism: 1,

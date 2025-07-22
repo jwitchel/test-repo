@@ -6,6 +6,7 @@ import { RelationshipService } from '../../lib/relationships/relationship-servic
 import { ExampleSelector } from '../../lib/pipeline/example-selector';
 import { EmailIngestPipeline } from '../../lib/pipeline/email-ingest-pipeline';
 import { ProcessedEmail } from '../../lib/pipeline/types';
+import { StyleAggregationService } from '../../lib/style/style-aggregation-service';
 
 async function testPipeline() {
   console.log('🚀 Testing Pipeline Components\n');
@@ -33,6 +34,7 @@ async function testPipeline() {
       vectorStore,
       embeddingService,
       relationshipDetector,
+      new StyleAggregationService(vectorStore),
       {
         batchSize: 5,
         parallelism: 2,
