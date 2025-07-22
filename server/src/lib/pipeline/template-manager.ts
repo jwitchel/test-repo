@@ -14,8 +14,11 @@ export interface PromptTemplateData {
   exactExamples?: FormattedExample[];
   otherExamples?: FormattedExample[];
   
-  // Relationship profile
-  profile?: RelationshipProfile | null;
+  // Relationship profile with aggregated style
+  profile?: EnhancedRelationshipProfile | null;
+  
+  // NLP features from incoming email
+  nlpFeatures?: any;
   
   // Metadata
   meta: {
@@ -26,9 +29,40 @@ export interface PromptTemplateData {
   };
 }
 
+// Enhanced profile that includes aggregated style patterns
+export interface EnhancedRelationshipProfile extends RelationshipProfile {
+  aggregatedStyle?: {
+    greetings: Array<{ text: string; frequency: number; percentage: number }>;
+    closings: Array<{ text: string; frequency: number; percentage: number }>;
+    emojis: Array<{ emoji: string; frequency: number; contexts: string[] }>;
+    contractions: { uses: boolean; frequency: number; examples: string[] };
+    sentimentProfile: { 
+      primaryTone: string; 
+      averageWarmth: number; 
+      averageFormality: number; 
+    };
+    vocabularyProfile: {
+      complexityLevel: string;
+      technicalTerms: string[];
+      commonPhrases: Array<{ phrase: string; frequency: number }>;
+    };
+    structuralPatterns: {
+      averageEmailLength: number;
+      averageSentenceLength: number;
+      paragraphingStyle: string;
+    };
+    emailCount: number;
+    confidenceScore: number;
+    lastUpdated?: string;
+  };
+  personName?: string;
+  relationshipType?: string;
+}
+
 export interface FormattedExample {
   text: string;
   relationship: string;
+  score?: number;
   subject?: string;
   formalityScore?: number;
   sentiment?: string;
@@ -67,6 +101,28 @@ export class TemplateManager {
     // Uppercase helper
     Handlebars.registerHelper('uppercase', (text: string) => {
       return text ? text.toUpperCase() : '';
+    });
+    
+    // Percentage helper
+    Handlebars.registerHelper('percent', (value: number) => {
+      if (typeof value !== 'number') return '0';
+      return Math.round(value * 100);
+    });
+    
+    // Round helper
+    Handlebars.registerHelper('round', (value: number, decimals: number = 0) => {
+      if (typeof value !== 'number') return '0';
+      return value.toFixed(decimals);
+    });
+    
+    // Check if array has items
+    Handlebars.registerHelper('hasItems', (array: any[]) => {
+      return Array.isArray(array) && array.length > 0;
+    });
+    
+    // Get array length safely
+    Handlebars.registerHelper('length', (array: any[]) => {
+      return Array.isArray(array) ? array.length : 0;
     });
   }
 
@@ -130,6 +186,7 @@ export class TemplateManager {
     return examples.map(ex => ({
       text: ex.text,
       relationship: ex.metadata.relationship?.type || 'unknown',
+      score: ex.score,
       subject: ex.metadata.subject,
       formalityScore: ex.metadata.features?.stats?.formalityScore,
       sentiment: ex.metadata.features?.sentiment?.dominant,
@@ -165,7 +222,8 @@ export class TemplateManager {
       recipientEmail: string;
       relationship: string;
       examples: SelectedExample[];
-      relationshipProfile?: RelationshipProfile | null;
+      relationshipProfile?: EnhancedRelationshipProfile | null;
+      nlpFeatures?: any;
     }
   ): PromptTemplateData {
     const exactMatches = params.examples.filter(e => 
@@ -198,6 +256,7 @@ export class TemplateManager {
         ? this.formatExamplesForTemplate(otherMatches.slice(0, 5))
         : undefined,
       profile: params.relationshipProfile,
+      nlpFeatures: params.nlpFeatures,
       meta: {
         exampleCount: params.examples.length,
         relationshipMatchCount: exactMatches.length,

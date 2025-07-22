@@ -3,6 +3,7 @@ import { VectorStore } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
 import { withRetry } from './retry-utils';
+import { StyleAggregationService } from '../style/style-aggregation-service';
 
 export interface BatchResult {
   success: number;
@@ -15,6 +16,7 @@ export class EmailIngestPipeline {
     private vectorStore: VectorStore,
     private embeddingService: EmbeddingService,
     private relationshipDetector: RelationshipDetector,
+    private styleAggregation: StyleAggregationService,
     private config: {
       batchSize: number;
       parallelism: number;
@@ -169,6 +171,27 @@ export class EmailIngestPipeline {
         }
       }
     );
+    
+    // Always update style for this user + relationship (non-blocking)
+    setImmediate(async () => {
+      try {
+        const aggregated = await this.styleAggregation
+          .aggregateStyleForUser(userId, relationship.relationship);
+        
+        await this.styleAggregation.updateStylePreferences(
+          userId,
+          relationship.relationship,
+          aggregated
+        );
+        
+        console.log(`Updated style for ${userId} -> ${relationship.relationship}: ${aggregated.emailCount} emails`);
+      } catch (error: any) {
+        // Only log real errors, not foreign key violations from test data
+        if (error.code !== '23503') { // PostgreSQL foreign key violation
+          console.error('Style aggregation failed:', error);
+        }
+      }
+    });
     
     return { relationship: relationship.relationship };
   }

@@ -1,53 +1,31 @@
 # Scripts Directory
 
-This directory contains demo scripts, test utilities, and tools for the AI Email Assistant project.
+This directory contains test utilities, tools, and the demo data seed script for the AI Email Assistant project.
 
 ## Directory Structure
 
 ```
 scripts/
-├── demos/          # Interactive demonstrations
+├── data/           # Demo data definitions
 ├── tests/          # Test scripts for specific features
-└── tools/          # Utility scripts for data management
+├── tools/          # Utility scripts for data management
+└── seed-demo.ts    # Main demo data seeding script
 ```
 
-## Demo Scripts
+## Main Scripts
 
-### NLP Feature Demos
+### Demo Data Seeding
 
-#### `demos/demo-nlp.js`
-Comprehensive demonstration of all NLP features including:
-- Sentiment analysis with emotions
-- Relationship familiarity detection
-- Tone analysis (warmth, formality, politeness, etc.)
-- Linguistic style analysis
-
-```bash
-npm run demo:nlp
-```
-
-#### `demos/demo-nlp-interactive.js`
-Interactive CLI tool for real-time text analysis. Enter any text to see:
-- Sentiment and emotion detection
-- Relationship hints
-- Tone qualities
-- Statistics
+#### `seed-demo.ts`
+Comprehensive script that seeds all demo data needed for a fully functional system:
+- Creates test users with authentication
+- Sets up relationship types
+- Creates people (recipients) with email mappings
+- Seeds aggregated style patterns
+- Ingests sample emails through the pipeline
 
 ```bash
-npm run demo:nlp:interactive
-```
-
-### Pipeline Demos
-
-#### `demos/demo-highland-pipeline.ts`
-Demonstrates the Highland.js email processing pipeline:
-- Batch processing with progress tracking
-- Error handling and recovery
-- Performance metrics
-- Backpressure management
-
-```bash
-npm run demo:pipeline
+npm run seed
 ```
 
 #### `demos/demo-websocket-processing.ts`

@@ -4,7 +4,6 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Trash2, PlayCircle, StopCircle, AlertCircle, CheckCircle, Info, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -134,10 +133,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
     if (autoScroll && scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
   }, [logs, autoScroll]);
 
@@ -191,11 +187,11 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
   };
 
   return (
-    <Card className={cn("flex flex-col", className)}>
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-4">
-          <h3 className="font-semibold">IMAP Logs</h3>
-          <Badge variant={isConnected ? "default" : "secondary"}>
+    <Card className={cn("flex flex-col h-full overflow-hidden", className)}>
+      <div className="flex items-center justify-between p-2 border-b flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">IMAP Logs</h3>
+          <Badge variant={isConnected ? "default" : "secondary"} className="text-xs py-0">
             {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
           </Badge>
         </div>
@@ -242,7 +238,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
       </div>
 
       {error && (
-        <Alert variant="destructive" className="m-4">
+        <Alert variant="destructive" className="m-4 flex-shrink-0">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             {error}
@@ -260,7 +256,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
         </Alert>
       )}
 
-      <ScrollArea className="flex-1 h-[500px]" ref={scrollAreaRef}>
+      <div className="flex-1 overflow-y-auto min-h-0" ref={scrollAreaRef}>
         <div className="p-2 space-y-1">
           {!logs || logs.length === 0 ? (
             <div className="text-center text-zinc-500 py-8">
@@ -281,7 +277,22 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
                       {getLogIcon(log.level)}
                       {log.level.toUpperCase()}
                     </div>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">{log.command}</Badge>
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-[10px] px-1.5 py-0 h-4",
+                        log.command.startsWith('email.') && "border-purple-500 text-purple-600",
+                        log.command.startsWith('nlp.') && "border-blue-500 text-blue-600",
+                        log.command.startsWith('relationship.') && "border-green-500 text-green-600",
+                        log.command.startsWith('person.') && "border-yellow-500 text-yellow-600",
+                        log.command.startsWith('vector.') && "border-orange-500 text-orange-600",
+                        log.command.startsWith('style.') && "border-pink-500 text-pink-600",
+                        log.command.startsWith('prompt.') && "border-indigo-500 text-indigo-600",
+                        log.command === 'pipeline.complete' && "border-emerald-500 text-emerald-600 font-semibold"
+                      )}
+                    >
+                      {log.command}
+                    </Badge>
                     {log.data.duration && (
                       <div className="text-zinc-500 text-[10px]">
                         {log.data.duration}ms
@@ -337,7 +348,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
             ))
           )}
         </div>
-      </ScrollArea>
+      </div>
     </Card>
   );
 }

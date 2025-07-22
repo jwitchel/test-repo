@@ -25,8 +25,8 @@ docker compose up -d
 # Start both frontend and backend
 npm run dev:all
 
-# Create test users (if needed)
-npm run create-test-users
+# Seed demo data (creates users, styles, emails, etc.)
+npm run seed
 ```
 
 Test users available:

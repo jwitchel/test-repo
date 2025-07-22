@@ -4,3 +4,24 @@ Relationship context for {{relationship}}:
 - Common closings: {{join profile.commonClosings ", "}}
 - Use emojis: {{#if profile.useEmojis}}yes{{else}}no{{/if}}
 - Use humor: {{#if profile.useHumor}}yes{{else}}no{{/if}}
+{{#if profile.aggregatedStyle}}
+
+LEARNED WRITING STYLE (based on {{profile.aggregatedStyle.emailCount}} analyzed emails):
+- Confidence in style: {{percent profile.aggregatedStyle.confidenceScore}}% 
+- Average email length: {{round profile.aggregatedStyle.structuralPatterns.averageEmailLength}} words
+- Vocabulary level: {{profile.aggregatedStyle.vocabularyProfile.complexityLevel}}
+{{#if profile.aggregatedStyle.emojis}}
+- Commonly used emojis: {{#each profile.aggregatedStyle.emojis}}{{this.emoji}} {{/each}}
+{{/if}}
+{{#if profile.aggregatedStyle.vocabularyProfile.commonPhrases}}
+- Common phrases: {{#each profile.aggregatedStyle.vocabularyProfile.commonPhrases}}{{#if @first}}{{/if}}"{{this.phrase}}"{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+{{#if profile.aggregatedStyle.contractions.uses}}
+- Uses contractions: yes (examples: {{join profile.aggregatedStyle.contractions.examples ", "}})
+{{else}}
+- Uses contractions: no
+{{/if}}
+- Primary tone: {{profile.aggregatedStyle.sentimentProfile.primaryTone}}
+- Average warmth: {{round profile.aggregatedStyle.sentimentProfile.averageWarmth 2}}
+- Average formality: {{round profile.aggregatedStyle.sentimentProfile.averageFormality 2}}
+{{/if}}

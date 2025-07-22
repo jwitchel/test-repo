@@ -195,7 +195,7 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
               <Button 
                 onClick={startOperations} 
                 disabled={isLoading}
-                className="flex-1"
+                className="flex-1 text-xs py-2 px-3"
               >
                 {isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -209,7 +209,7 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
                 onClick={stopOperations} 
                 disabled={isLoading}
                 variant="destructive"
-                className="flex-1"
+                className="flex-1 text-xs py-2 px-3"
               >
                 {isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -240,6 +240,7 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
                 variant="outline"
                 onClick={() => runSequence(key)}
                 disabled={isLoading}
+                className="text-xs py-2 px-3"
               >
                 {label}
               </Button>
@@ -273,7 +274,7 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
                   variant="outline"
                   onClick={() => runScenario(key)}
                   disabled={isLoading}
-                  className="w-full"
+                  className="w-full text-xs py-2 px-3"
                 >
                   <Zap className="mr-2 h-4 w-4" />
                   {label}

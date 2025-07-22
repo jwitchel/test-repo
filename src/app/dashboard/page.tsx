@@ -88,6 +88,19 @@ export default function DashboardPage() {
               </Button>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Interactive Demo</CardTitle>
+              <CardDescription>Test email analysis pipeline</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Analyze emails and see real-time processing</p>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="/imap-logs-demo">Open Demo</a>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
