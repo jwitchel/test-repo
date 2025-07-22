@@ -1,7 +1,7 @@
 import nlp from 'compromise';
 import sentencesPlugin from 'compromise-sentences';
 import statsPlugin from 'compromise-stats';
-import winkSentiment from 'wink-sentiment';
+const winkSentiment = require('wink-sentiment');
 
 // Extend compromise with plugins
 nlp.plugin(sentencesPlugin);

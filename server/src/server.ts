@@ -116,6 +116,7 @@ import mockImapRoutes, { stopAllMockClients } from './routes/mock-imap';
 import imapRoutes from './routes/imap';
 import relationshipsRoutes from './routes/relationships';
 import styleRoutes from './routes/style';
+import analyzeRoutes from './routes/analyze';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -124,6 +125,7 @@ app.use('/api/mock-imap', mockImapRoutes);
 app.use('/api/imap', imapRoutes);
 app.use('/api', relationshipsRoutes);
 app.use('/', styleRoutes);
+app.use('/', analyzeRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
