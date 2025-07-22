@@ -238,7 +238,8 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       recipientEmail,
       examples: selectedExamples,
       relationship: detectedRelationship.relationship,
-      relationshipProfile: enhancedProfile
+      relationshipProfile: enhancedProfile,
+      nlpFeatures: nlpFeatures
     });
     
     imapLogger.log(userId, {

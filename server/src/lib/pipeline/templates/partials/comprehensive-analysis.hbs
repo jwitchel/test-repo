@@ -1,0 +1,101 @@
+{{!-- Comprehensive Analysis Context --}}
+
+=== INCOMING EMAIL ANALYSIS ===
+
+{{#if nlpFeatures}}
+SENTIMENT ANALYSIS:
+- Primary sentiment: {{nlpFeatures.sentiment.primary}}
+- Intensity: {{round nlpFeatures.sentiment.intensity 2}}
+- Confidence: {{round nlpFeatures.sentiment.confidence 2}}
+- Score: {{round nlpFeatures.sentiment.score 2}} (magnitude: {{round nlpFeatures.sentiment.magnitude 2}})
+- Emotions detected: {{#if nlpFeatures.sentiment.emotions}}{{join nlpFeatures.sentiment.emotions ", "}}{{else}}N/A{{/if}}
+- Emojis used: {{#if nlpFeatures.sentiment.emojis}}{{join nlpFeatures.sentiment.emojis " "}}{{else}}N/A{{/if}}
+
+TONAL QUALITIES:
+- Formality: {{round nlpFeatures.tonalQualities.formality 2}}
+- Warmth: {{round nlpFeatures.tonalQualities.warmth 2}}
+- Enthusiasm: {{round nlpFeatures.tonalQualities.enthusiasm 2}}
+- Urgency: {{round nlpFeatures.tonalQualities.urgency 2}}
+- Directness: {{round nlpFeatures.tonalQualities.directness 2}}
+- Politeness: {{round nlpFeatures.tonalQualities.politeness 2}}
+
+LINGUISTIC STYLE:
+- Vocabulary complexity: {{nlpFeatures.linguisticStyle.vocabularyComplexity}}
+- Sentence structure: {{nlpFeatures.linguisticStyle.sentenceStructure}}
+- Conversational markers: {{#if nlpFeatures.linguisticStyle.conversationalMarkers}}{{join nlpFeatures.linguisticStyle.conversationalMarkers ", "}}{{else}}N/A{{/if}}
+
+CONTENT ANALYSIS:
+- Context type: {{nlpFeatures.contextType}}
+- Questions asked: {{#if nlpFeatures.questions}}{{length nlpFeatures.questions}} - "{{join nlpFeatures.questions '", "'}}"{{else}}0{{/if}}
+- Action items: {{#if nlpFeatures.actionItems}}{{length nlpFeatures.actionItems}}{{else}}0{{/if}}
+{{#each nlpFeatures.actionItems}}
+  - {{this.type}}: "{{this.text}}"
+{{/each}}
+
+RELATIONSHIP HINTS:
+- Familiarity level: {{nlpFeatures.relationshipHints.familiarityLevel}}
+- Greeting style: {{nlpFeatures.relationshipHints.linguisticMarkers.greetingStyle}}
+- Closing style: {{nlpFeatures.relationshipHints.linguisticMarkers.closingStyle}}
+- Endearments: {{#if nlpFeatures.relationshipHints.linguisticMarkers.endearments}}{{join nlpFeatures.relationshipHints.linguisticMarkers.endearments ", "}}{{else}}N/A{{/if}}
+- Professional phrases: {{#if nlpFeatures.relationshipHints.linguisticMarkers.professionalPhrases}}{{join nlpFeatures.relationshipHints.linguisticMarkers.professionalPhrases ", "}}{{else}}N/A{{/if}}
+- Informal language: {{#if nlpFeatures.relationshipHints.linguisticMarkers.informalLanguage}}{{join nlpFeatures.relationshipHints.linguisticMarkers.informalLanguage ", "}}{{else}}N/A{{/if}}
+
+FORMALITY INDICATORS:
+- Has title: {{nlpFeatures.relationshipHints.formalityIndicators.hasTitle}}
+- Has last name: {{nlpFeatures.relationshipHints.formalityIndicators.hasLastName}}
+- Has company reference: {{nlpFeatures.relationshipHints.formalityIndicators.hasCompanyReference}}
+- Sentence complexity: {{round nlpFeatures.relationshipHints.formalityIndicators.sentenceComplexity 2}}
+- Vocabulary sophistication: {{round nlpFeatures.relationshipHints.formalityIndicators.vocabularySophistication 2}}
+
+TEXT STATISTICS:
+- Word count: {{nlpFeatures.stats.wordCount}}
+- Sentence count: {{nlpFeatures.stats.sentenceCount}}
+- Avg words per sentence: {{round nlpFeatures.stats.avgWordsPerSentence 1}}
+- Vocabulary complexity score: {{round nlpFeatures.stats.vocabularyComplexity 2}}
+- Formality score: {{round nlpFeatures.stats.formalityScore 2}}
+- Contraction density: {{round nlpFeatures.stats.contractionDensity 2}}
+
+LINGUISTIC PATTERNS:
+- Common phrases: {{#if nlpFeatures.phrases}}{{#each nlpFeatures.phrases}}"{{this.text}}" ({{this.frequency}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
+- Contractions: {{#if nlpFeatures.contractions}}{{#each nlpFeatures.contractions}}{{this.contraction}}→{{this.expanded}} ({{this.count}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
+- Sentence starters: {{#if nlpFeatures.sentenceStarters}}{{#each nlpFeatures.sentenceStarters}}"{{this.text}}" ({{this.count}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
+- Closings detected: {{#if nlpFeatures.closings}}{{#each nlpFeatures.closings}}"{{this.text}}" ({{this.count}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
+{{else}}
+NO NLP FEATURES EXTRACTED - Analysis unavailable
+{{/if}}
+
+=== RELATIONSHIP CONTEXT ===
+Relationship Type: {{relationship}}
+{{#if profile}}
+{{> relationship-context relationship=relationship profile=profile}}
+{{/if}}
+
+=== YOUR WRITING EXAMPLES ===
+{{#if exactExamples}}
+Examples from {{relationship}} relationships ({{exactExamples.length}} found):
+{{#each exactExamples}}
+Example {{inc @index}}:
+"{{truncate this.text 250}}"
+{{#if this.formalityScore}}Formality: {{round this.formalityScore 2}}{{/if}}
+{{#if this.sentiment}}Sentiment: {{this.sentiment}}{{/if}}
+{{/each}}
+{{else}}
+No examples found for {{relationship}} relationship.
+{{/if}}
+
+{{#if otherExamples}}
+Additional examples from other relationships:
+{{#each otherExamples}}
+Example {{inc @index}} ({{this.relationship}}):
+"{{truncate this.text 200}}"
+{{/each}}
+{{/if}}
+
+=== WRITING STYLE SUMMARY ===
+- Target formality: {{meta.formalityLevel}}
+- Average response length: ~{{meta.avgWordCount}} words
+- Available examples: {{meta.exampleCount}} ({{meta.relationshipMatchCount}} from same relationship)
+{{#if profile.aggregatedStyle}}
+- Style confidence: {{percent profile.aggregatedStyle.confidenceScore}}%
+- Based on: {{profile.aggregatedStyle.emailCount}} emails analyzed
+{{/if}}

@@ -1,61 +1,55 @@
 You are writing an email response to {{recipientEmail}}.
 
-RELATIONSHIP TYPE: {{relationship}}
-{{#if profile}}
+{{> comprehensive-analysis}}
 
-RELATIONSHIP PROFILE:
-{{> relationship-context relationship=relationship profile=profile}}
-{{/if}}
-
-WRITING STYLE ANALYSIS:
-- Average word count: {{meta.avgWordCount}} words
-- Formality level: {{meta.formalityLevel}}
-- Total examples available: {{meta.exampleCount}}
-- Examples from same relationship: {{meta.relationshipMatchCount}}
-
-YOUR WRITING EXAMPLES:
-
+=== DETAILED EXAMPLE ANALYSIS ===
 {{#if exactExamples}}
-=== EXAMPLES FROM {{uppercase relationship}} RELATIONSHIP ===
+YOUR EMAILS TO {{uppercase relationship}} (Full Details):
 {{#each exactExamples}}
 
 Example {{inc @index}}:
-- Original subject: {{this.subject}}
-- Formality score: {{this.formalityScore}}
-- Sentiment: {{this.sentiment}}
-- Word count: {{this.wordCount}}
-- Your response:
+{{#if this.subject}}- Original subject: {{this.subject}}{{/if}}
+{{#if this.formalityScore}}- Formality score: {{round this.formalityScore 2}}{{/if}}
+{{#if this.sentiment}}- Sentiment: {{this.sentiment}}{{/if}}
+{{#if this.wordCount}}- Word count: {{this.wordCount}}{{/if}}
+{{#if this.urgency}}- Urgency: {{this.urgency}}{{/if}}
+{{#if this.keyPhrases}}- Key phrases: {{join this.keyPhrases ", "}}{{/if}}
+- Full text:
 "{{this.text}}"
 
-Analysis:
-- Key phrases: {{#if this.keyPhrases}}{{join this.keyPhrases ", "}}{{else}}None detected{{/if}}
-- Urgency level: {{this.urgency}}
 {{/each}}
 {{else}}
-No direct examples from {{relationship}} relationship available.
+No examples from {{relationship}} relationships in database.
 {{/if}}
 
-{{#if otherExamples}}
-
-=== SUPPLEMENTARY EXAMPLES FROM OTHER RELATIONSHIPS ===
-{{#each otherExamples}}
-
-Example {{inc @index}} ({{this.relationship}}):
-- Formality score: {{this.formalityScore}}
-- Your response:
-"{{truncate this.text 150}}"
-{{/each}}
-{{/if}}
-
-INCOMING EMAIL TO RESPOND TO:
+=== EMAIL REQUIRING RESPONSE ===
 "{{incomingEmail}}"
 
-INSTRUCTIONS:
-1. Analyze the tone and style patterns in the examples above
-2. Note the formality level typical for {{relationship}} relationships
-3. Use similar greetings and closings as shown in the examples
-4. Match the average length (aim for ~{{meta.avgWordCount}} words)
-5. Incorporate phrases and expressions from the examples where appropriate
-6. Maintain consistency with the demonstrated writing style
+=== DETAILED INSTRUCTIONS ===
+Based on the comprehensive analysis above:
 
-Generate a response that sounds authentically like the user based on their historical writing patterns.
+1. TONE MATCHING:
+   - Incoming email sentiment: {{#if nlpFeatures}}{{nlpFeatures.sentiment.primary}}{{else}}[analyze tone]{{/if}}
+   - Target formality: {{meta.formalityLevel}}
+   - Match warmth and enthusiasm levels shown in analysis
+
+2. STRUCTURE:
+   - Use greetings from style profile: {{#if profile.commonGreetings}}{{join profile.commonGreetings ", "}}{{else}}[use appropriate greeting]{{/if}}
+   - Use closings from style profile: {{#if profile.commonClosings}}{{join profile.commonClosings ", "}}{{else}}[use appropriate closing]{{/if}}
+   - Target length: ~{{meta.avgWordCount}} words
+
+3. STYLE ELEMENTS:
+{{#if profile.aggregatedStyle}}
+   - Emojis: {{#if profile.useEmojis}}yes - {{#each profile.aggregatedStyle.emojis}}{{this.emoji}} {{/each}}{{else}}no{{/if}}
+   - Contractions: {{#if profile.aggregatedStyle.contractions.uses}}yes ({{join profile.aggregatedStyle.contractions.examples ", "}}){{else}}no{{/if}}
+   - Common phrases: {{#each profile.aggregatedStyle.vocabularyProfile.commonPhrases}}"{{this.phrase}}" {{/each}}
+{{else}}
+   - Follow patterns from provided examples
+{{/if}}
+
+4. AUTHENTICITY:
+   - Write as if you are the user, not an AI
+   - Use vocabulary and expressions consistent with examples
+   - Maintain the user's unique voice and personality
+
+Generate a response that perfectly matches the user's established communication patterns.

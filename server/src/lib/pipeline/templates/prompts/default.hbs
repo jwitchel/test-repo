@@ -1,30 +1,16 @@
-You are writing an email response to {{recipientEmail}} (relationship: {{relationship}}).
-{{#if profile}}
-{{> relationship-context relationship=relationship profile=profile}}
-{{/if}}
+You are writing an email response to {{recipientEmail}}.
 
-Based on these examples of your writing style:
+{{> comprehensive-analysis}}
 
-{{#if exactExamples}}
-Examples of your emails to {{relationship}}:
-{{#each exactExamples}}
-
-Example {{inc @index}} ({{this.relationship}}):
-"{{truncate this.text 200}}"
-{{/each}}
-{{/if}}
-
-{{#if otherExamples}}
-
-Additional context from similar relationships:
-{{#each otherExamples}}
-
-Example {{inc @index}} ({{this.relationship}}):
-"{{truncate this.text 200}}"
-{{/each}}
-{{/if}}
-
-Please respond to:
+=== EMAIL TO RESPOND TO ===
 "{{incomingEmail}}"
 
-Important: Match the tone and style shown in the examples for this relationship type.
+=== INSTRUCTIONS ===
+Based on the comprehensive analysis above:
+1. Match the detected sentiment and formality level from the incoming email
+2. Use greetings and closings typical for {{relationship}} relationships
+3. Maintain the writing style shown in the examples
+4. Keep response length around {{meta.avgWordCount}} words
+5. If style patterns are available ({{#if profile.aggregatedStyle}}confidence: {{percent profile.aggregatedStyle.confidenceScore}}%{{else}}no historical data{{/if}}), follow them closely
+
+Generate an authentic response that matches the user's established writing patterns.

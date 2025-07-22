@@ -17,6 +17,9 @@ export interface PromptTemplateData {
   // Relationship profile with aggregated style
   profile?: EnhancedRelationshipProfile | null;
   
+  // NLP features from incoming email
+  nlpFeatures?: any;
+  
   // Metadata
   meta: {
     exampleCount: number;
@@ -109,6 +112,16 @@ export class TemplateManager {
     Handlebars.registerHelper('round', (value: number, decimals: number = 0) => {
       if (typeof value !== 'number') return '0';
       return value.toFixed(decimals);
+    });
+    
+    // Check if array has items
+    Handlebars.registerHelper('hasItems', (array: any[]) => {
+      return Array.isArray(array) && array.length > 0;
+    });
+    
+    // Get array length safely
+    Handlebars.registerHelper('length', (array: any[]) => {
+      return Array.isArray(array) ? array.length : 0;
     });
   }
 
@@ -208,6 +221,7 @@ export class TemplateManager {
       relationship: string;
       examples: SelectedExample[];
       relationshipProfile?: EnhancedRelationshipProfile | null;
+      nlpFeatures?: any;
     }
   ): PromptTemplateData {
     const exactMatches = params.examples.filter(e => 
@@ -240,6 +254,7 @@ export class TemplateManager {
         ? this.formatExamplesForTemplate(otherMatches.slice(0, 5))
         : undefined,
       profile: params.relationshipProfile,
+      nlpFeatures: params.nlpFeatures,
       meta: {
         exampleCount: params.examples.length,
         relationshipMatchCount: exactMatches.length,

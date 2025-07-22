@@ -7,6 +7,7 @@ export interface PromptFormatterParams {
   relationship: string;
   examples: SelectedExample[];
   relationshipProfile?: EnhancedRelationshipProfile | null;
+  nlpFeatures?: any; // NLP features from the incoming email
 }
 
 export interface FormattedPrompt {
