@@ -1,5 +1,5 @@
-// Stub implementation until Task 3.3 is completed
 import { RelationshipDetectorResult } from '../pipeline/types';
+import { personService } from './person-service';
 
 export interface DetectRelationshipParams {
   userId: string;
@@ -15,43 +15,86 @@ export interface DetectRelationshipParams {
 
 export class RelationshipDetector {
   async initialize(): Promise<void> {
-    // Stub - no initialization needed yet
+    await personService.initialize();
   }
 
   async detectRelationship(params: DetectRelationshipParams): Promise<RelationshipDetectorResult> {
-    // Stub implementation - returns a relationship based on known test email addresses
-    const email = params.recipientEmail.toLowerCase();
+    const { userId, recipientEmail } = params;
     
+    // First, check if we have this person in our database
+    const person = await personService.findPersonByEmail(recipientEmail, userId);
+    
+    if (person && person.relationships.length > 0) {
+      // Find the primary relationship or the one with highest confidence
+      const primaryRel = person.relationships.find(r => r.is_primary) 
+        || person.relationships.sort((a, b) => b.confidence - a.confidence)[0];
+      
+      return {
+        relationship: primaryRel.relationship_type,
+        confidence: primaryRel.confidence,
+        method: primaryRel.user_set ? 'user-defined' : 'database'
+      };
+    }
+    
+    // If person not found, use domain-based heuristics for new contacts
+    const email = recipientEmail.toLowerCase();
     let relationship = 'external';
-    let confidence = 0.8;
+    let confidence = 0.5;
     
-    // Map specific email addresses to relationships for testing
-    if (email === 'lisa@example.com') {
-      relationship = 'spouse';
-      confidence = 0.95;
-    } else if (email === 'sarah@company.com') {
-      relationship = 'colleague';
-      confidence = 0.9;
-    } else if (email === 'mike@example.com') {
-      relationship = 'friend';
-      confidence = 0.9;
-    } else if (email === 'jim@venturecapital.com') {
-      relationship = 'professional';
-      confidence = 0.85;
-    } else {
-      // Fallback to domain-based detection
-      const domain = email.split('@')[1];
-      if (domain && domain.includes('gmail.com')) {
+    // Domain-based detection
+    const domain = email.split('@')[1];
+    if (domain) {
+      // Check for personal email domains
+      if (['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'].includes(domain)) {
         relationship = 'friend';
-      } else if (domain && domain.includes('company.com')) {
+        confidence = 0.6;
+      } 
+      // Check if domain matches user's company domain (would need user profile info)
+      else if (domain.includes('.edu')) {
         relationship = 'colleague';
+        confidence = 0.7;
       }
+      // Professional domains
+      else if (domain.includes('.com') || domain.includes('.org')) {
+        relationship = 'professional';
+        confidence = 0.6;
+      }
+    }
+    
+    // Use historical context if provided to refine the detection
+    if (params.historicalContext) {
+      const ctx = params.historicalContext;
+      
+      if (ctx.hasIntimacyMarkers && ctx.familiarityLevel === 'high') {
+        relationship = 'spouse';
+        confidence = Math.max(confidence, 0.8);
+      } else if (ctx.hasProfessionalMarkers && ctx.formalityScore > 0.7) {
+        relationship = 'professional';
+        confidence = Math.max(confidence, 0.75);
+      } else if (ctx.familiarityLevel === 'high' && !ctx.hasProfessionalMarkers) {
+        relationship = 'friend';
+        confidence = Math.max(confidence, 0.7);
+      }
+    }
+    
+    // Auto-create person record for future use
+    try {
+      await personService.createPerson({
+        userId,
+        name: email.split('@')[0], // Use email prefix as initial name
+        emailAddress: recipientEmail,
+        relationshipType: relationship,
+        confidence
+      });
+    } catch (error) {
+      // Ignore if person already exists or other errors
+      // The next email will find them in the database
     }
     
     return {
       relationship,
       confidence,
-      method: 'stub'
+      method: 'heuristic'
     };
   }
 }

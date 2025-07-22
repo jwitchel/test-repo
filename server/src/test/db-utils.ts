@@ -30,13 +30,20 @@ export async function setupTestDb() {
   }
 
   try {
+    // Run better-auth schema first (creates user table)
+    const betterAuthSchemaPath = path.join(__dirname, '..', '..', '..', 'db', 'better-auth-schema.sql');
+    const betterAuthSchema = fs.readFileSync(betterAuthSchemaPath, 'utf8');
+    await testPool.query(betterAuthSchema);
+
+    // Then run the main schema
     const schemaPath = path.join(__dirname, '..', '..', '..', 'db', 'schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf8');
     await testPool.query(schema);
 
-    const betterAuthSchemaPath = path.join(__dirname, '..', '..', '..', 'db', 'better-auth-schema.sql');
-    const betterAuthSchema = fs.readFileSync(betterAuthSchemaPath, 'utf8');
-    await testPool.query(betterAuthSchema);
+    // Finally run the relationship schema
+    const relationshipSchemaPath = path.join(__dirname, '..', '..', '..', 'db', 'relationship-schema.sql');
+    const relationshipSchema = fs.readFileSync(relationshipSchemaPath, 'utf8');
+    await testPool.query(relationshipSchema);
 
     console.log('Applied database schemas to test database');
   } catch (error) {
@@ -47,10 +54,19 @@ export async function setupTestDb() {
 
 export async function cleanupTestDb() {
   try {
+    // Drop relationship tables first (due to foreign keys)
+    await testPool.query('DROP TABLE IF EXISTS relationship_tone_preferences CASCADE');
+    await testPool.query('DROP TABLE IF EXISTS person_relationships CASCADE');
+    await testPool.query('DROP TABLE IF EXISTS person_emails CASCADE');
+    await testPool.query('DROP TABLE IF EXISTS people CASCADE');
+    await testPool.query('DROP TABLE IF EXISTS user_relationships CASCADE');
+    
+    // Drop main application tables
     await testPool.query('DROP TABLE IF EXISTS draft_tracking CASCADE');
     await testPool.query('DROP TABLE IF EXISTS tone_profiles CASCADE');
     await testPool.query('DROP TABLE IF EXISTS email_accounts CASCADE');
     
+    // Drop better-auth tables
     await testPool.query('DROP TABLE IF EXISTS verification CASCADE');
     await testPool.query('DROP TABLE IF EXISTS session CASCADE');
     await testPool.query('DROP TABLE IF EXISTS account CASCADE');
@@ -65,7 +81,7 @@ export async function cleanupTestDb() {
 
 export async function seedTestUser(email: string, _password: string) {
   const result = await testPool.query(
-    'INSERT INTO "user" (id, email, email_verified, name, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+    'INSERT INTO "user" (id, email, "emailVerified", name, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
     [
       generateId(),
       email,
