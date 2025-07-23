@@ -19,8 +19,9 @@ import { Badge } from '@/components/ui/badge'
 
 interface EmailAccount {
   id: string
-  email: string
-  provider: string
+  email_address: string
+  imap_host: string
+  imap_port: number
 }
 
 // Demo account ID for testing without real email accounts
@@ -352,7 +353,7 @@ export default function ImapLogsDemoPage() {
                 </SelectItem>
                 {emailAccounts.map((account) => (
                   <SelectItem key={account.id} value={account.id}>
-                    {account.email} ({account.provider})
+                    {account.email_address}
                   </SelectItem>
                 ))}
               </SelectContent>
