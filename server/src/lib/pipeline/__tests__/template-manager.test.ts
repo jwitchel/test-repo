@@ -73,9 +73,9 @@ describe('TemplateManager', () => {
       await templateManager.initialize();
       const result = await templateManager.renderPrompt('verbose', mockData);
       
-      expect(result).toContain('RELATIONSHIP TYPE: friend');
-      expect(result).toContain('Average word count: 8 words');
-      expect(result).toContain('Formality level: casual');
+      expect(result).toContain('Relationship Type: friend');
+      expect(result).toContain('Average response length: ~8 words');
+      expect(result).toContain('Target formality: casual');
     });
 
     it('should render system prompt', async () => {
@@ -155,6 +155,7 @@ describe('TemplateManager', () => {
       expect(formatted[0]).toEqual({
         text: 'Hello there!',
         relationship: 'friend',
+        score: 0.9,
         subject: 'Greeting',
         formalityScore: 0.3,
         sentiment: 'positive',

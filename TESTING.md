@@ -119,6 +119,16 @@ describe('MyComponent Integration', () => {
 - **Purpose**: Test encryption/decryption utilities
 - **Type**: Unit test
 
+### LLM Client Tests
+- **File**: `llm-client.test.ts`
+- **Purpose**: Test LLM provider detection, model info, and configuration
+- **Type**: Unit test (uses Vercel AI SDK)
+
+### LLM Providers API Tests
+- **File**: `routes/llm-providers.test.ts`
+- **Purpose**: Test LLM provider CRUD operations and validation
+- **Type**: Integration test (requires database)
+
 ## Common Issues and Troubleshooting
 
 ### Issue: "Cannot read properties of undefined (reading 'QdrantClient')"

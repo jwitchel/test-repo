@@ -117,6 +117,8 @@ import imapRoutes from './routes/imap';
 import relationshipsRoutes from './routes/relationships';
 import styleRoutes from './routes/style';
 import analyzeRoutes from './routes/analyze';
+import llmProvidersRoutes from './routes/llm-providers';
+import generateRoutes from './routes/generate';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -126,6 +128,8 @@ app.use('/api/imap', imapRoutes);
 app.use('/api', relationshipsRoutes);
 app.use('/', styleRoutes);
 app.use('/', analyzeRoutes);
+app.use('/api/llm-providers', llmProvidersRoutes);
+app.use('/api/generate', generateRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -199,6 +203,8 @@ server.listen(PORT, () => {
   console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws/imap-logs`);
   console.log(`🎭 Mock IMAP API: http://localhost:${PORT}/api/mock-imap/*`);
   console.log(`📧 IMAP API: http://localhost:${PORT}/api/imap/*`);
+  console.log(`🤖 LLM Providers API: http://localhost:${PORT}/api/llm-providers/*`);
+  console.log(`✨ Generate API: http://localhost:${PORT}/api/generate/*`);
 });
 
 export { app, pool, auth, server, wsServer };
