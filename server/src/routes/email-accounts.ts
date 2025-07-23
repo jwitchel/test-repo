@@ -53,6 +53,40 @@ async function testImapConnection(
   }
 }
 
+// Test email account connection
+router.post('/test', requireAuth, validateEmailAccount, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const accountData = req.body as CreateEmailAccountRequest;
+    
+    // Test IMAP connection
+    await testImapConnection(accountData, userId);
+    
+    res.json({ success: true, message: 'Connection successful' });
+  } catch (error) {
+    if (error instanceof ImapConnectionError) {
+      if (error.code === 'AUTHENTICATIONFAILED') {
+        res.status(401).json({ 
+          error: 'IMAP authentication failed',
+          message: 'Invalid email credentials. Please check your username and password.'
+        });
+        return;
+      } else if (error.code === 'ENOTFOUND') {
+        res.status(400).json({ 
+          error: 'IMAP connection failed',
+          message: 'Unable to connect to IMAP server. Please check the server address and port.'
+        });
+        return;
+      }
+    }
+    
+    res.status(408).json({ 
+      error: 'IMAP connection timeout',
+      message: 'Connection to email server timed out. Please check your settings and try again.'
+    });
+  }
+});
+
 // Get user's email accounts
 router.get('/', requireAuth, async (req, res) => {
   try {
