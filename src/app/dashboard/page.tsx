@@ -69,9 +69,9 @@ export default function DashboardPage() {
               <CardDescription>Manage your email connections</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">No email accounts connected yet</p>
-              <Button className="mt-4" size="sm">
-                Connect Email
+              <p className="text-sm text-muted-foreground">Connect and manage your email accounts</p>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="/settings/email-accounts">Connect Email</a>
               </Button>
             </CardContent>
           </Card>

@@ -57,6 +57,18 @@ export default function SettingsPage() {
 
             <Card>
               <CardHeader>
+                <CardTitle>Email Accounts</CardTitle>
+                <CardDescription>Manage your connected email accounts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/settings/email-accounts">
+                  <Button variant="outline">Manage Email Accounts</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Security</CardTitle>
                 <CardDescription>Manage your password and security settings</CardDescription>
               </CardHeader>
