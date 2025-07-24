@@ -69,6 +69,18 @@ export default function SettingsPage() {
 
             <Card>
               <CardHeader>
+                <CardTitle>LLM Providers</CardTitle>
+                <CardDescription>Configure AI providers for generating email replies</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/settings/llm-providers">
+                  <Button variant="outline">Manage LLM Providers</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Security</CardTitle>
                 <CardDescription>Manage your password and security settings</CardDescription>
               </CardHeader>

@@ -78,6 +78,19 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>LLM Providers</CardTitle>
+              <CardDescription>Configure AI providers</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Set up OpenAI, Anthropic, or other AI providers</p>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="/settings/llm-providers">Configure LLM</a>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Tone Profile</CardTitle>
               <CardDescription>Your writing style analysis</CardDescription>
             </CardHeader>
@@ -98,6 +111,19 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">Analyze emails and see real-time processing</p>
               <Button className="mt-4" size="sm" asChild>
                 <a href="/imap-logs-demo">Open Demo</a>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>LLM Testing</CardTitle>
+              <CardDescription>Test your AI providers</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Generate text using your configured LLM providers</p>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="/llm-demo">Test LLM</a>
               </Button>
             </CardContent>
           </Card>
