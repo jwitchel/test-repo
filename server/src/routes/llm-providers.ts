@@ -1,6 +1,7 @@
 import express from 'express';
-import { requireAuth } from '../server';
+import { requireAuth } from '../middleware/auth';
 import { pool } from '../server';
+
 import { encryptPassword } from '../lib/crypto';
 import { 
   CreateLLMProviderRequest, 

@@ -6,8 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { PlayCircle, StopCircle, Zap, AlertCircle, Loader2 } from 'lucide-react';
+import { PlayCircle, StopCircle, Zap, AlertCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface MockImapControlsProps {
   emailAccountId: string;
@@ -28,6 +33,7 @@ const SCENARIOS = {
 };
 
 export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [folderName, setFolderName] = useState('INBOX');
@@ -180,13 +186,30 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Mock IMAP Operations</CardTitle>
-        <CardDescription>
-          Test the IMAP logging system with simulated operations
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CardHeader>
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-between p-0 h-auto hover:bg-transparent"
+            >
+              <div className="text-left">
+                <CardTitle>Mock IMAP Operations</CardTitle>
+                <CardDescription>
+                  Test the IMAP logging system with simulated operations
+                </CardDescription>
+              </div>
+              {isOpen ? (
+                <ChevronUp className="h-4 w-4 ml-2" />
+              ) : (
+                <ChevronDown className="h-4 w-4 ml-2" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="space-y-6 pt-0">
         {/* Continuous Operations */}
         <div className="space-y-2">
           <Label>Continuous Operations</Label>
@@ -283,7 +306,9 @@ export function MockImapControls({ emailAccountId }: MockImapControlsProps) {
             ))}
           </div>
         </div>
-      </CardContent>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }

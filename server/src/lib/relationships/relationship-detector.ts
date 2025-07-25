@@ -46,7 +46,7 @@ export class RelationshipDetector {
     if (domain) {
       // Check for personal email domains
       if (['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'].includes(domain)) {
-        relationship = 'friend';
+        relationship = 'friends';  // Changed from 'friend' to 'friends'
         confidence = 0.6;
       } 
       // Check if domain matches user's company domain (would need user profile info)
@@ -56,7 +56,7 @@ export class RelationshipDetector {
       }
       // Professional domains
       else if (domain.includes('.com') || domain.includes('.org')) {
-        relationship = 'professional';
+        relationship = 'colleague';  // Changed from 'professional' to 'colleague'
         confidence = 0.6;
       }
     }
@@ -69,26 +69,28 @@ export class RelationshipDetector {
         relationship = 'spouse';
         confidence = Math.max(confidence, 0.8);
       } else if (ctx.hasProfessionalMarkers && ctx.formalityScore > 0.7) {
-        relationship = 'professional';
+        relationship = 'colleague';  // Changed from 'professional' to 'colleague'
         confidence = Math.max(confidence, 0.75);
       } else if (ctx.familiarityLevel === 'high' && !ctx.hasProfessionalMarkers) {
-        relationship = 'friend';
+        relationship = 'friends';  // Changed from 'friend' to 'friends'
         confidence = Math.max(confidence, 0.7);
       }
     }
     
-    // Auto-create person record for future use
-    try {
-      await personService.createPerson({
-        userId,
-        name: email.split('@')[0], // Use email prefix as initial name
-        emailAddress: recipientEmail,
-        relationshipType: relationship,
-        confidence
-      });
-    } catch (error) {
-      // Ignore if person already exists or other errors
-      // The next email will find them in the database
+    // Create person record for future use (only if we didn't find them)
+    if (!person) {
+      try {
+        await personService.findOrCreatePerson({
+          userId,
+          name: email.split('@')[0], // Use email prefix as initial name
+          emailAddress: recipientEmail,
+          relationshipType: relationship,
+          confidence
+        });
+      } catch (error) {
+        // Log but don't fail - the detection still worked
+        console.error('Failed to create person record:', error);
+      }
     }
     
     return {

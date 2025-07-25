@@ -131,7 +131,7 @@ router.get('/people/:id', async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const { id } = req.params;
     
-    const person = await personService.getPersonWithEmails(id, userId);
+    const person = await personService.getPersonById(id, userId);
     
     if (!person) {
       return res.status(404).json({ error: 'Person not found' });

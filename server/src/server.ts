@@ -78,35 +78,9 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Protected route middleware
-export const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> => {
-  try {
-    // Create a headers object that better-auth expects
-    const headers = new Headers();
-    Object.entries(req.headers).forEach(([key, value]) => {
-      if (value) {
-        headers.set(key, Array.isArray(value) ? value[0] : value);
-      }
-    });
-
-    const session = await auth.api.getSession({
-      headers: headers,
-    });
-
-    if (!session) {
-      res.status(401).json({ error: 'Authentication required' });
-      return;
-    }
-
-    // Add user info to request
-    (req as any).user = session.user;
-    (req as any).session = session;
-    next();
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(401).json({ error: 'Invalid session' });
-  }
-};
+// Import and re-export auth middleware
+import { requireAuth } from './middleware/auth';
+export { requireAuth };
 
 // API Routes
 import authRoutes from './routes/auth';
@@ -119,6 +93,7 @@ import styleRoutes from './routes/style';
 import analyzeRoutes from './routes/analyze';
 import llmProvidersRoutes from './routes/llm-providers';
 import generateRoutes from './routes/generate';
+import trainingRoutes from './routes/training';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -130,6 +105,7 @@ app.use('/', styleRoutes);
 app.use('/', analyzeRoutes);
 app.use('/api/llm-providers', llmProvidersRoutes);
 app.use('/api/generate', generateRoutes);
+app.use('/api/training', trainingRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -153,6 +129,22 @@ const wsServer = createImapLogsWebSocketServer(server);
 
 // Import IMAP pool for cleanup
 import { imapPool } from './lib/imap-pool';
+
+
+// Catch uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', error);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION at:', promise);
+  console.error('Reason:', reason);
+  process.exit(1);
+});
+
+
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
@@ -205,6 +197,21 @@ server.listen(PORT, () => {
   console.log(`📧 IMAP API: http://localhost:${PORT}/api/imap/*`);
   console.log(`🤖 LLM Providers API: http://localhost:${PORT}/api/llm-providers/*`);
   console.log(`✨ Generate API: http://localhost:${PORT}/api/generate/*`);
+  console.log(`🎯 Training API: http://localhost:${PORT}/api/training/*`);
+});
+
+// Handle server errors
+server.on('error', (error: any) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use. Please try one of these solutions:`);
+    console.error(`   1. Kill the process: lsof -ti:${PORT} | xargs kill -9`);
+    console.error(`   2. Or wait a moment and try again`);
+    console.error(`   3. Or use a different port by setting PORT env variable`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', error);
+    process.exit(1);
+  }
 });
 
 export { app, pool, auth, server, wsServer };

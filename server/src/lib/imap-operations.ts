@@ -2,6 +2,7 @@ import { ImapConnection, ImapConnectionError } from './imap-connection';
 import { imapPool } from './imap-pool';
 import { decryptPassword } from './crypto';
 import { pool } from '../server';
+import { simpleParser } from 'mailparser';
 
 export interface EmailAccountConfig {
   id: string;
@@ -197,12 +198,24 @@ export class ImapOperations {
       }
 
       // Fetch message details
-      const messages = await conn.fetch(paginatedUids.join(','), {
-        bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)',
-        envelope: true,
-        size: true,
-        flags: true
-      });
+      // Fetch messages individually as the test mail server doesn't handle bulk UID fetches
+      const messages: any[] = [];
+      
+      for (const uid of paginatedUids) {
+        try {
+          const fetchedMessages = await conn.fetch(uid, {
+            bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)',
+            envelope: true,
+            size: true,
+            flags: true
+          });
+          if (fetchedMessages.length > 0) {
+            messages.push(...fetchedMessages);
+          }
+        } catch (err) {
+          console.error(`Error fetching UID ${uid}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
 
       return messages.map((msg: any) => ({
         uid: msg.uid,
@@ -272,27 +285,49 @@ export class ImapOperations {
       }
 
       const uids = await conn.search(imapCriteria);
+      console.log(`IMAP search with criteria ${JSON.stringify(imapCriteria)} returned ${uids.length} UIDs`);
       
       if (uids.length === 0) {
         return [];
       }
 
+      // Sort UIDs in descending order to get newest emails first
+      const sortedUids = [...uids].sort((a, b) => b - a);
+
       // Apply pagination
       const offset = options.offset || 0;
       const limit = options.limit || 50;
-      const paginatedUids = uids.slice(offset, offset + limit);
+      const paginatedUids = sortedUids.slice(offset, offset + limit);
+      console.log(`Pagination: offset=${offset}, limit=${limit}, paginatedUids.length=${paginatedUids.length}`);
 
       if (paginatedUids.length === 0) {
         return [];
       }
 
       // Fetch message details
-      const messages = await conn.fetch(paginatedUids.join(','), {
-        bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)',
-        envelope: true,
-        size: true,
-        flags: true
-      });
+      console.log(`Fetching UIDs: ${paginatedUids.slice(0, 10).join(',')}... (total: ${paginatedUids.length})`);
+      
+      // Workaround: Fetch messages individually
+      // The test mail server doesn't handle bulk UID fetches properly
+      const messages: any[] = [];
+      
+      for (const uid of paginatedUids) {
+        try {
+          const fetchedMessages = await conn.fetch(uid, {
+            bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)',
+            envelope: true,
+            size: true,
+            flags: true
+          });
+          if (fetchedMessages.length > 0) {
+            messages.push(...fetchedMessages);
+          }
+        } catch (err) {
+          console.error(`Error fetching UID ${uid}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      
+      console.log(`Total fetched ${messages.length} messages from IMAP`);
 
       return messages.map((msg: any) => ({
         uid: msg.uid,
@@ -309,7 +344,7 @@ export class ImapOperations {
     }
   }
 
-  async getMessage(folderName: string, uid: number): Promise<EmailMessage & { body?: string }> {
+  async getMessage(folderName: string, uid: number): Promise<EmailMessage & { body?: string; parsed?: any }> {
     const conn = await this.getConnection();
     
     try {
@@ -327,6 +362,13 @@ export class ImapOperations {
       }
 
       const msg = messages[0];
+      
+      // Parse the message if we have a body
+      let parsed = null;
+      if (msg.body) {
+        parsed = await simpleParser(msg.body);
+      }
+      
       return {
         uid: msg.uid,
         messageId: msg.headers?.messageId?.[0],
@@ -336,7 +378,8 @@ export class ImapOperations {
         date: msg.date,
         flags: msg.flags,
         size: msg.size,
-        body: msg.body
+        body: msg.body,
+        parsed
       };
     } finally {
       this.release();

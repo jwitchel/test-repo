@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../server';
+import { requireAuth } from '../middleware/auth';
 import { MockImapClient, TEST_SEQUENCES } from '../lib/mock-imap';
 import { imapLogger } from '../lib/imap-logger';
 

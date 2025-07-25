@@ -315,7 +315,7 @@ describe('PersonService', () => {
     });
   });
 
-  describe('getPersonWithEmails', () => {
+  describe('getPersonById', () => {
     let personId: string;
 
     beforeEach(async () => {
@@ -333,7 +333,7 @@ describe('PersonService', () => {
     });
 
     it('should get person with all emails and relationships', async () => {
-      const person = await personService.getPersonWithEmails(personId, testUserId);
+      const person = await personService.getPersonById(personId, testUserId);
 
       expect(person).toBeDefined();
       expect(person?.name).toBe('Test Person');
@@ -343,7 +343,7 @@ describe('PersonService', () => {
     });
 
     it('should return null for non-existent person', async () => {
-      const person = await personService.getPersonWithEmails(
+      const person = await personService.getPersonById(
         '00000000-0000-0000-0000-000000000000',
         testUserId
       );
@@ -353,14 +353,14 @@ describe('PersonService', () => {
 
     it('should return null for unauthorized access', async () => {
       const otherUserId = 'other-user-' + Date.now();
-      const person = await personService.getPersonWithEmails(personId, otherUserId);
+      const person = await personService.getPersonById(personId, otherUserId);
 
       expect(person).toBeNull();
     });
 
     it('should throw ValidationError for invalid UUID', async () => {
       await expect(
-        personService.getPersonWithEmails('not-a-uuid', testUserId)
+        personService.getPersonById('not-a-uuid', testUserId)
       ).rejects.toThrow(ValidationError);
     });
   });
@@ -486,7 +486,7 @@ describe('PersonService', () => {
       expect(merged.relationships).toHaveLength(2);
 
       // Source person should be deleted
-      const sourcePerson = await personService.getPersonWithEmails(person2Id, testUserId);
+      const sourcePerson = await personService.getPersonById(person2Id, testUserId);
       expect(sourcePerson).toBeNull();
     });
 

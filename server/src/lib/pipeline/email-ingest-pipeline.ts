@@ -65,6 +65,22 @@ export class EmailIngestPipeline {
       console.log(`Historical processing complete. Total: ${processed}, Errors: ${errors}`);
       console.log('Relationship distribution:', relationshipStats);
       
+      // Aggregate styles for each relationship type after all emails are processed
+      console.log('Aggregating styles for each relationship type...');
+      for (const [relationshipType, count] of Object.entries(relationshipStats)) {
+        if (count > 0) {
+          try {
+            const aggregated = await this.styleAggregation.aggregateStyleForUser(userId, relationshipType);
+            await this.styleAggregation.updateStylePreferences(userId, relationshipType, aggregated);
+            console.log(`Updated style for ${userId} -> ${relationshipType}: ${aggregated.emailCount} emails`);
+          } catch (error: any) {
+            if (error.code !== '23503') { // PostgreSQL foreign key violation
+              console.error(`Style aggregation failed for ${relationshipType}:`, error);
+            }
+          }
+        }
+      }
+      
       return {
         processed,
         errors,
@@ -172,26 +188,29 @@ export class EmailIngestPipeline {
       }
     );
     
-    // Always update style for this user + relationship (non-blocking)
-    setImmediate(async () => {
-      try {
-        const aggregated = await this.styleAggregation
-          .aggregateStyleForUser(userId, relationship.relationship);
-        
-        await this.styleAggregation.updateStylePreferences(
-          userId,
-          relationship.relationship,
-          aggregated
-        );
-        
-        console.log(`Updated style for ${userId} -> ${relationship.relationship}: ${aggregated.emailCount} emails`);
-      } catch (error: any) {
-        // Only log real errors, not foreign key violations from test data
-        if (error.code !== '23503') { // PostgreSQL foreign key violation
-          console.error('Style aggregation failed:', error);
-        }
-      }
-    });
+    // Style aggregation should be done once after all emails are processed,
+    // not for every single email. Commenting out to prevent inefficiency and race conditions.
+    // TODO: Move style aggregation to happen once per relationship after batch processing
+    
+    // setImmediate(async () => {
+    //   try {
+    //     const aggregated = await this.styleAggregation
+    //       .aggregateStyleForUser(userId, relationship.relationship);
+    //     
+    //     await this.styleAggregation.updateStylePreferences(
+    //       userId,
+    //       relationship.relationship,
+    //       aggregated
+    //     );
+    //     
+    //     console.log(`Updated style for ${userId} -> ${relationship.relationship}: ${aggregated.emailCount} emails`);
+    //   } catch (error: any) {
+    //     // Only log real errors, not foreign key violations from test data
+    //     if (error.code !== '23503') { // PostgreSQL foreign key violation
+    //       console.error('Style aggregation failed:', error);
+    //     }
+    //   }
+    // });
     
     return { relationship: relationship.relationship };
   }

@@ -49,6 +49,12 @@ export class ImapConnectionPool extends EventEmitter {
   ): Promise<ImapConnection> {
     const poolKey = this.getPoolKey(userId, accountId);
     
+    // Log pool stats before getting connection
+    const stats = this.getPoolStats();
+    if (stats.totalConnections > 10) {
+      console.warn(`⚠️ High connection count: ${stats.totalConnections} total, ${stats.activeConnections} active`);
+    }
+    
     // Try to find an available connection
     const pool = this.connections.get(poolKey) || [];
     const available = pool.find(p => !p.inUse && p.connection.isConnected());

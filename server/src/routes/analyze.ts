@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth } from '../server';
+import { requireAuth } from '../middleware/auth';
 import { extractEmailFeatures } from '../lib/nlp-feature-extractor';
 import { relationshipService } from '../lib/relationships/relationship-service';
 import { personService } from '../lib/relationships/person-service';
@@ -114,8 +114,10 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
     
     let detectedRelationship: { relationship: string; confidence: number; method: string };
     if (relationshipType && relationshipType !== 'auto-detect') {
+      // Map casual to friend for consistency
+      const mappedRelationship = relationshipType === 'casual' ? 'friend' : relationshipType;
       detectedRelationship = {
-        relationship: relationshipType,
+        relationship: mappedRelationship,
         confidence: 1.0,
         method: 'user-specified'
       };

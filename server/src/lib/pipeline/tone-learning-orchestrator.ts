@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { VectorStore } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { ExampleSelector } from './example-selector';
@@ -88,6 +87,46 @@ export class ToneLearningOrchestrator {
     }
     
     return result;
+  }
+  
+  /**
+   * Ingest a single email sequentially - bypasses batching
+   */
+  async ingestSingleEmail(
+    userId: string,
+    _emailAccountId: string,
+    email: ProcessedEmail
+  ): Promise<{ processed: number; errors: number }> {
+    try {
+      // Process the email directly without batching
+      await this.ingestionPipeline.processEmail(userId, email);
+      return { processed: 1, errors: 0 };
+    } catch (error) {
+      console.error('Error processing single email:', error);
+      return { processed: 0, errors: 1 };
+    }
+  }
+  
+  /**
+   * Aggregate styles for all relationship types for a user
+   */
+  async aggregateStyles(userId: string): Promise<void> {
+    // Get all relationship types that have emails
+    const relationshipTypes = ['friend', 'colleague', 'acquaintance', 'client', 'customer', 'vendor'];
+    
+    for (const relationshipType of relationshipTypes) {
+      try {
+        const aggregated = await this.styleAggregationService.aggregateStyleForUser(userId, relationshipType);
+        if (aggregated.emailCount > 0) {
+          await this.styleAggregationService.updateStylePreferences(userId, relationshipType, aggregated);
+          console.log(`Updated style for ${relationshipType}: ${aggregated.emailCount} emails`);
+        }
+      } catch (error: any) {
+        if (error.code !== '23503') { // PostgreSQL foreign key violation
+          console.error(`Style aggregation failed for ${relationshipType}:`, error);
+        }
+      }
+    }
   }
   
   /**

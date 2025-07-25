@@ -336,7 +336,7 @@ export class ImapConnection extends EventEmitter {
     }
   }
 
-  async fetch(uids: number | string, options: any): Promise<ImapMessage[]> {
+  async fetch(uids: number | string | number[], options: any): Promise<ImapMessage[]> {
     if (!this.connected || !this.currentBox) {
       throw new ImapConnectionError('Not connected or no folder selected', 'INVALID_STATE');
     }

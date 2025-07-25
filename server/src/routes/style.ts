@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { styleAggregationService } from '../lib/style/style-aggregation-service';
 import { relationshipService } from '../lib/relationships/relationship-service';
-import { requireAuth } from '../server';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 

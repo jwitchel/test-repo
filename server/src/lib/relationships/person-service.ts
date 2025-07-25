@@ -1,14 +1,5 @@
 import { Pool } from 'pg';
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Load environment variables from root directory
-dotenv.config({ path: path.join(__dirname, '../../../.env') });
-
-// Create PostgreSQL pool following auth.ts pattern
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://aiemailuser:aiemailpass@localhost:5434/aiemaildb',
-});
+import { pool as serverPool } from '../../server';
 
 // Custom error classes
 export class PersonServiceError extends Error {
@@ -116,7 +107,7 @@ export class PersonService {
   private suppressLogs = false;
 
   constructor(customPool?: Pool) {
-    this.pool = customPool || pool;
+    this.pool = customPool || serverPool;
     // Suppress logs during tests
     if (process.env.NODE_ENV === 'test') {
       this.suppressLogs = true;
@@ -364,7 +355,7 @@ export class PersonService {
       await this._commitTransaction(client);
       
       // Return updated person with all details
-      const result = await this.getPersonWithEmails(personId, userId);
+      const result = await this.getPersonById(personId, userId);
       if (!result) {
         throw new PersonNotFoundError(`Failed to retrieve person after adding email`);
       }
@@ -381,6 +372,124 @@ export class PersonService {
     }
   }
 
+  async findOrCreatePerson(params: CreatePersonParams): Promise<PersonWithDetails> {
+    // Validate inputs
+    if (!params.userId) {
+      throw new ValidationError('User ID is required');
+    }
+    
+    this.validateName(params.name);
+    this.validateEmail(params.emailAddress);
+    
+    const normalizedEmail = this._normalizeEmail(params.emailAddress);
+    
+    try {
+      // this.logOperation('findOrCreatePerson', params.userId, { name: params.name, email: params.emailAddress });
+      
+      // Use a transaction to atomically create or find the person
+      const client = await this._beginTransaction();
+      
+      try {
+        // First check if person exists with this email
+        const existingCheck = await client.query(
+          `SELECT p.id FROM people p 
+           INNER JOIN person_emails pe ON pe.person_id = p.id
+           WHERE p.user_id = $1 AND pe.email_address = $2`,
+          [params.userId, normalizedEmail]
+        );
+        
+        if (existingCheck.rows.length > 0) {
+          // Person already exists, just return them
+          await this._rollbackTransaction(client);
+          return await this.getPersonById(existingCheck.rows[0].id, params.userId) || 
+            (() => { throw new PersonServiceError('Failed to retrieve existing person'); })();
+        }
+        
+        // Person doesn't exist, create them
+        const personResult = await client.query(
+          `INSERT INTO people (user_id, name, created_at, updated_at)
+           VALUES ($1, $2, NOW(), NOW())
+           ON CONFLICT (user_id, name) DO NOTHING
+           RETURNING id`,
+          [params.userId, params.name.trim()]
+        );
+        
+        let personId: string;
+        
+        if (personResult.rows.length > 0) {
+          // We created a new person
+          personId = personResult.rows[0].id;
+        } else {
+          // Person with this name already exists, find them
+          const existing = await client.query(
+            `SELECT id FROM people WHERE user_id = $1 AND name = $2`,
+            [params.userId, params.name.trim()]
+          );
+          
+          if (existing.rows.length === 0) {
+            throw new PersonServiceError('Failed to create or find person');
+          }
+          
+          personId = existing.rows[0].id;
+        }
+        
+        // Add the email
+        await client.query(
+          `INSERT INTO person_emails (person_id, email_address, is_primary, created_at)
+           VALUES ($1, $2, true, NOW())
+           ON CONFLICT (person_id, email_address) DO NOTHING`,
+          [personId, normalizedEmail]
+        );
+        
+        // Add relationship if provided
+        if (params.relationshipType) {
+          // Check if the relationship type exists for this user
+          const relCheck = await client.query(
+            `SELECT 1 FROM user_relationships 
+             WHERE user_id = $1 AND relationship_type = $2 AND is_active = true`,
+            [params.userId, params.relationshipType]
+          );
+          
+          if (relCheck.rows.length > 0) {
+            // First, unset any existing primary relationship for this person
+            await client.query(
+              `UPDATE person_relationships 
+               SET is_primary = false 
+               WHERE user_id = $1 AND person_id = $2 AND is_primary = true`,
+              [params.userId, personId]
+            );
+            
+            // Now insert/update the relationship
+            await client.query(
+              `INSERT INTO person_relationships 
+               (user_id, person_id, relationship_type, is_primary, user_set, confidence, created_at, updated_at)
+               VALUES ($1, $2, $3, true, false, $4, NOW(), NOW())
+               ON CONFLICT (user_id, person_id, relationship_type) DO UPDATE 
+               SET confidence = GREATEST(person_relationships.confidence, $4),
+                   updated_at = NOW()`,
+              [params.userId, personId, params.relationshipType, params.confidence || 0.5]
+            );
+          }
+        }
+        
+        await this._commitTransaction(client);
+        
+        // Return the person details
+        return await this.getPersonById(personId, params.userId) || 
+          (() => { throw new PersonServiceError('Failed to retrieve person after creation'); })();
+      } catch (error) {
+        await this._rollbackTransaction(client);
+        throw error;
+      }
+    } catch (error) {
+      if (error instanceof PersonServiceError) {
+        throw error;
+      }
+      
+      throw new PersonServiceError(`Failed to find or create person: ${error instanceof Error ? error.message : 'Unknown error'}`, 'FIND_OR_CREATE_FAILED');
+    }
+  }
+
   async findPersonByEmail(emailAddress: string, userId: string): Promise<PersonWithDetails | null> {
     // Validate inputs
     if (!userId) {
@@ -390,17 +499,28 @@ export class PersonService {
     this.validateEmail(emailAddress);
     
     try {
-      this.logOperation('findPersonByEmail', userId, { email: emailAddress });
+      // this.logOperation('findPersonByEmail', userId, { email: emailAddress });
       
       const normalizedEmail = this._normalizeEmail(emailAddress);
       
-      // Find person by email
+      // Single query to get person with all details
       const result = await this.pool.query(
-        `SELECT p.id
-         FROM people p
-         INNER JOIN person_emails pe ON pe.person_id = p.id
-         WHERE pe.email_address = $1 AND p.user_id = $2
-         LIMIT 1`,
+        `WITH person_data AS (
+          SELECT DISTINCT p.id, p.user_id, p.name, p.created_at, p.updated_at
+          FROM people p
+          INNER JOIN person_emails pe ON pe.person_id = p.id
+          WHERE pe.email_address = $1 AND p.user_id = $2
+          LIMIT 1
+        )
+        SELECT 
+          pd.id, pd.user_id, pd.name, pd.created_at, pd.updated_at,
+          pe.id as email_id, pe.email_address, pe.is_primary as email_is_primary, pe.created_at as email_created_at,
+          pr.id as rel_id, pr.relationship_type, pr.is_primary as rel_is_primary, 
+          pr.user_set, pr.confidence, pr.created_at as rel_created_at, pr.updated_at as rel_updated_at
+        FROM person_data pd
+        LEFT JOIN person_emails pe ON pe.person_id = pd.id
+        LEFT JOIN person_relationships pr ON pr.person_id = pd.id AND pr.user_id = pd.user_id
+        ORDER BY pe.is_primary DESC, pe.created_at ASC, pr.is_primary DESC, pr.confidence DESC`,
         [normalizedEmail, userId]
       );
       
@@ -408,8 +528,53 @@ export class PersonService {
         return null;
       }
       
-      // Get full person details
-      return await this.getPersonWithEmails(result.rows[0].id, userId);
+      // Process results into the expected structure
+      const firstRow = result.rows[0];
+      const person = {
+        id: firstRow.id,
+        user_id: firstRow.user_id,
+        name: firstRow.name,
+        created_at: firstRow.created_at,
+        updated_at: firstRow.updated_at
+      };
+      
+      // Collect emails and relationships
+      const emailsMap = new Map<string, PersonEmail>();
+      const relationshipsMap = new Map<string, PersonRelationship>();
+      
+      for (const row of result.rows) {
+        // Add email if not already added
+        if (row.email_id && !emailsMap.has(row.email_id)) {
+          emailsMap.set(row.email_id, {
+            id: row.email_id,
+            person_id: person.id,
+            email_address: row.email_address,
+            is_primary: row.email_is_primary,
+            created_at: row.email_created_at
+          });
+        }
+        
+        // Add relationship if not already added
+        if (row.rel_id && !relationshipsMap.has(row.rel_id)) {
+          relationshipsMap.set(row.rel_id, {
+            id: row.rel_id,
+            user_id: person.user_id,
+            person_id: person.id,
+            relationship_type: row.relationship_type,
+            is_primary: row.rel_is_primary,
+            user_set: row.user_set,
+            confidence: row.confidence,
+            created_at: row.rel_created_at,
+            updated_at: row.rel_updated_at
+          });
+        }
+      }
+      
+      return {
+        ...person,
+        emails: Array.from(emailsMap.values()),
+        relationships: Array.from(relationshipsMap.values())
+      };
     } catch (error) {
       if (error instanceof PersonServiceError) {
         throw error;
@@ -419,7 +584,7 @@ export class PersonService {
     }
   }
 
-  async getPersonWithEmails(personId: string, userId: string): Promise<PersonWithDetails | null> {
+  async getPersonById(personId: string, userId: string): Promise<PersonWithDetails | null> {
     // Validate inputs
     if (!userId) {
       throw new ValidationError('User ID is required');
@@ -428,7 +593,7 @@ export class PersonService {
     this.validateUUID(personId, 'person ID');
     
     try {
-      this.logOperation('getPersonWithEmails', userId, { personId });
+      this.logOperation('getPersonById', userId, { personId });
       
       // Get person details
       const personResult = await this.pool.query(
@@ -515,7 +680,7 @@ export class PersonService {
       // For each person, get their full details
       const people: PersonWithDetails[] = [];
       for (const row of result.rows) {
-        const person = await this.getPersonWithEmails(row.id, params.userId);
+        const person = await this.getPersonById(row.id, params.userId);
         if (person) {
           people.push(person);
         }
@@ -657,7 +822,7 @@ export class PersonService {
       await this._commitTransaction(client);
       
       // Return the merged person
-      const mergedPerson = await this.getPersonWithEmails(params.targetPersonId, params.userId);
+      const mergedPerson = await this.getPersonById(params.targetPersonId, params.userId);
       if (!mergedPerson) {
         throw new PersonNotFoundError('Failed to retrieve merged person');
       }

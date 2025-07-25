@@ -153,7 +153,7 @@ export class UserRelationshipService {
   
   async assignPersonToRelationship(userId: string, params: AssignRelationshipParams): Promise<PersonWithDetails> {
     // Verify person exists and belongs to user
-    const person = await personService.getPersonWithEmails(params.personId, userId);
+    const person = await personService.getPersonById(params.personId, userId);
     if (!person) {
       throw new PersonServiceError('Person not found', 'NOT_FOUND');
     }
@@ -201,7 +201,7 @@ export class UserRelationshipService {
     );
     
     // Return updated person
-    return await personService.getPersonWithEmails(params.personId, userId) as PersonWithDetails;
+    return await personService.getPersonById(params.personId, userId) as PersonWithDetails;
   }
   
   async getRelationshipSuggestions(userId: string, email: string): Promise<{ type: string; confidence: number; reason: string }[]> {

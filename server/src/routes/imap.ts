@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../server';
+import { requireAuth } from '../middleware/auth';
 import { ImapOperations } from '../lib/imap-operations';
 import { ImapConnectionError } from '../lib/imap-connection';
 

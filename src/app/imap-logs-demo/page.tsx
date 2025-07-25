@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ImapLogViewer } from '@/components/imap-log-viewer'
 import { MockImapControls } from '@/components/mock-imap-controls'
+import { TrainingPanel } from '@/components/training-panel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, MailOpen, Send, Loader2, Zap } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MailOpen, Send, Loader2, Zap, Home, Settings } from 'lucide-react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -102,7 +104,7 @@ John`
 }
 
 export default function ImapLogsDemoPage() {
-  const { } = useAuth()
+  const { user } = useAuth()
   const { success, error: showError } = useToast()
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string>(DEMO_ACCOUNT_ID)
@@ -261,9 +263,14 @@ export default function ImapLogsDemoPage() {
           const accounts = await response.json()
           setEmailAccounts(accounts)
           
-          // If user has accounts, select the first one
+          // If user has accounts, prefer user1@testmail.local or select the first one
           if (accounts.length > 0) {
-            setSelectedAccountId(accounts[0].id)
+            const testAccount = accounts.find(acc => acc.email_address === 'user1@testmail.local');
+            if (testAccount) {
+              setSelectedAccountId(testAccount.id)
+            } else {
+              setSelectedAccountId(accounts[0].id)
+            }
           }
         } else if (response.status !== 404) {
           console.error('Failed to fetch email accounts')
@@ -441,6 +448,22 @@ export default function ImapLogsDemoPage() {
             </h1>
           </div>
           
+          {/* Navigation Links */}
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <Home className="h-4 w-4" />
+                Dashboard
+              </Button>
+            </Link>
+            <Link href="/settings">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <Settings className="h-4 w-4" />
+                Settings
+              </Button>
+            </Link>
+          </div>
+          
           {/* Account and LLM Selection in Header */}
           <div className="flex items-center gap-4 ml-auto">
             <div className="flex items-center gap-2">
@@ -505,7 +528,7 @@ export default function ImapLogsDemoPage() {
           {/* Collapsible Sidebar */}
           <div className={cn(
             "bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-200 dark:border-zinc-700 transition-all duration-300",
-            isSidebarCollapsed ? "w-12" : "w-64"
+            isSidebarCollapsed ? "w-12" : "w-80"
           )}>
             <div className="p-2 border-b border-zinc-200 dark:border-zinc-700">
               <Button
@@ -525,7 +548,16 @@ export default function ImapLogsDemoPage() {
               </Button>
             </div>
             {!isSidebarCollapsed && (
-              <div className="p-2 overflow-y-auto">
+              <div className="p-2 overflow-y-auto flex flex-col gap-2">
+                <TrainingPanel 
+                  emailAccountId={selectedAccountId}
+                  userId={user?.id || ''}
+                  emailAddress={
+                    selectedAccountId === DEMO_ACCOUNT_ID 
+                      ? undefined 
+                      : emailAccounts.find(acc => acc.id === selectedAccountId)?.email_address
+                  }
+                />
                 <MockImapControls emailAccountId={selectedAccountId} />
               </div>
             )}
