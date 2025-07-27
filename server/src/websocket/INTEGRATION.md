@@ -27,7 +27,6 @@ The WebSocket integration provides real-time visibility into email processing op
 
 ### 4. Frontend Components
 - **ImapLogViewer** (`src/components/imap-log-viewer.tsx`): Real-time log display
-- **MockImapControls** (`src/components/mock-imap-controls.tsx`): Testing controls
 - **Inspector Page** (`src/app/inspector/page.tsx`): Full inspection interface
 
 ## Log Types
@@ -38,7 +37,6 @@ The system logs various operations:
 - `EMAIL_PARSE_COMPLETE`: Completion with metrics
 - `EMAIL_PROCESS_DEMO`: Demo of full processing pipeline
 - `CONNECT`, `LOGIN`, `SELECT`, `FETCH`: Standard IMAP operations
-- `MOCK_START`, `MOCK_STOP`: Mock operation lifecycle
 
 ## Testing the Integration
 
@@ -53,8 +51,8 @@ This runs a standalone demo showing how email processing generates WebSocket log
 1. Start the servers: `npm run dev:all`
 2. Sign in at `http://localhost:3001`
 3. Visit `http://localhost:3001/inspector`
-4. Use the Mock IMAP Controls to trigger operations
-5. Click "Process Sent Email" to see email extraction in action
+4. Use the Training Panel to load and process emails
+5. Click "Load Emails" to see email extraction in action
 
 ### 3. Programmatic Testing
 ```typescript

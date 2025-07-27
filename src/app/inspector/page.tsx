@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ImapLogViewer } from '@/components/imap-log-viewer'
-import { MockImapControls } from '@/components/mock-imap-controls'
 import { TrainingPanel } from '@/components/training-panel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -542,7 +541,7 @@ export default function ImapLogsDemoPage() {
                 ) : (
                   <>
                     <ChevronLeft className="h-4 w-4 mr-2" />
-                    <span className="text-sm">Mock IMAP</span>
+                    <span className="text-sm">Training Panel</span>
                   </>
                 )}
               </Button>
@@ -558,7 +557,6 @@ export default function ImapLogsDemoPage() {
                       : emailAccounts.find(acc => acc.id === selectedAccountId)?.email_address
                   }
                 />
-                <MockImapControls emailAccountId={selectedAccountId} />
               </div>
             )}
           </div>

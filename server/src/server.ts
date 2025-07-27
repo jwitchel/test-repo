@@ -86,7 +86,6 @@ export { requireAuth };
 import authRoutes from './routes/auth';
 import emailAccountRoutes from './routes/email-accounts';
 import toneProfileRoutes from './routes/tone-profile';
-import mockImapRoutes, { stopAllMockClients } from './routes/mock-imap';
 import imapRoutes from './routes/imap';
 import relationshipsRoutes from './routes/relationships';
 import styleRoutes from './routes/style';
@@ -98,7 +97,6 @@ import trainingRoutes from './routes/training';
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
 app.use('/api/tone-profile', toneProfileRoutes);
-app.use('/api/mock-imap', mockImapRoutes);
 app.use('/api/imap', imapRoutes);
 app.use('/api', relationshipsRoutes);
 app.use('/', styleRoutes);
@@ -151,7 +149,6 @@ process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully');
   
   // Stop all mock IMAP clients
-  stopAllMockClients();
   
   // Close IMAP connection pool
   await imapPool.closeAll();
@@ -171,7 +168,6 @@ process.on('SIGINT', async () => {
   console.log('Received SIGINT, shutting down gracefully');
   
   // Stop all mock IMAP clients
-  stopAllMockClients();
   
   // Close IMAP connection pool
   await imapPool.closeAll();
@@ -193,7 +189,6 @@ server.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
   console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws/imap-logs`);
-  console.log(`🎭 Mock IMAP API: http://localhost:${PORT}/api/mock-imap/*`);
   console.log(`📧 IMAP API: http://localhost:${PORT}/api/imap/*`);
   console.log(`🤖 LLM Providers API: http://localhost:${PORT}/api/llm-providers/*`);
   console.log(`✨ Generate API: http://localhost:${PORT}/api/generate/*`);
