@@ -244,7 +244,7 @@ export default function ImapLogsDemoPage() {
   }
   
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null)
-  const [activeTab, setActiveTab] = useState('nlp')
+  const [activeTab, setActiveTab] = useState('email-input')
 
   // Fetch user's email accounts and LLM providers on mount
   useEffect(() => {
@@ -368,8 +368,8 @@ export default function ImapLogsDemoPage() {
       console.log('Selected examples:', results.selectedExamples)
       setAnalysisResults(results)
       
-      // Switch to NLP tab to show results
-      setActiveTab('nlp')
+      // Switch to prompt tab after analysis
+      setActiveTab('prompt')
       
       success('Email analyzed successfully!')
       
@@ -563,139 +563,105 @@ export default function ImapLogsDemoPage() {
 
           {/* Main Content */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Two Column Layout */}
-            <div className="h-[500px] flex gap-2 p-2">
-              {/* Email Input Column */}
-              <div className="w-1/2 flex flex-col">
-                <Card className="flex-1 flex flex-col">
-                <CardHeader className="py-1 px-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">Email Input</CardTitle>
-                    <Select onValueChange={(value) => handleLoadExample(value as keyof typeof EXAMPLE_EMAILS)}>
-                      <SelectTrigger className="w-[140px] h-8 text-xs">
-                        <SelectValue placeholder="Load example" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="professional">Professional</SelectItem>
-                        <SelectItem value="casual">Casual</SelectItem>
-                        <SelectItem value="technical">Technical</SelectItem>
-                        <SelectItem value="personal">Personal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 py-1 px-4 flex flex-col gap-1 overflow-y-auto">
-                  <div className="space-y-1">
-                    <div>
-                      <Label className="text-xs">Recipient Email</Label>
-                      <Input
-                        type="email"
-                        placeholder="recipient@example.com"
-                        value={recipientEmail}
-                        onChange={(e) => setRecipientEmail(e.target.value)}
-                        className="h-7 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Relationship Type</Label>
-                      <Select value={relationshipType} onValueChange={setRelationshipType}>
-                        <SelectTrigger className="h-7 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto-detect">Auto-detect</SelectItem>
-                          <SelectItem value="colleague">Colleague</SelectItem>
-                          <SelectItem value="friend">Friend</SelectItem>
-                          <SelectItem value="family">Family</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="client">Client</SelectItem>
-                          <SelectItem value="spouse">Spouse</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs">Email Body</Label>
-                      <span className="text-xs text-zinc-500">
-                        {emailBody.split(/\s+/).filter(Boolean).length} words
-                      </span>
-                    </div>
-                    <Textarea
-                      placeholder="Paste or type your email here..."
-                      value={emailBody}
-                      onChange={(e) => setEmailBody(e.target.value)}
-                      className="text-sm resize-none overflow-auto"
-                      rows={10}
-                      style={{ maxHeight: '14rem' }}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={handleAnalyzeEmail}
-                      disabled={isAnalyzing || !emailBody.trim() || !recipientEmail.trim()}
-                      className="flex-1"
-                      size="sm"
-                    >
-                      {isAnalyzing ? (
-                        <>
-                          <Send className="mr-2 h-3 w-3 animate-pulse" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="mr-2 h-3 w-3" />
-                          Analyze Email
-                        </>
-                      )}
-                    </Button>
-                    
-                    {analysisResults && (
-                      <Button
-                        onClick={() => handleGenerateReply()}
-                        disabled={isGeneratingReply || !selectedProviderId}
-                        variant="outline"
-                        size="sm"
-                        title={!selectedProviderId ? "Select an LLM provider first" : "Generate AI reply"}
-                      >
-                        {isGeneratingReply ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="mr-2 h-3 w-3" />
-                            Generate Reply
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-                </Card>
-              </div>
-
-              {/* Analysis Pipeline Column */}
-              <div className="w-1/2 flex flex-col">
-                <Card className="flex-1 flex flex-col overflow-hidden">
-                <CardHeader className="py-1 px-4">
-                  <CardTitle className="text-base">Analysis Pipeline Results</CardTitle>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-hidden px-4 py-1">
+            {/* Full width Analysis Pipeline */}
+            <div className="h-[500px] p-2">
+              <Card className="h-full flex flex-col overflow-hidden">
+                <CardContent className="flex-1 overflow-hidden px-4 py-2">
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                    <TabsList className="grid w-full grid-cols-6 h-8">
+                    <TabsList className="grid w-full grid-cols-7 h-8">
+                      <TabsTrigger value="email-input" className="text-xs">Email Input</TabsTrigger>
+                      <TabsTrigger value="prompt" className="text-xs">Prompt</TabsTrigger>
+                      <TabsTrigger value="llm-response" className="text-xs">LLM Response</TabsTrigger>
                       <TabsTrigger value="nlp" className="text-xs">NLP</TabsTrigger>
                       <TabsTrigger value="relationship" className="text-xs">Relationship</TabsTrigger>
                       <TabsTrigger value="style" className="text-xs">Style</TabsTrigger>
                       <TabsTrigger value="examples" className="text-xs">Examples</TabsTrigger>
-                      <TabsTrigger value="prompt" className="text-xs">Prompt</TabsTrigger>
-                      <TabsTrigger value="llm-response" className="text-xs">LLM Response</TabsTrigger>
                     </TabsList>
                     
                     <div className="flex-1 overflow-auto mt-1">
+                      {/* Email Input Tab */}
+                      <TabsContent value="email-input" className="h-full">
+                        <div className="flex flex-col gap-2 p-3">
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <Label className="text-xs">Recipient Email</Label>
+                              <Input
+                                type="email"
+                                placeholder="recipient@example.com"
+                                value={recipientEmail}
+                                onChange={(e) => setRecipientEmail(e.target.value)}
+                                className="h-7 text-sm mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Relationship Type</Label>
+                              <Select value={relationshipType} onValueChange={setRelationshipType}>
+                                <SelectTrigger className="h-7 text-sm mt-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="auto-detect">Auto-detect</SelectItem>
+                                  <SelectItem value="colleague">Colleague</SelectItem>
+                                  <SelectItem value="friend">Friend</SelectItem>
+                                  <SelectItem value="family">Family</SelectItem>
+                                  <SelectItem value="manager">Manager</SelectItem>
+                                  <SelectItem value="client">Client</SelectItem>
+                                  <SelectItem value="spouse">Spouse</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Load Example</Label>
+                              <Select onValueChange={(value) => handleLoadExample(value as keyof typeof EXAMPLE_EMAILS)}>
+                                <SelectTrigger className="h-7 text-sm mt-1">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="professional">Professional</SelectItem>
+                                  <SelectItem value="casual">Casual</SelectItem>
+                                  <SelectItem value="technical">Technical</SelectItem>
+                                  <SelectItem value="personal">Personal</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <Label className="text-xs">Email Body</Label>
+                              <span className="text-xs text-zinc-500">
+                                {emailBody.split(/\s+/).filter(Boolean).length} words
+                              </span>
+                            </div>
+                            <Textarea
+                              placeholder="Paste or type your email here..."
+                              value={emailBody}
+                              onChange={(e) => setEmailBody(e.target.value)}
+                              className="text-sm resize-none h-[180px]"
+                            />
+                          </div>
+                          
+                          <Button 
+                            onClick={handleAnalyzeEmail}
+                            disabled={isAnalyzing || !emailBody.trim() || !recipientEmail.trim()}
+                            className="w-full"
+                            size="sm"
+                          >
+                            {isAnalyzing ? (
+                              <>
+                                <Send className="mr-2 h-3 w-3 animate-pulse" />
+                                Analyzing...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="mr-2 h-3 w-3" />
+                                Analyze Email
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TabsContent>
+                      
                       {/* NLP Features Tab */}
                       <TabsContent value="nlp" className="h-full">
                         {analysisResults?.nlpFeatures ? (
@@ -893,21 +859,42 @@ export default function ImapLogsDemoPage() {
                       {/* LLM Prompt Tab */}
                       <TabsContent value="prompt" className="h-full">
                         {analysisResults?.llmPrompt ? (
-                          <div className="h-full">
+                          <div className="h-full flex flex-col">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-sm font-semibold">Generated Prompt</h4>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(decodeHtmlEntitiesSafe(analysisResults.llmPrompt))
-                                  success('Prompt copied to clipboard')
-                                }}
-                              >
-                                Copy
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(decodeHtmlEntitiesSafe(analysisResults.llmPrompt))
+                                    success('Prompt copied to clipboard')
+                                  }}
+                                >
+                                  Copy
+                                </Button>
+                                <Button
+                                  onClick={() => handleGenerateReply()}
+                                  disabled={isGeneratingReply || !selectedProviderId}
+                                  variant="default"
+                                  size="sm"
+                                  title={!selectedProviderId ? "Select an LLM provider first" : "Generate AI reply"}
+                                >
+                                  {isGeneratingReply ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                      Generating...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Zap className="mr-2 h-3 w-3" />
+                                      Generate Reply
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             </div>
-                            <div className="h-[calc(100%-40px)] overflow-auto">
+                            <div className="flex-1 overflow-auto">
                               <pre className="text-xs bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap">
                                 {decodeHtmlEntitiesSafe(analysisResults.llmPrompt)}
                               </pre>
@@ -1012,8 +999,7 @@ export default function ImapLogsDemoPage() {
                     </div>
                   </Tabs>
                 </CardContent>
-                </Card>
-              </div>
+              </Card>
             </div>
 
             {/* IMAP Logs Panel - Full Width */}
