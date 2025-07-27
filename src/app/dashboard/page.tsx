@@ -110,7 +110,7 @@ export default function DashboardPage() {
             <CardContent>
               <p className="text-sm text-muted-foreground">Analyze emails and see real-time processing</p>
               <Button className="mt-4" size="sm" asChild>
-                <a href="/imap-logs-demo">Open Demo</a>
+                <a href="/inspector">Open Inspector</a>
               </Button>
             </CardContent>
           </Card>

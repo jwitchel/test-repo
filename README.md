@@ -268,7 +268,7 @@ The application includes real-time logging for email processing operations throu
 
 For detailed information about the WebSocket architecture and integration, see [server/src/websocket/INTEGRATION.md](server/src/websocket/INTEGRATION.md).
 
-**Live Demo**: Visit http://localhost:3001/imap-logs-demo after signing in to see the real-time logging in action.
+**Live Demo**: Visit http://localhost:3001/inspector after signing in to see the real-time logging in action.
 
 ## 🤝 Contributing
 

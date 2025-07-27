@@ -4,7 +4,7 @@ This document describes how the WebSocket real-time logging is integrated with t
 
 ## Overview
 
-The WebSocket integration provides real-time visibility into email processing operations through the IMAP logging demo page at `http://localhost:3001/imap-logs-demo`.
+The WebSocket integration provides real-time visibility into email processing operations through the inspector page at `http://localhost:3001/inspector`.
 
 ## Key Components
 
@@ -28,7 +28,7 @@ The WebSocket integration provides real-time visibility into email processing op
 ### 4. Frontend Components
 - **ImapLogViewer** (`src/components/imap-log-viewer.tsx`): Real-time log display
 - **MockImapControls** (`src/components/mock-imap-controls.tsx`): Testing controls
-- **IMAP Logs Demo Page** (`src/app/imap-logs-demo/page.tsx`): Full demo interface
+- **Inspector Page** (`src/app/inspector/page.tsx`): Full inspection interface
 
 ## Log Types
 
@@ -52,7 +52,7 @@ This runs a standalone demo showing how email processing generates WebSocket log
 ### 2. Using the Web Interface
 1. Start the servers: `npm run dev:all`
 2. Sign in at `http://localhost:3001`
-3. Visit `http://localhost:3001/imap-logs-demo`
+3. Visit `http://localhost:3001/inspector`
 4. Use the Mock IMAP Controls to trigger operations
 5. Click "Process Sent Email" to see email extraction in action
 

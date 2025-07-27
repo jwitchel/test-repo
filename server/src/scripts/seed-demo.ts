@@ -271,7 +271,7 @@ async function seedDemo() {
     console.log(chalk.cyan('\n🚀 Ready to test!'));
     console.log('  1. Start the app: npm run dev:all');
     console.log('  2. Sign in with a test user');
-    console.log('  3. Go to the demo page: http://localhost:3001/imap-logs-demo');
+    console.log('  3. Go to the inspector: http://localhost:3001/inspector');
     console.log('  4. Try analyzing emails to see similar examples and style patterns');
     
   } catch (error) {
