@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Trash2, PlayCircle, StopCircle, AlertCircle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { Loader2, Trash2, PlayCircle, StopCircle, AlertCircle, CheckCircle, Info, XCircle, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ImapLogEntry {
@@ -37,6 +37,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -186,6 +187,35 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
     });
   };
 
+  const toggleLogExpanded = (logId: string) => {
+    setExpandedLogs(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(logId)) {
+        newSet.delete(logId);
+      } else {
+        newSet.add(logId);
+      }
+      return newSet;
+    });
+  };
+
+  const getLogSummary = (log: ImapLogEntry) => {
+    // Create a concise summary for the single-line view
+    if (log.data.raw) {
+      return log.data.raw.substring(0, 100) + (log.data.raw.length > 100 ? '...' : '');
+    }
+    if (log.data.response) {
+      return log.data.response.substring(0, 100) + (log.data.response.length > 100 ? '...' : '');
+    }
+    if (log.data.parsed) {
+      return JSON.stringify(log.data.parsed).substring(0, 100) + '...';
+    }
+    if (log.data.error) {
+      return `Error: ${log.data.error}`;
+    }
+    return 'No data';
+  };
+
   return (
     <Card className={cn("flex flex-col h-full overflow-hidden", className)}>
       <div className="flex items-center justify-between p-2 border-b flex-shrink-0">
@@ -256,98 +286,123 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
         </Alert>
       )}
 
-      <div className="flex-1 overflow-y-auto min-h-0" ref={scrollAreaRef}>
-        <div className="p-2 space-y-1">
-          {!logs || logs.length === 0 ? (
-            <div className="text-center text-zinc-500 py-8">
-              {isConnected ? 'No logs yet. Start some IMAP operations to see logs.' : 'Connect to view logs.'}
-            </div>
-          ) : (
-            logs.map((log) => (
-              <div
-                key={log.id}
-                className="font-mono text-xs border rounded p-2"
-              >
-                {/* Three column layout */}
-                <div className="grid grid-cols-12 gap-2 text-[10px]">
-                  {/* Column 1: Header info (3 cols) */}
-                  <div className="col-span-3 space-y-1">
-                    <div className="text-zinc-500">{formatTimestamp(log.timestamp)}</div>
-                    <div className={cn("flex items-center gap-1", getLogColor(log.level))}>
-                      {getLogIcon(log.level)}
-                      {log.level.toUpperCase()}
-                    </div>
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "text-[10px] px-1.5 py-0 h-4",
-                        log.command.startsWith('email.') && "border-purple-500 text-purple-600",
-                        log.command.startsWith('nlp.') && "border-blue-500 text-blue-600",
-                        log.command.startsWith('relationship.') && "border-green-500 text-green-600",
-                        log.command.startsWith('person.') && "border-yellow-500 text-yellow-600",
-                        log.command.startsWith('vector.') && "border-orange-500 text-orange-600",
-                        log.command.startsWith('style.') && "border-pink-500 text-pink-600",
-                        log.command.startsWith('prompt.') && "border-indigo-500 text-indigo-600",
-                        log.command === 'pipeline.complete' && "border-emerald-500 text-emerald-600 font-semibold"
+      <div className="flex-1 overflow-y-auto min-h-0 font-mono text-xs" ref={scrollAreaRef}>
+        {!logs || logs.length === 0 ? (
+          <div className="text-center text-zinc-500 py-8 font-sans">
+            {isConnected ? 'No logs yet. Start some IMAP operations to see logs.' : 'Connect to view logs.'}
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-200 dark:divide-zinc-700">
+            {logs.map((log) => {
+              const isExpanded = expandedLogs.has(log.id);
+              return (
+                <div key={log.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  {/* Single line view */}
+                  <div 
+                    className="flex items-center gap-2 px-2 py-0.5 cursor-pointer"
+                    onClick={() => toggleLogExpanded(log.id)}
+                  >
+                    {/* Expand icon */}
+                    <div className="flex-shrink-0 w-3">
+                      {isExpanded ? (
+                        <ChevronDown className="h-3 w-3 text-zinc-400" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 text-zinc-400" />
                       )}
-                    >
-                      {log.command}
-                    </Badge>
+                    </div>
+                    
+                    {/* Timestamp */}
+                    <div className="flex-shrink-0 text-zinc-500 w-24">
+                      {formatTimestamp(log.timestamp)}
+                    </div>
+                    
+                    {/* Level icon */}
+                    <div className={cn("flex-shrink-0", getLogColor(log.level))}>
+                      {getLogIcon(log.level)}
+                    </div>
+                    
+                    {/* Command badge */}
+                    <div className="flex-shrink-0">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "text-[10px] px-1 py-0 h-4",
+                          log.command.startsWith('email.') && "border-purple-500 text-purple-600",
+                          log.command.startsWith('nlp.') && "border-blue-500 text-blue-600",
+                          log.command.startsWith('relationship.') && "border-green-500 text-green-600",
+                          log.command.startsWith('person.') && "border-yellow-500 text-yellow-600",
+                          log.command.startsWith('vector.') && "border-orange-500 text-orange-600",
+                          log.command.startsWith('style.') && "border-pink-500 text-pink-600",
+                          log.command.startsWith('prompt.') && "border-indigo-500 text-indigo-600",
+                          log.command === 'pipeline.complete' && "border-emerald-500 text-emerald-600 font-semibold"
+                        )}
+                      >
+                        {log.command}
+                      </Badge>
+                    </div>
+                    
+                    {/* Duration */}
                     {log.data.duration && (
-                      <div className="text-zinc-500 text-[10px]">
+                      <div className="flex-shrink-0 text-zinc-500 w-12 text-right">
                         {log.data.duration}ms
                       </div>
                     )}
+                    
+                    {/* Summary */}
+                    <div className="flex-1 truncate text-zinc-600 dark:text-zinc-400">
+                      {getLogSummary(log)}
+                    </div>
                   </div>
-
-                  {/* Column 2: Parsed (4 cols) */}
-                  <div className="col-span-4">
-                    {log.data.parsed !== undefined && log.data.parsed !== null && (
-                      <>
-                        <span className="text-zinc-500">Parsed:</span>
-                        <pre className="bg-zinc-50 dark:bg-zinc-900 p-1 rounded overflow-x-auto mt-0.5 text-[10px]">
-                          {JSON.stringify(log.data.parsed, null, 2)}
-                        </pre>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Column 3: Raw (5 cols) */}
-                  <div className="col-span-5">
-                    {log.data.raw && (
-                      <>
-                        <span className="text-zinc-500">Raw:</span>
-                        <pre className="bg-zinc-50 dark:bg-zinc-900 p-1 rounded overflow-x-auto mt-0.5">
-                          {log.data.raw}
-                        </pre>
-                      </>
-                    )}
-                  </div>
+                  
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div className="px-8 pb-2 space-y-2 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                      {/* Raw data */}
+                      {log.data.raw && (
+                        <div>
+                          <div className="text-zinc-500 text-[10px] mb-1">Raw</div>
+                          <pre className="bg-white dark:bg-zinc-900 p-2 rounded text-[11px] overflow-x-auto border border-zinc-200 dark:border-zinc-700">
+                            {log.data.raw}
+                          </pre>
+                        </div>
+                      )}
+                      
+                      {/* Parsed data */}
+                      {log.data.parsed !== undefined && log.data.parsed !== null && (
+                        <div>
+                          <div className="text-zinc-500 text-[10px] mb-1">Parsed</div>
+                          <pre className="bg-white dark:bg-zinc-900 p-2 rounded text-[11px] overflow-x-auto border border-zinc-200 dark:border-zinc-700">
+                            {JSON.stringify(log.data.parsed, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                      
+                      {/* Response */}
+                      {log.data.response && (
+                        <div>
+                          <div className="text-zinc-500 text-[10px] mb-1">Response</div>
+                          <pre className="bg-white dark:bg-zinc-900 p-2 rounded text-[11px] overflow-x-auto whitespace-pre-wrap border border-zinc-200 dark:border-zinc-700">
+                            {log.data.response}
+                          </pre>
+                        </div>
+                      )}
+                      
+                      {/* Error */}
+                      {log.data.error && (
+                        <div>
+                          <div className="text-red-500 text-[10px] mb-1">Error</div>
+                          <pre className="bg-red-50 dark:bg-red-950/50 p-2 rounded text-[11px] text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
+                            {log.data.error}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {/* Response on its own row - usually longer */}
-                {log.data.response && (
-                  <div className="text-[10px] mt-1">
-                    <span className="text-zinc-500">Response:</span>
-                    <pre className="bg-zinc-50 dark:bg-zinc-900 p-1 rounded overflow-x-auto whitespace-pre-wrap mt-0.5">
-                      {log.data.response}
-                    </pre>
-                  </div>
-                )}
-
-                {/* Error on its own row - important to highlight */}
-                {log.data.error && (
-                  <div className="text-[10px] mt-1">
-                    <span className="text-red-500">Error:</span>
-                    <pre className="bg-red-50 dark:bg-red-950 p-1 rounded text-red-600 dark:text-red-400 mt-0.5">
-                      {log.data.error}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </Card>
   );
