@@ -108,7 +108,7 @@ export default function ImapLogsDemoPage() {
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string>(DEMO_ACCOUNT_ID)
   const [, setIsLoading] = useState(true)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   
   // LLM Provider state
   const [llmProviders, setLlmProviders] = useState<LLMProvider[]>([])
