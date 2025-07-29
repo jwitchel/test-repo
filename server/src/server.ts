@@ -183,17 +183,19 @@ process.on('SIGINT', async () => {
   });
 });
 
-// Start server
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
-  console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws/imap-logs`);
-  console.log(`📧 IMAP API: http://localhost:${PORT}/api/imap/*`);
-  console.log(`🤖 LLM Providers API: http://localhost:${PORT}/api/llm-providers/*`);
-  console.log(`✨ Generate API: http://localhost:${PORT}/api/generate/*`);
-  console.log(`🎯 Training API: http://localhost:${PORT}/api/training/*`);
-});
+// Start server only if not in script mode
+if (process.env.SKIP_SERVER_START !== 'true') {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
+    console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws/imap-logs`);
+    console.log(`📧 IMAP API: http://localhost:${PORT}/api/imap/*`);
+    console.log(`🤖 LLM Providers API: http://localhost:${PORT}/api/llm-providers/*`);
+    console.log(`✨ Generate API: http://localhost:${PORT}/api/generate/*`);
+    console.log(`🎯 Training API: http://localhost:${PORT}/api/training/*`);
+  });
+}
 
 // Handle server errors
 server.on('error', (error: any) => {

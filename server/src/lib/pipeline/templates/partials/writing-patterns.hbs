@@ -1,0 +1,43 @@
+=== WRITING PATTERN INSTRUCTIONS ===
+
+MIRROR THESE EXACT PATTERNS:
+
+SENTENCE STRUCTURE:
+- Average length: {{round patterns.sentencePatterns.avgLength 1}} words
+- Short sentences (<10 words): {{percent patterns.sentencePatterns.distribution.short}}%
+- Medium sentences (10-25 words): {{percent patterns.sentencePatterns.distribution.medium}}%
+- Long sentences (>25 words): {{percent patterns.sentencePatterns.distribution.long}}%
+
+PARAGRAPH STRUCTURE:
+{{#each patterns.paragraphPatterns}}
+- {{this.type}}: {{this.percentage}}% - {{this.description}}
+{{/each}}
+
+OPENINGS (use exactly as shown):
+{{#each patterns.openingPatterns}}
+- "{{{this.pattern}}}" ({{percent this.frequency}}%){{#if this.notes}} - {{{this.notes}}}{{/if}}
+{{/each}}
+
+CLOSINGS (use exactly as shown):
+{{#each patterns.closingPatterns}}
+- "{{{this.pattern}}}" ({{percent this.frequency}}%)
+{{/each}}
+
+NEVER DO THESE THINGS:
+{{#if patterns.negativePatterns.length}}
+{{#each patterns.negativePatterns}}
+- {{{this.description}}}{{#if this.examples}} ({{#each this.examples}}{{#if @index}}, {{/if}}"{{{this}}}"{{/each}}){{/if}}
+{{/each}}
+{{else}}
+- None identified
+{{/if}}
+
+RESPONSE STYLE:
+- Direct/immediate responses: {{percent patterns.responsePatterns.immediate}}%
+- Thoughtful/detailed responses: {{percent patterns.responsePatterns.contemplative}}%
+- Question handling: {{patterns.responsePatterns.questionHandling}}
+
+UNIQUE PHRASES TO USE:
+{{#each patterns.uniqueExpressions}}
+- "{{{this.phrase}}}" - use {{{this.context}}} ({{percent this.frequency}}%)
+{{/each}}

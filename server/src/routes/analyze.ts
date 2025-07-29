@@ -48,7 +48,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
   try {
     await ensureServicesInitialized();
     
-    const { emailBody, recipientEmail, relationshipType } = req.body;
+    const { emailBody, recipientEmail, relationshipType, providerId } = req.body;
     const userId = authenticatedReq.user.id;
     
     if (!emailBody || !recipientEmail) {
@@ -223,6 +223,119 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       metadata: result.metadata
     }));
     
+    // Step 6.5: Analyze writing patterns
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'demo-account-001',
+      level: 'info',
+      command: 'patterns.analyzing',
+      data: {
+        raw: 'Analyzing writing patterns from examples...'
+      }
+    });
+    
+    const patternAnalyzer = orchestrator!['patternAnalyzer'];
+    
+    // Initialize pattern analyzer with the selected provider or let it use default
+    try {
+      await patternAnalyzer.initialize(providerId);
+    } catch (error) {
+      console.error('Failed to initialize pattern analyzer:', error);
+      // Continue without pattern analysis if initialization fails
+    }
+    
+    let writingPatterns = null;
+    
+    try {
+      // Try to load existing patterns
+      writingPatterns = await patternAnalyzer.loadPatterns(userId, detectedRelationship.relationship);
+      
+      // If no patterns exist, analyze from a larger corpus
+      if (!writingPatterns && patternAnalyzer['llmClient']) {
+        imapLogger.log(userId, {
+          userId,
+          emailAccountId: 'demo-account-001',
+          level: 'info',
+          command: 'patterns.fetching_corpus',
+          data: {
+            raw: 'Fetching larger email corpus for pattern analysis...'
+          }
+        });
+        
+        // Fetch more emails for pattern analysis
+        const corpusSize = parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200');
+        const patternCorpus = await vectorStore!.getByRelationship(
+          userId,
+          detectedRelationship.relationship,
+          corpusSize
+        );
+        
+        if (patternCorpus.length > 0) {
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'demo-account-001',
+            level: 'info',
+            command: 'patterns.corpus_size',
+            data: {
+              parsed: {
+                totalEmails: patternCorpus.length,
+                maxRequested: corpusSize,
+                relationship: detectedRelationship.relationship
+              }
+            }
+          });
+          
+          const emailsForAnalysis = patternCorpus.map(result => ({
+            uid: result.id,
+            messageId: result.id,
+            inReplyTo: null,
+            date: new Date(result.metadata.sentDate || Date.now()),
+            from: [{ address: userId, name: '' }],  // User is the sender for their own emails
+            to: [{ address: result.metadata.recipientEmail || recipientEmail, name: '' }],
+            cc: [],
+            bcc: [],
+            subject: result.metadata.subject || '',
+            textContent: result.metadata.extractedText,
+            htmlContent: null,
+            extractedText: result.metadata.extractedText
+          }));
+          
+          writingPatterns = await patternAnalyzer.analyzeWritingPatterns(
+            userId,
+            emailsForAnalysis,
+            detectedRelationship.relationship
+          );
+          
+          // Save patterns for future use
+          await patternAnalyzer.savePatterns(
+            userId,
+            writingPatterns,
+            detectedRelationship.relationship,
+            emailsForAnalysis.length
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Pattern analysis failed, continuing without patterns:', error);
+      // Continue without patterns - they're optional
+    }
+    
+    if (writingPatterns) {
+      imapLogger.log(userId, {
+        userId,
+        emailAccountId: 'demo-account-001',
+        level: 'info',
+        command: 'patterns.analyzed',
+        data: {
+          parsed: {
+            sentenceAvgLength: writingPatterns.sentencePatterns.avgLength,
+            openingPatternsCount: writingPatterns.openingPatterns.length,
+            uniqueExpressionsCount: writingPatterns.uniqueExpressions.length
+          }
+        }
+      });
+    }
+    
     // Get the prompt formatter to generate the actual prompt text
     imapLogger.log(userId, {
       userId,
@@ -230,7 +343,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       level: 'info',
       command: 'prompt.formatting',
       data: {
-        raw: 'Building LLM prompt with examples and style profile...'
+        raw: 'Building LLM prompt with examples, style profile, and writing patterns...'
       }
     });
     
@@ -241,7 +354,8 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       examples: selectedExamples,
       relationship: detectedRelationship.relationship,
       relationshipProfile: enhancedProfile,
-      nlpFeatures: nlpFeatures
+      nlpFeatures: nlpFeatures,
+      writingPatterns
     });
     
     imapLogger.log(userId, {
@@ -280,7 +394,8 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
         id: ex.id
       })),
       llmPrompt: formattedPrompt,
-      enhancedProfile
+      enhancedProfile,
+      writingPatterns
     });
     
   } catch (error) {

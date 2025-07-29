@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp, Brain } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -35,6 +35,7 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
   const [isOpen, setIsOpen] = useState(true)
   const [isWiping, setIsWiping] = useState(false)
   const [showWipeDialog, setShowWipeDialog] = useState(false)
+  const [isAnalyzingPatterns, setIsAnalyzingPatterns] = useState(false)
   const [emailCount, setEmailCount] = useState('100')
   // Default to tomorrow to include all emails up to today
   const tomorrow = new Date()
@@ -151,6 +152,35 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
     }
   }
 
+  const handleAnalyzePatterns = async () => {
+    setIsAnalyzingPatterns(true)
+
+    try {
+      const response = await fetch('http://localhost:3002/api/training/analyze-patterns', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          force: true  // Force re-analysis even if patterns exist
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to analyze patterns')
+      }
+
+      const result = await response.json()
+      success(`Pattern analysis complete! Analyzed ${result.emailsAnalyzed} emails across ${result.relationshipsAnalyzed} relationships.`)
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Failed to analyze patterns')
+    } finally {
+      setIsAnalyzingPatterns(false)
+    }
+  }
+
   return (
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -255,6 +285,27 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
           >
             <Upload className="h-3 w-3 mr-1" />
             Load Emails
+          </Button>
+
+          <Button
+            onClick={handleAnalyzePatterns}
+            disabled={isAnalyzingPatterns}
+            size="sm"
+            variant="secondary"
+            className="flex-1"
+            title="Analyze writing patterns from loaded emails"
+          >
+            {isAnalyzingPatterns ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Brain className="h-3 w-3 mr-1" />
+                Analyze Patterns
+              </>
+            )}
           </Button>
 
           <Button

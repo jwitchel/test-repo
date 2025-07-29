@@ -78,6 +78,24 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Webmail Client</CardTitle>
+              <CardDescription>Access your email inbox</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Open Roundcube webmail to read and send emails</p>
+              <div className="mt-2 p-2 bg-muted rounded-md">
+                <p className="text-xs font-medium">Test Accounts:</p>
+                <p className="text-xs text-muted-foreground">Username: user1</p>
+                <p className="text-xs text-muted-foreground">Password: testpass123</p>
+              </div>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">Open Webmail</a>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>LLM Providers</CardTitle>
               <CardDescription>Configure AI providers</CardDescription>
             </CardHeader>
@@ -124,6 +142,26 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">Generate text using your configured LLM providers</p>
               <Button className="mt-4" size="sm" asChild>
                 <a href="/llm-demo">Test LLM</a>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Database Browser</CardTitle>
+              <CardDescription>Inspect PostgreSQL database</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Browse and query database tables using Adminer</p>
+              <div className="mt-2 p-2 bg-muted rounded-md">
+                <p className="text-xs font-medium">Connection Details:</p>
+                <p className="text-xs text-muted-foreground">Server: postgres</p>
+                <p className="text-xs text-muted-foreground">Username: aiemailuser</p>
+                <p className="text-xs text-muted-foreground">Password: aiemailpass</p>
+                <p className="text-xs text-muted-foreground">Database: aiemaildb</p>
+              </div>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="http://localhost:8889" target="_blank" rel="noopener noreferrer">Open Database Browser</a>
               </Button>
             </CardContent>
           </Card>

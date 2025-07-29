@@ -7,6 +7,7 @@ import { ProcessedEmail, GeneratedDraft } from './types';
 import { RelationshipService } from '../relationships/relationship-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
 import { StyleAggregationService } from '../style/style-aggregation-service';
+import { WritingPatternAnalyzer } from './writing-pattern-analyzer';
 import chalk from 'chalk';
 
 export interface ToneLearningConfig {
@@ -28,6 +29,7 @@ export class ToneLearningOrchestrator {
   private relationshipService: RelationshipService;
   private relationshipDetector: RelationshipDetector;
   private styleAggregationService: StyleAggregationService;
+  private patternAnalyzer: WritingPatternAnalyzer;
   private exampleSelector: ExampleSelector;
   private promptFormatter: PromptFormatterV2;
   private ingestionPipeline: EmailIngestPipeline;
@@ -38,6 +40,7 @@ export class ToneLearningOrchestrator {
     this.relationshipService = new RelationshipService();
     this.relationshipDetector = new RelationshipDetector();
     this.styleAggregationService = new StyleAggregationService(this.vectorStore);
+    this.patternAnalyzer = new WritingPatternAnalyzer();
     this.exampleSelector = new ExampleSelector(
       this.vectorStore, 
       this.embeddingService,
@@ -62,6 +65,7 @@ export class ToneLearningOrchestrator {
     await this.vectorStore.initialize();
     await this.embeddingService.initialize();
     await this.promptFormatter.initialize();
+    await this.patternAnalyzer.initialize();
   }
   
   /**
@@ -188,9 +192,59 @@ export class ToneLearningOrchestrator {
       recipientEmail
     );
     
-    // Step 2: Format prompt with examples
+    // Step 2: Analyze writing patterns
     if (verbose) {
-      console.log(chalk.blue('\n2️⃣ Formatting prompt...'));
+      console.log(chalk.blue('\n2️⃣ Analyzing writing patterns...'));
+    }
+    
+    // Load existing patterns or analyze from user's sent emails
+    let writingPatterns = await this.patternAnalyzer.loadPatterns(
+      userId,
+      exampleSelection.relationship
+    );
+    
+    // If no patterns exist, analyze from available examples
+    if (!writingPatterns && exampleSelection.examples.length > 0) {
+      // Convert selected examples to ProcessedEmail format for analysis
+      const emailsForAnalysis: ProcessedEmail[] = exampleSelection.examples.map(ex => ({
+        uid: ex.id,
+        messageId: ex.id,
+        inReplyTo: null,
+        date: new Date(ex.metadata.sentAt || Date.now()),
+        from: [{ address: ex.metadata.senderEmail || '', name: '' }],
+        to: [{ address: ex.metadata.recipientEmail || recipientEmail, name: '' }],
+        cc: [],
+        bcc: [],
+        subject: ex.metadata.subject || '',
+        textContent: ex.text,
+        htmlContent: null,
+        extractedText: ex.text
+      }));
+      
+      writingPatterns = await this.patternAnalyzer.analyzeWritingPatterns(
+        userId,
+        emailsForAnalysis,
+        exampleSelection.relationship
+      );
+      
+      // Save patterns for future use
+      await this.patternAnalyzer.savePatterns(
+        userId,
+        writingPatterns,
+        exampleSelection.relationship,
+        emailsForAnalysis.length
+      );
+    }
+    
+    if (verbose && writingPatterns) {
+      console.log(chalk.gray(`  Patterns analyzed from ${exampleSelection.examples.length} emails`));
+      console.log(chalk.gray(`  Sentence avg length: ${writingPatterns.sentencePatterns.avgLength.toFixed(1)} words`));
+      console.log(chalk.gray(`  Unique expressions: ${writingPatterns.uniqueExpressions.length}`));
+    }
+    
+    // Step 3: Format prompt with examples and patterns
+    if (verbose) {
+      console.log(chalk.blue('\n3️⃣ Formatting prompt...'));
       if (enhancedProfile?.aggregatedStyle) {
         console.log(chalk.gray(`  Using aggregated style from ${enhancedProfile.aggregatedStyle.emailCount} emails`));
       }
@@ -201,7 +255,8 @@ export class ToneLearningOrchestrator {
       recipientEmail,
       examples: exampleSelection.examples,
       relationship: exampleSelection.relationship,
-      relationshipProfile: enhancedProfile
+      relationshipProfile: enhancedProfile,
+      writingPatterns
     });
     
     if (verbose) {
@@ -209,9 +264,9 @@ export class ToneLearningOrchestrator {
       console.log(chalk.gray(`  Prompt length: ${prompt.length} characters`));
     }
     
-    // Step 3: Generate draft (placeholder for actual LLM call)
+    // Step 4: Generate draft (placeholder for actual LLM call)
     if (verbose) {
-      console.log(chalk.blue('\n3️⃣ Generating draft...'));
+      console.log(chalk.blue('\n4️⃣ Generating draft...'));
     }
     
     // TODO: Integrate with actual LLM service

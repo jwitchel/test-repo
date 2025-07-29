@@ -1,0 +1,111 @@
+Analyze these {{emailCount}} emails and extract writing patterns.
+{{#if relationship}}Focus on emails to {{relationship}} relationships.{{/if}}
+
+Emails to analyze:
+{{#each emails}}
+Date: {{this.date}}
+To: {{this.to}}
+Subject: {{this.subject}}
+Content:
+{{this.content}}
+
+---
+{{/each}}
+
+Extract the following patterns with specific examples and frequencies:
+
+1. SENTENCE PATTERNS
+   - Calculate average sentence length (in words)
+   - Find min and max sentence lengths
+   - Calculate distribution: % short (<10 words), medium (10-25), long (>25)
+   - Include 3-5 example sentences showing variety
+
+2. PARAGRAPH STRUCTURE
+   - Identify patterns: single-line responses vs multi-paragraph
+   - Calculate percentage of each type
+   - Describe how they structure longer emails
+
+3. OPENINGS (exact text with frequencies)
+   - List each unique opening with percentage used
+   - Include "[right to the point]" with frequency if they skip greetings
+   - Note variations like "Hi John," vs "Hi John!" vs "John -"
+   - Be very specific about punctuation and formatting
+
+4. CLOSINGS (exact text with frequencies)
+   - List each unique closing with percentage used
+   - Include exact formatting (e.g., "Thanks,\nJohn" vs "Thanks, John")
+   - Note if they sometimes omit closings
+
+5. WHAT THEY NEVER DO (important!)
+   - Analyze what is consistently absent from their writing style
+   - Only report patterns where you have strong evidence of absence across the entire corpus
+   - Do NOT assume common patterns are avoided unless you've verified their absence
+   - Focus on surprising or distinctive omissions specific to this person
+   - Base confidence levels on how thoroughly you've checked the corpus
+
+6. RESPONSE PATTERNS
+   - Percentage of immediate/brief vs contemplative/detailed responses
+   - How they handle questions (direct answer vs acknowledge-then-answer)
+   - Note if they use inline responses or bottom-post
+
+7. UNIQUE EXPRESSIONS
+   - Phrases they commonly use (e.g., "Does that make sense?", "Quick question")
+   - Their way of expressing agreement/disagreement
+   - Transition words they prefer
+   - Include context and approximate frequency
+
+Return ONLY a JSON object matching this exact structure:
+{
+  "sentencePatterns": {
+    "avgLength": <number>,
+    "minLength": <number>,
+    "maxLength": <number>,
+    "stdDeviation": <number>,
+    "distribution": {
+      "short": <decimal 0-1>,
+      "medium": <decimal 0-1>,
+      "long": <decimal 0-1>
+    },
+    "examples": ["<example1>", "<example2>", "<example3>"]
+  },
+  "paragraphPatterns": [
+    {
+      "type": "<pattern name>",
+      "percentage": <number 0-100>,
+      "description": "<clear description>"
+    }
+  ],
+  "openingPatterns": [
+    {
+      "pattern": "<exact text>",
+      "frequency": <decimal 0-1>,
+      "notes": "<optional notes about usage>"
+    }
+  ],
+  "closingPatterns": [
+    {
+      "pattern": "<exact text>",
+      "frequency": <decimal 0-1>
+    }
+  ],
+  "negativePatterns": [
+    {
+      "description": "<actual pattern that is notably absent from THIS person's emails>",
+      "confidence": <decimal 0-1>,
+      "examples": ["<omit this field unless you have relevant evidence>"],
+      "context": "<why this absence is notable for this specific person>"
+    }
+  ],
+  "responsePatterns": {
+    "immediate": <decimal 0-1>,
+    "contemplative": <decimal 0-1>,
+    "questionHandling": "<description of how they handle questions>"
+  },
+  "uniqueExpressions": [
+    {
+      "phrase": "<exact phrase>",
+      "context": "<when/how used>",
+      "frequency": <decimal 0-1>
+    }
+  ]
+}

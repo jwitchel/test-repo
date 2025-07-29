@@ -1,5 +1,6 @@
 import { SelectedExample } from './example-selector';
 import { TemplateManager, EnhancedRelationshipProfile } from './template-manager';
+import { WritingPatterns } from './writing-pattern-analyzer';
 
 export interface PromptFormatterParams {
   incomingEmail: string;
@@ -8,6 +9,7 @@ export interface PromptFormatterParams {
   examples: SelectedExample[];
   relationshipProfile?: EnhancedRelationshipProfile | null;
   nlpFeatures?: any; // NLP features from the incoming email
+  writingPatterns?: WritingPatterns | null;
 }
 
 export interface FormattedPrompt {

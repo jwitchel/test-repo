@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ImapLogViewer } from '@/components/imap-log-viewer'
 import { TrainingPanel } from '@/components/training-panel'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -259,7 +259,7 @@ export default function ImapLogsDemoPage() {
         if (!mounted) return;
         
         if (response.ok) {
-          const accounts = await response.json()
+          const accounts: EmailAccount[] = await response.json()
           setEmailAccounts(accounts)
           
           // If user has accounts, prefer user1@testmail.local or select the first one
@@ -354,7 +354,8 @@ export default function ImapLogsDemoPage() {
         body: JSON.stringify({
           emailBody,
           recipientEmail,
-          relationshipType
+          relationshipType,
+          providerId: selectedProviderId
         })
       })
 
@@ -527,7 +528,7 @@ export default function ImapLogsDemoPage() {
           {/* Collapsible Sidebar */}
           <div className={cn(
             "bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-200 dark:border-zinc-700 transition-all duration-300",
-            isSidebarCollapsed ? "w-12" : "w-80"
+            isSidebarCollapsed ? "w-12" : "w-96"
           )}>
             <div className="p-2 border-b border-zinc-200 dark:border-zinc-700">
               <Button

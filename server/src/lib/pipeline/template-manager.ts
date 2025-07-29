@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { SelectedExample } from './example-selector';
 import { RelationshipProfile } from './types';
+import { WritingPatterns } from './writing-pattern-analyzer';
 
 export interface PromptTemplateData {
   // Core data
@@ -19,6 +20,9 @@ export interface PromptTemplateData {
   
   // NLP features from incoming email
   nlpFeatures?: any;
+  
+  // Writing patterns
+  patterns?: WritingPatterns;
   
   // Metadata
   meta: {
@@ -224,6 +228,7 @@ export class TemplateManager {
       examples: SelectedExample[];
       relationshipProfile?: EnhancedRelationshipProfile | null;
       nlpFeatures?: any;
+      writingPatterns?: WritingPatterns | null;
     }
   ): PromptTemplateData {
     const exactMatches = params.examples.filter(e => 
@@ -257,6 +262,7 @@ export class TemplateManager {
         : undefined,
       profile: params.relationshipProfile,
       nlpFeatures: params.nlpFeatures,
+      patterns: params.writingPatterns || undefined,
       meta: {
         exampleCount: params.examples.length,
         relationshipMatchCount: exactMatches.length,

@@ -6,6 +6,7 @@ import { VectorStore } from '../lib/vector/qdrant-client';
 import { imapLogger } from '../lib/imap-logger';
 import { EmailProcessor } from '../lib/email-processor';
 import { ProcessedEmail } from '../lib/pipeline/types';
+import { WritingPatternAnalyzer } from '../lib/pipeline/writing-pattern-analyzer';
 
 const router = express.Router();
 
@@ -238,6 +239,252 @@ router.delete('/wipe', requireAuth, async (req, res): Promise<void> => {
     res.status(500).json({ 
       error: 'Failed to wipe data',
       message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Analyze writing patterns
+router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as any).user.id;
+  const startTime = Date.now();
+  
+  try {
+    const { force = false } = req.body;
+    
+    // Initialize services
+    const patternAnalyzer = new WritingPatternAnalyzer();
+    await patternAnalyzer.initialize();
+    
+    const vectorStore = new VectorStore();
+    await vectorStore.initialize();
+    
+    // Log the start of pattern analysis
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'pattern-training',
+      level: 'info',
+      command: 'patterns.training.start',
+      data: {
+        raw: 'Starting comprehensive pattern analysis for all relationships'
+      }
+    });
+    
+    // Get all unique relationships for this user from vector store
+    const relationshipStats = await vectorStore.getRelationshipStats(userId);
+    const relationships = Object.keys(relationshipStats);
+    
+    // Add 'aggregate' for overall patterns
+    relationships.push('aggregate');
+    
+    let totalEmailsAnalyzed = 0;
+    let relationshipsAnalyzed = 0;
+    
+    for (const relationship of relationships) {
+      try {
+        // Check if patterns already exist (unless forced)
+        if (!force) {
+          const existingPatterns = await patternAnalyzer.loadPatterns(userId, relationship === 'aggregate' ? undefined : relationship);
+          if (existingPatterns) {
+            imapLogger.log(userId, {
+              userId,
+              emailAccountId: 'pattern-training',
+              level: 'info',
+              command: 'patterns.training.skip',
+              data: {
+                raw: `Skipping ${relationship} - patterns already exist`
+              }
+            });
+            continue;
+          }
+        }
+        
+        // Fetch emails for this relationship
+        const corpusSize = parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200');
+        let emails;
+        
+        if (relationship === 'aggregate') {
+          // For aggregate, get a sample across all relationships
+          const sampleEmails: any[] = [];
+          const perRelationshipLimit = Math.ceil(corpusSize / Math.max(relationships.length - 1, 1));
+          
+          for (const rel of relationships) {
+            if (rel === 'aggregate') continue;
+            const relEmails = await vectorStore.getByRelationship(userId, rel, perRelationshipLimit);
+            sampleEmails.push(...relEmails);
+          }
+          
+          emails = sampleEmails.slice(0, corpusSize);
+        } else {
+          // Get emails for specific relationship
+          emails = await vectorStore.getByRelationship(userId, relationship, corpusSize);
+        }
+        
+        if (emails.length === 0) {
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'pattern-training',
+            level: 'info',
+            command: 'patterns.training.skip',
+            data: {
+              raw: `Skipping ${relationship} - no emails found`
+            }
+          });
+          continue;
+        }
+        
+        // Convert to ProcessedEmail format
+        const emailsForAnalysis = emails.map((email: any) => ({
+          uid: email.id,
+          messageId: email.id,
+          inReplyTo: null,
+          date: new Date(email.metadata.sentDate || Date.now()),
+          from: [{ address: userId, name: '' }],
+          to: [{ address: email.metadata.recipientEmail || '', name: '' }],
+          cc: [],
+          bcc: [],
+          subject: email.metadata.subject || '',
+          textContent: email.metadata.extractedText || '',
+          htmlContent: null,
+          extractedText: email.metadata.extractedText || ''
+        }));
+        
+        imapLogger.log(userId, {
+          userId,
+          emailAccountId: 'pattern-training',
+          level: 'info',
+          command: 'patterns.training.analyzing',
+          data: {
+            parsed: {
+              relationship,
+              emailCount: emailsForAnalysis.length
+            }
+          }
+        });
+        
+        // Analyze patterns
+        const patterns = await patternAnalyzer.analyzeWritingPatterns(
+          userId,
+          emailsForAnalysis,
+          relationship === 'aggregate' ? undefined : relationship
+        );
+        
+        // Save patterns
+        await patternAnalyzer.savePatterns(
+          userId,
+          patterns,
+          relationship === 'aggregate' ? undefined : relationship,
+          emailsForAnalysis.length
+        );
+        
+        totalEmailsAnalyzed += emailsForAnalysis.length;
+        relationshipsAnalyzed++;
+        
+        imapLogger.log(userId, {
+          userId,
+          emailAccountId: 'pattern-training',
+          level: 'info',
+          command: 'patterns.training.saved',
+          data: {
+            parsed: {
+              relationship,
+              emailsAnalyzed: emailsForAnalysis.length,
+              patternsFound: {
+                openings: patterns.openingPatterns.length,
+                closings: patterns.closingPatterns.length,
+                negative: patterns.negativePatterns.length,
+                unique: patterns.uniqueExpressions.length
+              }
+            }
+          }
+        });
+        
+      } catch (error) {
+        console.error(`Error analyzing patterns for ${relationship}:`, error);
+        imapLogger.log(userId, {
+          userId,
+          emailAccountId: 'pattern-training',
+          level: 'error',
+          command: 'patterns.training.error',
+          data: {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            parsed: { relationship }
+          }
+        });
+      }
+    }
+    
+    // Collect all patterns for final output
+    const consolidatedPatterns: Record<string, any> = {};
+    
+    for (const relationship of relationships) {
+      try {
+        const patterns = await patternAnalyzer.loadPatterns(userId, relationship === 'aggregate' ? undefined : relationship);
+        if (patterns) {
+          consolidatedPatterns[relationship] = patterns;
+        }
+      } catch (error) {
+        console.error(`Error loading patterns for ${relationship}:`, error);
+      }
+    }
+    
+    const endTime = Date.now();
+    const durationSeconds = Math.round((endTime - startTime) / 1000);
+    
+    // Create consolidated output with meta block
+    const consolidatedOutput = {
+      meta: {
+        analysisDate: new Date().toISOString(),
+        totalEmailsAnalyzed,
+        relationshipsAnalyzed: relationshipsAnalyzed - 1, // Exclude 'aggregate' from count
+        relationships: relationships.filter(r => r !== 'aggregate'),
+        includesAggregatePatterns: true, // Indicate that aggregate patterns are included
+        durationSeconds,
+        corpusSize: parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200'),
+        maxTokens: parseInt(process.env.PATTERN_ANALYSIS_MAX_TOKENS || '20000'),
+        modelUsed: patternAnalyzer.getModelName()
+      },
+      patterns: consolidatedPatterns
+    };
+    
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'pattern-training',
+      level: 'info',
+      command: 'patterns.training.complete',
+      data: {
+        parsed: {
+          totalEmailsAnalyzed,
+          relationshipsAnalyzed: relationshipsAnalyzed - 1, // Actual relationship count
+          aggregatePatternsIncluded: true,
+          relationships: relationships.filter(r => r !== 'aggregate')
+        }
+      }
+    });
+    
+    // Output consolidated patterns JSON to logs
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'pattern-training',
+      level: 'info',
+      command: 'patterns.training.consolidated',
+      data: {
+        raw: JSON.stringify(consolidatedOutput, null, 2)
+      }
+    });
+    
+    res.json({
+      success: true,
+      emailsAnalyzed: totalEmailsAnalyzed,
+      relationshipsAnalyzed: relationshipsAnalyzed - 1, // Subtract 1 to exclude 'aggregate' from count
+      relationships: relationships.filter(r => r !== 'aggregate'),
+      patterns: consolidatedPatterns
+    });
+    
+  } catch (error) {
+    console.error('Pattern analysis error:', error);
+    res.status(500).json({ 
+      error: 'Failed to analyze patterns',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });

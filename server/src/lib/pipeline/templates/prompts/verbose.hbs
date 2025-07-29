@@ -2,6 +2,10 @@ You are writing an email response to {{recipientEmail}}.
 
 {{> comprehensive-analysis}}
 
+{{#if patterns}}
+{{> writing-patterns patterns=patterns}}
+{{/if}}
+
 === DETAILED EXAMPLE ANALYSIS ===
 {{#if exactExamples}}
 YOUR EMAILS TO {{uppercase relationship}} (Full Details):
