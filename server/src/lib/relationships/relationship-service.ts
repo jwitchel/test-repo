@@ -80,14 +80,17 @@ export class RelationshipService {
   async getStylePreferences(userId: string, relationshipType: string): Promise<StylePreferences | null> {
     // First check if user has custom preferences
     const result = await pool.query(
-      `SELECT style_preferences 
-       FROM relationship_tone_preferences 
-       WHERE user_id = $1 AND relationship_type = $2`,
-      [userId, relationshipType]
+      `SELECT profile_data 
+       FROM tone_preferences 
+       WHERE user_id = $1 AND preference_type = $2 AND target_identifier = $3`,
+      [userId, 'category', relationshipType]
     );
     
-    if (result.rows.length > 0 && result.rows[0].style_preferences) {
-      const storedData = result.rows[0].style_preferences;
+    if (result.rows.length > 0 && result.rows[0].profile_data) {
+      const profileData = result.rows[0].profile_data;
+      
+      // Handle new format with meta block
+      const storedData = profileData.aggregatedStyle || profileData;
       
       // Check if this is AggregatedStyle format (has emailCount property)
       if ('emailCount' in storedData) {
@@ -106,14 +109,18 @@ export class RelationshipService {
   
   async getAggregatedStyle(userId: string, relationshipType: string): Promise<AggregatedStyle | null> {
     const result = await pool.query(
-      `SELECT style_preferences 
-       FROM relationship_tone_preferences 
-       WHERE user_id = $1 AND relationship_type = $2`,
-      [userId, relationshipType]
+      `SELECT profile_data 
+       FROM tone_preferences 
+       WHERE user_id = $1 AND preference_type = $2 AND target_identifier = $3`,
+      [userId, 'category', relationshipType]
     );
     
-    if (result.rows.length > 0 && result.rows[0].style_preferences) {
-      const storedData = result.rows[0].style_preferences;
+    if (result.rows.length > 0 && result.rows[0].profile_data) {
+      const profileData = result.rows[0].profile_data;
+      
+      // Handle new format with meta block
+      const storedData = profileData.aggregatedStyle || profileData;
+      
       // Check if this is AggregatedStyle format
       if ('emailCount' in storedData) {
         return storedData as AggregatedStyle;

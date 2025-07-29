@@ -1,6 +1,5 @@
 -- Drop tables in reverse order of dependencies
 DROP TABLE IF EXISTS draft_tracking;
-DROP TABLE IF EXISTS tone_profiles;
 DROP TABLE IF EXISTS email_accounts;
 
 -- Note: The "user" table is created by better-auth-schema.sql
@@ -17,15 +16,6 @@ CREATE TABLE email_accounts (
   is_active BOOLEAN DEFAULT true,
   last_sync TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE tone_profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE,
-  relationship_type VARCHAR(50) NOT NULL,
-  profile_data JSONB NOT NULL,
-  emails_analyzed INTEGER DEFAULT 0,
-  last_updated TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE draft_tracking (

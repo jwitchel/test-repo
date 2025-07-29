@@ -11,17 +11,20 @@ router.get('/', requireAuth, async (req, res) => {
     const userId = (req as any).user.id;
     
     const result = await pool.query(
-      'SELECT relationship_type, profile_data, emails_analyzed, last_updated FROM tone_profiles WHERE user_id = $1',
+      'SELECT preference_type, target_identifier, profile_data, emails_analyzed, last_updated FROM tone_preferences WHERE user_id = $1',
       [userId]
     );
     
-    // Transform rows into object with relationship types as keys
+    // Transform rows into object with target identifiers as keys
     const profiles: any = {};
     result.rows.forEach(row => {
-      profiles[row.relationship_type] = {
-        ...row.profile_data,
+      // Use target_identifier as key (e.g., 'aggregate', 'friend', 'manager')
+      profiles[row.target_identifier] = {
+        ...(row.profile_data.writingPatterns || row.profile_data), // Handle both old and new format
+        meta: row.profile_data.meta,
         emails_analyzed: row.emails_analyzed,
         last_updated: row.last_updated,
+        preference_type: row.preference_type
       };
     });
     

@@ -15,31 +15,13 @@ async function clearWritingPatterns() {
   console.log(chalk.bold('Clearing Writing Patterns from Database...\n'));
   
   try {
-    // Clear patterns from relationship_tone_preferences
-    console.log(chalk.blue('1. Clearing relationship-specific patterns...'));
-    const relationshipResult = await pool.query(`
-      UPDATE relationship_tone_preferences 
-      SET style_preferences = jsonb_set(
-        COALESCE(style_preferences, '{}'::jsonb),
-        '{writingPatterns}',
-        'null'
-      )
-      WHERE style_preferences->>'writingPatterns' IS NOT NULL
+    // Clear patterns from unified tone_preferences table
+    console.log(chalk.blue('1. Clearing all tone preferences...'));
+    const result = await pool.query(`
+      DELETE FROM tone_preferences
+      WHERE profile_data->'writingPatterns' IS NOT NULL
     `);
-    console.log(chalk.gray(`  Cleared ${relationshipResult.rowCount} relationship patterns`));
-    
-    // Clear patterns from tone_profiles
-    console.log(chalk.blue('\n2. Clearing user-level patterns...'));
-    const profileResult = await pool.query(`
-      UPDATE tone_profiles 
-      SET profile_data = jsonb_set(
-        COALESCE(profile_data, '{}'::jsonb),
-        '{writingPatterns}',
-        'null'
-      )
-      WHERE profile_data->>'writingPatterns' IS NOT NULL
-    `);
-    console.log(chalk.gray(`  Cleared ${profileResult.rowCount} user patterns`));
+    console.log(chalk.gray(`  Deleted ${result.rowCount} tone preference entries`));
     
     console.log(chalk.green('\n✓ All writing patterns cleared successfully!'));
     console.log(chalk.gray('\nNext time you use the Inspector, it will:'));

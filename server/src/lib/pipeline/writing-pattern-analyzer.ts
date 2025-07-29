@@ -808,35 +808,23 @@ export class WritingPatternAnalyzer {
     userId: string,
     relationship?: string
   ): Promise<WritingPatterns | null> {
-    let query: string;
-    let params: any[];
-
-    if (relationship) {
-      // Load from relationship-specific preferences
-      query = `
-        SELECT style_preferences 
-        FROM relationship_tone_preferences 
-        WHERE user_id = $1 AND relationship_type = $2
-      `;
-      params = [userId, relationship];
-    } else {
-      // Load from user-level tone profile
-      query = `
-        SELECT profile_data 
-        FROM tone_profiles 
-        WHERE user_id = $1 AND relationship_type = 'aggregate'
-      `;
-      params = [userId];
-    }
-
-    const result = await db.query(query, params);
+    const query = `
+      SELECT profile_data 
+      FROM tone_preferences 
+      WHERE user_id = $1 
+        AND preference_type = $2 
+        AND target_identifier = $3
+    `;
+    
+    const preferenceType = relationship ? 'category' : 'aggregate';
+    const targetIdentifier = relationship || 'aggregate';
+    
+    const result = await db.query(query, [userId, preferenceType, targetIdentifier]);
     if (result.rows.length === 0) {
       return null;
     }
 
-    const data = relationship 
-      ? result.rows[0].style_preferences 
-      : result.rows[0].profile_data;
+    const data = result.rows[0].profile_data;
     
     if (data?.writingPatterns) {
       return data.writingPatterns as WritingPatterns;
@@ -854,14 +842,22 @@ export class WritingPatternAnalyzer {
     relationship?: string,
     emailsAnalyzed: number = 1000
   ): Promise<void> {
-    const patternData = JSON.stringify({
-      writingPatterns: patterns,
-      lastAnalyzed: new Date().toISOString()
-    });
+    const preferenceType = relationship ? 'category' : 'aggregate';
+    const targetIdentifier = relationship || 'aggregate';
+    
+    // Create profile data with consistent structure
+    const profileData = {
+      meta: {
+        type: preferenceType,
+        lastAnalyzed: new Date().toISOString(),
+        emailCount: emailsAnalyzed,
+        confidence: emailsAnalyzed > 50 ? 0.95 : 0.8 // Higher confidence with more emails
+      },
+      writingPatterns: patterns
+    };
 
     if (relationship) {
-      // First ensure the relationship exists in user_relationships
-      // Capitalize first letter for display name
+      // Ensure the relationship exists in user_relationships
       const displayName = relationship.charAt(0).toUpperCase() + relationship.slice(1);
       
       await db.query(`
@@ -869,52 +865,32 @@ export class WritingPatternAnalyzer {
         VALUES ($1, $2, $3)
         ON CONFLICT (user_id, relationship_type) DO NOTHING
       `, [userId, relationship, displayName]);
-      
-      // Save to relationship-specific preferences
-      const query = `
-        INSERT INTO relationship_tone_preferences (user_id, relationship_type, style_preferences, updated_at)
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (user_id, relationship_type)
-        DO UPDATE SET 
-          style_preferences = $3,
-          updated_at = NOW()
-      `;
-      
-      await db.query(query, [userId, relationship, patternData]);
-    } else {
-      // Save to user-level tone profile (aggregate across all relationships)
-      // First check if unique constraint exists, if not use a different approach
-      try {
-        const query = `
-          INSERT INTO tone_profiles (user_id, relationship_type, profile_data, emails_analyzed, last_updated)
-          VALUES ($1, $2, $3, $4, NOW())
-          ON CONFLICT (user_id, relationship_type)
-          DO UPDATE SET 
-            profile_data = $3,
-            emails_analyzed = $4,
-            last_updated = NOW()
-        `;
-        
-        await db.query(query, [userId, 'aggregate', patternData, emailsAnalyzed]);
-      } catch (error: any) {
-        if (error.code === '42P10') { // No unique constraint
-          // Try update first, then insert if no rows affected
-          const updateResult = await db.query(`
-            UPDATE tone_profiles 
-            SET profile_data = $3, emails_analyzed = $4, last_updated = NOW()
-            WHERE user_id = $1 AND relationship_type = $2
-          `, [userId, 'aggregate', patternData, emailsAnalyzed]);
-          
-          if (updateResult.rowCount === 0) {
-            await db.query(`
-              INSERT INTO tone_profiles (user_id, relationship_type, profile_data, emails_analyzed, last_updated)
-              VALUES ($1, $2, $3, $4, NOW())
-            `, [userId, 'aggregate', patternData, emailsAnalyzed]);
-          }
-        } else {
-          throw error;
-        }
-      }
     }
+    
+    // Save to unified tone_preferences table
+    const query = `
+      INSERT INTO tone_preferences (
+        user_id, 
+        preference_type, 
+        target_identifier, 
+        profile_data, 
+        emails_analyzed, 
+        last_updated
+      )
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (user_id, preference_type, target_identifier)
+      DO UPDATE SET 
+        profile_data = $4,
+        emails_analyzed = $5,
+        last_updated = NOW()
+    `;
+    
+    await db.query(query, [
+      userId, 
+      preferenceType, 
+      targetIdentifier, 
+      JSON.stringify(profileData), 
+      emailsAnalyzed
+    ]);
   }
 }

@@ -201,27 +201,40 @@ export class StyleAggregationService {
     relationshipType: string,
     aggregatedStyle: AggregatedStyle
   ): Promise<void> {
+    const profileData = {
+      meta: {
+        type: 'category',
+        lastAnalyzed: new Date().toISOString(),
+        emailCount: aggregatedStyle.emailCount,
+        confidence: aggregatedStyle.confidenceScore
+      },
+      aggregatedStyle
+    };
+    
     await this.customPool.query(
-      `INSERT INTO relationship_tone_preferences (user_id, relationship_type, style_preferences, created_at, updated_at)
-       VALUES ($1, $2, $3, NOW(), NOW())
-       ON CONFLICT (user_id, relationship_type) 
+      `INSERT INTO tone_preferences (user_id, preference_type, target_identifier, profile_data, emails_analyzed, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       ON CONFLICT (user_id, preference_type, target_identifier) 
        DO UPDATE SET 
-         style_preferences = $3,
+         profile_data = $4,
+         emails_analyzed = $5,
          updated_at = NOW()`,
-      [userId, relationshipType, JSON.stringify(aggregatedStyle)]
+      [userId, 'category', relationshipType, JSON.stringify(profileData), aggregatedStyle.emailCount]
     );
   }
   
   async getAggregatedStyle(userId: string, relationshipType: string): Promise<AggregatedStyle | null> {
     const result = await this.customPool.query(
-      `SELECT style_preferences 
-       FROM relationship_tone_preferences 
-       WHERE user_id = $1 AND relationship_type = $2`,
-      [userId, relationshipType]
+      `SELECT profile_data 
+       FROM tone_preferences 
+       WHERE user_id = $1 AND preference_type = $2 AND target_identifier = $3`,
+      [userId, 'category', relationshipType]
     );
     
-    if (result.rows.length > 0 && result.rows[0].style_preferences) {
-      return result.rows[0].style_preferences as AggregatedStyle;
+    if (result.rows.length > 0 && result.rows[0].profile_data) {
+      // Handle both old format (direct aggregatedStyle) and new format (with meta)
+      const data = result.rows[0].profile_data;
+      return data.aggregatedStyle || data;
     }
     
     return null;
@@ -300,17 +313,18 @@ export class StyleAggregationService {
     
     // Get aggregated styles
     const stylesResult = await this.customPool.query(
-      `SELECT relationship_type, style_preferences 
-       FROM relationship_tone_preferences 
-       WHERE user_id = $1`,
+      `SELECT target_identifier, profile_data 
+       FROM tone_preferences 
+       WHERE user_id = $1 AND preference_type = 'category'`,
       [userId]
     );
     
     const styleMap = new Map<string, any>();
     for (const row of stylesResult.rows) {
-      const style = row.style_preferences;
+      const data = row.profile_data;
+      const style = data.aggregatedStyle || data;
       if (style && 'emailCount' in style) {
-        styleMap.set(row.relationship_type, style);
+        styleMap.set(row.target_identifier, style);
       }
     }
     

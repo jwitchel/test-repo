@@ -66,7 +66,7 @@ async function seedDemo() {
     console.log(chalk.yellow('🧹 Cleaning existing data...'));
     
     // Clean in correct order to avoid foreign key constraints
-    await pool.query('DELETE FROM relationship_tone_preferences');
+    await pool.query('DELETE FROM tone_preferences');
     await pool.query('DELETE FROM person_relationships');
     await pool.query('DELETE FROM person_emails');
     await pool.query('DELETE FROM people');
@@ -172,11 +172,21 @@ async function seedDemo() {
     console.log(chalk.blue('\n🎨 Seeding style patterns...'));
     
     for (const [relationshipType, style] of Object.entries(DEMO_STYLES)) {
+      const profileData = {
+        meta: {
+          type: 'category',
+          lastAnalyzed: new Date().toISOString(),
+          emailCount: style.emailCount,
+          confidence: style.confidenceScore
+        },
+        aggregatedStyle: style
+      };
+      
       await pool.query(
-        `INSERT INTO relationship_tone_preferences 
-         (user_id, relationship_type, style_preferences, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())`,
-        [primaryUserId, relationshipType, JSON.stringify(style)]
+        `INSERT INTO tone_preferences 
+         (user_id, preference_type, target_identifier, profile_data, emails_analyzed, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+        [primaryUserId, 'category', relationshipType, JSON.stringify(profileData), style.emailCount]
       );
       
       console.log(chalk.green(`  ✓ Added style for ${relationshipType} (${style.emailCount} emails, ${Math.round(style.confidenceScore * 100)}% confidence)`));
