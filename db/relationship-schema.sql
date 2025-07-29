@@ -61,7 +61,6 @@ CREATE TABLE IF NOT EXISTS relationship_tone_preferences (
   user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   relationship_type VARCHAR(50) NOT NULL,
   style_preferences JSONB DEFAULT '{}',
-  avg_response_time_hours FLOAT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   FOREIGN KEY (user_id, relationship_type) REFERENCES user_relationships(user_id, relationship_type),
