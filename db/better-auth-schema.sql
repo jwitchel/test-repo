@@ -13,7 +13,10 @@ CREATE TABLE "session" (
     "userId" TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     "expiresAt" TIMESTAMP NOT NULL,
     token TEXT UNIQUE NOT NULL,
-    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "ipAddress" TEXT,
+    "userAgent" TEXT
 );
 
 CREATE TABLE "account" (

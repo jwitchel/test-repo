@@ -67,6 +67,7 @@ export interface PersonRelationship {
   user_id: string;
   person_id: string;
   relationship_type: string;
+  user_relationship_id: string;
   is_primary: boolean;
   user_set: boolean;
   confidence: number;
@@ -232,21 +233,18 @@ export class PersonService {
       const person = personResult.rows[0];
       
       // Add the primary email
-      const emailResult = await client.query(
+      await client.query(
         `INSERT INTO person_emails (person_id, email_address, is_primary, created_at)
          VALUES ($1, $2, true, NOW())
          RETURNING id, person_id, email_address, is_primary, created_at`,
         [person.id, normalizedEmail]
       );
       
-      const email = emailResult.rows[0];
-      
       // Add relationship if provided
-      let relationship = null;
       if (params.relationshipType) {
-        // Verify the relationship type exists for this user
+        // Verify the relationship type exists for this user and get its ID
         const relationshipCheck = await client.query(
-          `SELECT relationship_type FROM user_relationships 
+          `SELECT id, relationship_type FROM user_relationships 
            WHERE user_id = $1 AND relationship_type = $2 AND is_active = true`,
           [params.userId, params.relationshipType]
         );
@@ -255,25 +253,26 @@ export class PersonService {
           throw new InvalidRelationshipError(params.relationshipType);
         }
         
-        const relationshipResult = await client.query(
-          `INSERT INTO person_relationships 
-           (user_id, person_id, relationship_type, is_primary, user_set, confidence, created_at, updated_at)
-           VALUES ($1, $2, $3, true, false, $4, NOW(), NOW())
-           RETURNING id, user_id, person_id, relationship_type, is_primary, user_set, confidence, created_at, updated_at`,
-          [params.userId, person.id, params.relationshipType, params.confidence || 0.5]
-        );
+        const userRelationshipId = relationshipCheck.rows[0].id;
         
-        relationship = relationshipResult.rows[0];
+        await client.query(
+          `INSERT INTO person_relationships 
+           (user_id, person_id, user_relationship_id, is_primary, user_set, confidence, created_at, updated_at)
+           VALUES ($1, $2, $3, true, false, $4, NOW(), NOW())
+           RETURNING id, user_id, person_id, user_relationship_id, is_primary, user_set, confidence, created_at, updated_at`,
+          [params.userId, person.id, userRelationshipId, params.confidence || 0.5]
+        );
       }
       
       await this._commitTransaction(client);
       
-      // Return the complete person object
-      return {
-        ...person,
-        emails: [email],
-        relationships: relationship ? [relationship] : []
-      };
+      // Return the complete person object with all details
+      const result = await this.getPersonById(person.id, params.userId);
+      if (!result) {
+        throw new PersonServiceError('Failed to retrieve person after creation');
+      }
+      
+      return result;
     } catch (error) {
       await this._rollbackTransaction(client);
       
@@ -443,14 +442,16 @@ export class PersonService {
         
         // Add relationship if provided
         if (params.relationshipType) {
-          // Check if the relationship type exists for this user
+          // Check if the relationship type exists for this user and get its ID
           const relCheck = await client.query(
-            `SELECT 1 FROM user_relationships 
+            `SELECT id FROM user_relationships 
              WHERE user_id = $1 AND relationship_type = $2 AND is_active = true`,
             [params.userId, params.relationshipType]
           );
           
           if (relCheck.rows.length > 0) {
+            const userRelationshipId = relCheck.rows[0].id;
+            
             // First, unset any existing primary relationship for this person
             await client.query(
               `UPDATE person_relationships 
@@ -462,12 +463,12 @@ export class PersonService {
             // Now insert/update the relationship
             await client.query(
               `INSERT INTO person_relationships 
-               (user_id, person_id, relationship_type, is_primary, user_set, confidence, created_at, updated_at)
+               (user_id, person_id, user_relationship_id, is_primary, user_set, confidence, created_at, updated_at)
                VALUES ($1, $2, $3, true, false, $4, NOW(), NOW())
-               ON CONFLICT (user_id, person_id, relationship_type) DO UPDATE 
+               ON CONFLICT (user_id, person_id, user_relationship_id) DO UPDATE 
                SET confidence = GREATEST(person_relationships.confidence, $4),
                    updated_at = NOW()`,
-              [params.userId, personId, params.relationshipType, params.confidence || 0.5]
+              [params.userId, personId, userRelationshipId, params.confidence || 0.5]
             );
           }
         }
@@ -515,11 +516,13 @@ export class PersonService {
         SELECT 
           pd.id, pd.user_id, pd.name, pd.created_at, pd.updated_at,
           pe.id as email_id, pe.email_address, pe.is_primary as email_is_primary, pe.created_at as email_created_at,
-          pr.id as rel_id, pr.relationship_type, pr.is_primary as rel_is_primary, 
-          pr.user_set, pr.confidence, pr.created_at as rel_created_at, pr.updated_at as rel_updated_at
+          pr.id as rel_id, pr.user_relationship_id, pr.is_primary as rel_is_primary, 
+          pr.user_set, pr.confidence, pr.created_at as rel_created_at, pr.updated_at as rel_updated_at,
+          ur.relationship_type
         FROM person_data pd
         LEFT JOIN person_emails pe ON pe.person_id = pd.id
         LEFT JOIN person_relationships pr ON pr.person_id = pd.id AND pr.user_id = pd.user_id
+        LEFT JOIN user_relationships ur ON pr.user_relationship_id = ur.id
         ORDER BY pe.is_primary DESC, pe.created_at ASC, pr.is_primary DESC, pr.confidence DESC`,
         [normalizedEmail, userId]
       );
@@ -561,6 +564,7 @@ export class PersonService {
             user_id: person.user_id,
             person_id: person.id,
             relationship_type: row.relationship_type,
+            user_relationship_id: row.user_relationship_id,
             is_primary: row.rel_is_primary,
             user_set: row.user_set,
             confidence: row.confidence,
@@ -620,9 +624,11 @@ export class PersonService {
       
       // Get all relationships for this person
       const relationshipsResult = await this.pool.query(
-        `SELECT pr.id, pr.user_id, pr.person_id, pr.relationship_type, 
-                pr.is_primary, pr.user_set, pr.confidence, pr.created_at, pr.updated_at
+        `SELECT pr.id, pr.user_id, pr.person_id, pr.user_relationship_id,
+                pr.is_primary, pr.user_set, pr.confidence, pr.created_at, pr.updated_at,
+                ur.relationship_type
          FROM person_relationships pr
+         JOIN user_relationships ur ON pr.user_relationship_id = ur.id
          WHERE pr.person_id = $1 AND pr.user_id = $2
          ORDER BY pr.is_primary DESC, pr.confidence DESC`,
         [personId, userId]
@@ -659,7 +665,7 @@ export class PersonService {
         `SELECT 
           p.id, p.user_id, p.name, p.created_at, p.updated_at,
           pe.email_address as primary_email,
-          pr.relationship_type as primary_relationship,
+          ur.relationship_type as primary_relationship,
           pr.confidence as relationship_confidence,
           pr.user_set as relationship_user_set,
           COUNT(DISTINCT pe_all.id) as email_count,
@@ -667,11 +673,12 @@ export class PersonService {
          FROM people p
          LEFT JOIN person_emails pe ON pe.person_id = p.id AND pe.is_primary = true
          LEFT JOIN person_relationships pr ON pr.person_id = p.id AND pr.is_primary = true AND pr.user_id = p.user_id
+         LEFT JOIN user_relationships ur ON pr.user_relationship_id = ur.id
          LEFT JOIN person_emails pe_all ON pe_all.person_id = p.id
          LEFT JOIN person_relationships pr_all ON pr_all.person_id = p.id AND pr_all.user_id = p.user_id
          WHERE p.user_id = $1
          GROUP BY p.id, p.user_id, p.name, p.created_at, p.updated_at, 
-                  pe.email_address, pr.relationship_type, pr.confidence, pr.user_set
+                  pe.email_address, ur.relationship_type, pr.confidence, pr.user_set
          ORDER BY p.name ASC
          LIMIT $2 OFFSET $3`,
         [params.userId, limit, offset]
@@ -742,7 +749,7 @@ export class PersonService {
       
       // Merge relationships - for each relationship type, keep the one with highest confidence or user_set
       const relationshipsResult = await client.query(
-        `SELECT DISTINCT relationship_type
+        `SELECT DISTINCT user_relationship_id
          FROM person_relationships
          WHERE person_id IN ($1, $2) AND user_id = $3`,
         [params.sourcePersonId, params.targetPersonId, params.userId]
@@ -757,16 +764,16 @@ export class PersonService {
       );
       
       for (const row of relationshipsResult.rows) {
-        const relationshipType = row.relationship_type;
+        const userRelationshipId = row.user_relationship_id;
         
         // Get the best relationship for this type (prefer user_set, then highest confidence)
         const bestRelationship = await client.query(
           `SELECT person_id, is_primary, user_set, confidence
            FROM person_relationships
-           WHERE person_id IN ($1, $2) AND user_id = $3 AND relationship_type = $4
+           WHERE person_id IN ($1, $2) AND user_id = $3 AND user_relationship_id = $4
            ORDER BY user_set DESC, confidence DESC
            LIMIT 1`,
-          [params.sourcePersonId, params.targetPersonId, params.userId, relationshipType]
+          [params.sourcePersonId, params.targetPersonId, params.userId, userRelationshipId]
         );
         
         if (bestRelationship.rows.length > 0) {
@@ -775,16 +782,16 @@ export class PersonService {
           // Delete any existing relationship of this type for the target
           await client.query(
             `DELETE FROM person_relationships
-             WHERE person_id = $1 AND user_id = $2 AND relationship_type = $3`,
-            [params.targetPersonId, params.userId, relationshipType]
+             WHERE person_id = $1 AND user_id = $2 AND user_relationship_id = $3`,
+            [params.targetPersonId, params.userId, userRelationshipId]
           );
           
           // Insert the best relationship for the target (without is_primary flag initially)
           await client.query(
             `INSERT INTO person_relationships 
-             (user_id, person_id, relationship_type, is_primary, user_set, confidence, created_at, updated_at)
+             (user_id, person_id, user_relationship_id, is_primary, user_set, confidence, created_at, updated_at)
              VALUES ($1, $2, $3, false, $4, $5, NOW(), NOW())`,
-            [params.userId, params.targetPersonId, relationshipType, best.user_set, best.confidence]
+            [params.userId, params.targetPersonId, userRelationshipId, best.user_set, best.confidence]
           );
         }
       }
@@ -877,6 +884,11 @@ export class PersonService {
   private async _rollbackTransaction(client: any) {
     await client.query('ROLLBACK');
     client.release();
+  }
+
+  // Public method to get pool for direct queries
+  getPool(): Pool {
+    return this.pool;
   }
 }
 

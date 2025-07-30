@@ -41,7 +41,7 @@ export interface AssignRelationshipParams {
 }
 
 export class UserRelationshipService {
-  private pool: Pool;
+  public pool: Pool;
   private relationshipDetector: RelationshipDetector;
 
   constructor(customPool?: Pool) {
@@ -245,5 +245,62 @@ export class UserRelationshipService {
   }
 }
 
-// Export singleton instance
-export const userRelationshipService = new UserRelationshipService();
+// Export singleton instance - lazy initialization to avoid circular dependency
+let _instance: UserRelationshipService | null = null;
+export const userRelationshipService = {
+  get instance(): UserRelationshipService {
+    if (!_instance) {
+      _instance = new UserRelationshipService();
+    }
+    return _instance;
+  },
+  get pool() {
+    return this.instance.pool;
+  },
+  // Proxy methods to maintain backward compatibility
+  async getAllRelationships(userId?: string): Promise<UserRelationship[]> {
+    return this.instance.getUserRelationships(userId || '');
+  },
+  async getRelationshipById(relationshipId: string): Promise<UserRelationship | null> {
+    // Need to fetch all relationships to find by ID
+    const allUsers = await this.instance.pool.query(
+      'SELECT DISTINCT user_id FROM user_relationships'
+    );
+    for (const row of allUsers.rows) {
+      const rels = await this.instance.getUserRelationships(row.user_id);
+      const found = rels.find(r => r.id === relationshipId);
+      if (found) return found;
+    }
+    return null;
+  },
+  async getRelationshipByType(userId: string, relationshipType: string): Promise<UserRelationship | null> {
+    const all = await this.instance.getUserRelationships(userId);
+    return all.find(r => r.relationship_type === relationshipType) || null;
+  },
+  async createRelationship(userId: string, relationshipType: string, displayName?: string): Promise<UserRelationship> {
+    return this.instance.createRelationship(userId, {
+      relationshipType,
+      displayName: displayName || relationshipType
+    });
+  },
+  async updateRelationship(relationshipId: string, updates: Partial<UserRelationship>): Promise<UserRelationship> {
+    // Find the relationship first
+    const rel = await this.getRelationshipById(relationshipId);
+    if (!rel) throw new Error('Relationship not found');
+    
+    return this.instance.updateRelationship(rel.user_id, rel.relationship_type, {
+      displayName: updates.display_name,
+      isActive: updates.is_active
+    });
+  },
+  async deleteRelationship(relationshipId: string): Promise<void> {
+    // Find the relationship first
+    const rel = await this.getRelationshipById(relationshipId);
+    if (!rel) throw new Error('Relationship not found');
+    
+    return this.instance.deleteRelationship(rel.user_id, rel.relationship_type);
+  },
+  async getRelationshipSuggestions(): Promise<any[]> {
+    return this.instance.getRelationshipSuggestions('', '');
+  }
+};

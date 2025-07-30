@@ -522,11 +522,19 @@ describe('PersonService', () => {
 
     it('should preserve user_set relationships during merge', async () => {
       // Manually set a relationship
+      // First get the user_relationship_id for 'friend'
+      const friendRelResult = await pool.query(
+        `SELECT id FROM user_relationships 
+         WHERE user_id = $1 AND relationship_type = 'friend'`,
+        [testUserId]
+      );
+      const friendRelId = friendRelResult.rows[0]?.id;
+      
       await pool.query(
         `UPDATE person_relationships 
          SET user_set = true, confidence = 1.0 
-         WHERE person_id = $1 AND relationship_type = 'friend'`,
-        [person1Id]
+         WHERE person_id = $1 AND user_relationship_id = $2`,
+        [person1Id, friendRelId]
       );
 
       const merged = await personService.mergePeople({

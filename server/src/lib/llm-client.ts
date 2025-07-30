@@ -29,7 +29,7 @@ export class LLMClient {
       case 'openai': {
         const openai = createOpenAI({
           apiKey: config.apiKey,
-          baseURL: config.apiEndpoint
+          baseURL: this.normalizeBaseURL(config.apiEndpoint, 'https://api.openai.com/v1')
         });
         return openai(config.modelName);
       }
@@ -37,7 +37,7 @@ export class LLMClient {
       case 'anthropic': {
         const anthropic = createAnthropic({
           apiKey: config.apiKey,
-          baseURL: config.apiEndpoint
+          baseURL: this.normalizeBaseURL(config.apiEndpoint, 'https://api.anthropic.com')
         });
         return anthropic(config.modelName);
       }
@@ -45,7 +45,7 @@ export class LLMClient {
       case 'google': {
         const google = createGoogleGenerativeAI({
           apiKey: config.apiKey,
-          baseURL: config.apiEndpoint
+          baseURL: this.normalizeBaseURL(config.apiEndpoint, 'https://generativelanguage.googleapis.com/v1beta')
         });
         return google(config.modelName);
       }
@@ -66,6 +66,27 @@ export class LLMClient {
           'UNKNOWN'
         );
     }
+  }
+
+  private normalizeBaseURL(endpoint: string | undefined, defaultURL: string): string | undefined {
+    if (!endpoint) {
+      // Use SDK default by returning undefined
+      return undefined;
+    }
+    
+    // If it's already a full URL, use it as-is
+    if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+      return endpoint;
+    }
+    
+    // If it's just a path, append it to the default URL
+    if (endpoint.startsWith('/')) {
+      const base = defaultURL.endsWith('/') ? defaultURL.slice(0, -1) : defaultURL;
+      return base + endpoint;
+    }
+    
+    // Otherwise, assume it's a full URL without protocol
+    return 'https://' + endpoint;
   }
 
   /**

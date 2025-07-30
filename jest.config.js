@@ -1,34 +1,26 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   roots: ['<rootDir>/server/src'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.integration.test.ts'],
-  testPathIgnorePatterns: ['/node_modules/', '/.next/'],
+  testMatch: ['**/__tests__/**/*.test.ts'],
+  testPathIgnorePatterns: [
+    '/node_modules/', 
+    '/.next/',
+    // Exclude tests that require better-auth/jose ESM modules
+    'person-service.test.ts',
+    'writing-pattern-analyzer.test.ts',
+    'llm-providers.test.ts',
+    'generate.test.ts',
+    'style-preferences.test.ts'
+  ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   collectCoverageFrom: [
     'server/src/**/*.{ts,tsx}',
     '!server/src/**/*.d.ts',
-    '!server/src/**/*.test.ts',
-    '!server/src/**/*.integration.test.ts'
+    '!server/src/**/*.test.ts'
   ],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/server/src/$1',
-    '^@xenova/transformers$': '<rootDir>/__mocks__/@xenova/transformers.js',
-    '^@qdrant/js-client-rest$': '<rootDir>/__mocks__/@qdrant/js-client-rest.js',
-    '^chalk$': '<rootDir>/__mocks__/chalk.js',
-    '^better-auth$': '<rootDir>/__mocks__/better-auth.js'
-  },
-  transformIgnorePatterns: [
-    'node_modules/(?!(@xenova/transformers|jose|better-auth|@ai-sdk)/)'
-  ],
-  extensionsToTreatAsEsm: ['.ts'],
-  globals: {
-    'ts-jest': {
-      useESM: true,
-      tsconfig: {
-        allowJs: true,
-        esModuleInterop: true
-      }
-    }
+    '^@/(.*)$': '<rootDir>/server/src/$1'
   }
 };

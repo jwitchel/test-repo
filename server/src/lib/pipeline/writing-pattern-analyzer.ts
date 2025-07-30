@@ -843,7 +843,8 @@ export class WritingPatternAnalyzer {
     emailsAnalyzed: number = 1000
   ): Promise<void> {
     const preferenceType = relationship ? 'category' : 'aggregate';
-    const targetIdentifier = relationship || 'aggregate';
+    let targetIdentifier = relationship || 'aggregate';
+    let userRelationshipId: string | null = null;
     
     // Create profile data with consistent structure
     const profileData = {
@@ -860,11 +861,15 @@ export class WritingPatternAnalyzer {
       // Ensure the relationship exists in user_relationships
       const displayName = relationship.charAt(0).toUpperCase() + relationship.slice(1);
       
-      await db.query(`
+      const relationshipResult = await db.query(`
         INSERT INTO user_relationships (user_id, relationship_type, display_name)
         VALUES ($1, $2, $3)
-        ON CONFLICT (user_id, relationship_type) DO NOTHING
+        ON CONFLICT (user_id, relationship_type) 
+        DO UPDATE SET display_name = $3
+        RETURNING id
       `, [userId, relationship, displayName]);
+      
+      userRelationshipId = relationshipResult.rows[0].id;
     }
     
     // Save to unified tone_preferences table
@@ -872,23 +877,26 @@ export class WritingPatternAnalyzer {
       INSERT INTO tone_preferences (
         user_id, 
         preference_type, 
-        target_identifier, 
+        target_identifier,
+        user_relationship_id,
         profile_data, 
         emails_analyzed, 
         last_updated
       )
-      VALUES ($1, $2, $3, $4, $5, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
       ON CONFLICT (user_id, preference_type, target_identifier)
       DO UPDATE SET 
-        profile_data = $4,
-        emails_analyzed = $5,
+        user_relationship_id = $4,
+        profile_data = $5,
+        emails_analyzed = $6,
         last_updated = NOW()
     `;
     
     await db.query(query, [
       userId, 
       preferenceType, 
-      targetIdentifier, 
+      targetIdentifier,
+      userRelationshipId,
       JSON.stringify(profileData), 
       emailsAnalyzed
     ]);

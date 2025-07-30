@@ -158,11 +158,22 @@ async function seedDemo() {
       
       // Add relationships
       for (const rel of person.relationships) {
-        await pool.query(
-          `INSERT INTO person_relationships (user_id, person_id, relationship_type, is_primary, user_set, confidence, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
-          [primaryUserId, personId, rel.type, rel.isPrimary, true, 1.0]
+        // Get the user_relationship_id for this relationship type
+        const relResult = await pool.query(
+          `SELECT id FROM user_relationships 
+           WHERE user_id = $1 AND relationship_type = $2`,
+          [primaryUserId, rel.type]
         );
+        
+        if (relResult.rows.length > 0) {
+          const userRelationshipId = relResult.rows[0].id;
+          
+          await pool.query(
+            `INSERT INTO person_relationships (user_id, person_id, user_relationship_id, is_primary, user_set, confidence, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
+            [primaryUserId, personId, userRelationshipId, rel.isPrimary, true, 1.0]
+          );
+        }
       }
       
       console.log(chalk.green(`  ✓ Created person: ${person.name} (${person.emails.join(', ')})`));
@@ -172,24 +183,35 @@ async function seedDemo() {
     console.log(chalk.blue('\n🎨 Seeding style patterns...'));
     
     for (const [relationshipType, style] of Object.entries(DEMO_STYLES)) {
-      const profileData = {
-        meta: {
-          type: 'category',
-          lastAnalyzed: new Date().toISOString(),
-          emailCount: style.emailCount,
-          confidence: style.confidenceScore
-        },
-        aggregatedStyle: style
-      };
-      
-      await pool.query(
-        `INSERT INTO tone_preferences 
-         (user_id, preference_type, target_identifier, profile_data, emails_analyzed, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-        [primaryUserId, 'category', relationshipType, JSON.stringify(profileData), style.emailCount]
+      // Get the user_relationship_id for this relationship type
+      const relResult = await pool.query(
+        `SELECT id FROM user_relationships 
+         WHERE user_id = $1 AND relationship_type = $2`,
+        [primaryUserId, relationshipType]
       );
       
-      console.log(chalk.green(`  ✓ Added style for ${relationshipType} (${style.emailCount} emails, ${Math.round(style.confidenceScore * 100)}% confidence)`));
+      if (relResult.rows.length > 0) {
+        const userRelationshipId = relResult.rows[0].id;
+        
+        const profileData = {
+          meta: {
+            type: 'category',
+            lastAnalyzed: new Date().toISOString(),
+            emailCount: style.emailCount,
+            confidence: style.confidenceScore
+          },
+          aggregatedStyle: style
+        };
+        
+        await pool.query(
+          `INSERT INTO tone_preferences 
+           (user_id, preference_type, target_identifier, user_relationship_id, profile_data, emails_analyzed, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
+          [primaryUserId, 'category', relationshipType, userRelationshipId, JSON.stringify(profileData), style.emailCount]
+        );
+        
+        console.log(chalk.green(`  ✓ Added style for ${relationshipType} (${style.emailCount} emails, ${Math.round(style.confidenceScore * 100)}% confidence)`));
+      }
     }
     
     // Step 6: Ingest emails via pipeline

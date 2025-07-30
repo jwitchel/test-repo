@@ -1,11 +1,5 @@
 import { ImapConnection, ImapConfig } from '../lib/imap-connection';
 
-// Mock the crypto module to avoid ENCRYPTION_KEY requirement
-jest.mock('../lib/crypto', () => ({
-  encryptPassword: (password: string) => Buffer.from(password).toString('base64'),
-  decryptPassword: (encrypted: string) => Buffer.from(encrypted, 'base64').toString()
-}));
-
 // Test configuration for Docker test email server
 const TEST_CONFIG: ImapConfig = {
   user: 'user1@testmail.local',

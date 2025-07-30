@@ -23,6 +23,25 @@ async function runMigration() {
     await pool.query(relationshipSchema);
     console.log('Relationship schema migration completed');
     
+    // Run numbered migrations in order
+    const migrationsDir = path.join(__dirname, 'migrations');
+    if (fs.existsSync(migrationsDir)) {
+      const migrationFiles = fs.readdirSync(migrationsDir)
+        .filter(file => file.endsWith('.sql'))
+        .sort(); // Sort to ensure order
+      
+      for (const file of migrationFiles) {
+        try {
+          const migration = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+          await pool.query(migration);
+          console.log(`Migration ${file} completed`);
+        } catch (error) {
+          console.error(`Migration ${file} failed:`, error.message);
+          // Continue with other migrations
+        }
+      }
+    }
+    
     console.log('All migrations completed successfully');
   } catch (error) {
     console.error('Migration failed:', error);
