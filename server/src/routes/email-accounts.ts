@@ -95,7 +95,7 @@ router.get('/', requireAuth, async (req, res) => {
     
     const result = await pool.query(
       `SELECT id, email_address, imap_host, imap_port, imap_username, 
-              is_active, last_sync, created_at 
+              is_active, last_sync, created_at, oauth_provider
        FROM email_accounts 
        WHERE user_id = $1 
        ORDER BY created_at DESC`,
@@ -112,7 +112,8 @@ router.get('/', requireAuth, async (req, res) => {
       is_active: row.is_active,
       last_sync: row.last_sync ? row.last_sync.toISOString() : null,
       created_at: row.created_at.toISOString(),
-      updated_at: row.created_at.toISOString() // Use created_at as fallback
+      updated_at: row.created_at.toISOString(), // Use created_at as fallback
+      oauth_provider: row.oauth_provider
     }));
     
     res.json(accounts);
@@ -206,6 +207,52 @@ router.post('/', requireAuth, validateEmailAccount, async (req, res): Promise<vo
   } catch (error) {
     console.error('Error creating email account:', error);
     res.status(500).json({ error: 'Failed to create email account' });
+  }
+});
+
+// Test email account connection
+router.post('/:id/test', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const accountId = req.params.id;
+
+    // Verify the account belongs to the user
+    const accountResult = await pool.query(
+      'SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2',
+      [accountId, userId]
+    );
+
+    if (accountResult.rows.length === 0) {
+      res.status(404).json({ error: 'Email account not found' });
+      return;
+    }
+
+    const account = accountResult.rows[0];
+    console.log('Testing connection for account:', {
+      email: account.email_address,
+      hasOAuth: !!account.oauth_provider,
+      hasPassword: !!account.imap_password_encrypted
+    });
+    
+    try {
+      const imapOps = await ImapOperations.fromAccountId(accountId, userId);
+      const folders = await imapOps.getFolders();
+      
+      res.json({ 
+        success: true, 
+        folderCount: folders.length,
+        folders: folders.map(f => f.name)
+      });
+    } catch (error: any) {
+      console.error('IMAP test connection error:', error);
+      res.status(400).json({ 
+        error: `Connection failed: ${error.message}`,
+        details: error.code || 'UNKNOWN_ERROR'
+      });
+    }
+  } catch (error: any) {
+    console.error('Test connection error:', error);
+    res.status(500).json({ error: error.message || 'Failed to test connection' });
   }
 });
 

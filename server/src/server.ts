@@ -93,6 +93,8 @@ import analyzeRoutes from './routes/analyze';
 import llmProvidersRoutes from './routes/llm-providers';
 import generateRoutes from './routes/generate';
 import trainingRoutes from './routes/training';
+import oauthEmailRoutes from './routes/oauth-email';
+import accountsRoutes from './routes/accounts';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -104,6 +106,8 @@ app.use('/', analyzeRoutes);
 app.use('/api/llm-providers', llmProvidersRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/training', trainingRoutes);
+app.use('/api/oauth-email', oauthEmailRoutes);
+app.use('/api', accountsRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

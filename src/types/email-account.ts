@@ -18,4 +18,5 @@ export interface EmailAccountResponse {
   last_sync: string | null;
   created_at: string;
   updated_at: string;
+  oauth_provider?: string;
 }

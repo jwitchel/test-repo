@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import useSWR from 'swr'
 import { ProtectedRoute } from '@/components/auth/protected-route'
+import { authClient } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -15,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, Mail, Server } from 'lucide-react'
 import { EmailAccountResponse } from '@/types/email-account'
+import { FcGoogle } from 'react-icons/fc'
 
 const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then(res => res.json())
 
@@ -56,6 +58,25 @@ export default function EmailAccountsPage() {
     }
   }
 
+  const handleTest = async (account: EmailAccountResponse) => {
+    try {
+      const response = await fetch(`http://localhost:3002/api/email-accounts/${account.id}/test`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        success(`Connection test successful! Found ${result.folderCount} folders`)
+      } else {
+        const errorData = await response.json()
+        showError(errorData.error || 'Connection test failed')
+      }
+    } catch {
+      showError('Network error. Please try again.')
+    }
+  }
+
   if (error) {
     return (
       <ProtectedRoute>
@@ -89,6 +110,7 @@ export default function EmailAccountsPage() {
             onAdd={() => setIsAddingAccount(true)}
             onEdit={(account) => setEditingAccount(account)}
             onDelete={handleDelete}
+            onTest={handleTest}
             deletingId={deletingId}
           />
         ) : editingAccount ? (
@@ -119,7 +141,8 @@ function AccountList({
   isLoading,
   onAdd,
   onEdit, 
-  onDelete, 
+  onDelete,
+  onTest,
   deletingId 
 }: { 
   accounts: EmailAccountResponse[]
@@ -127,6 +150,7 @@ function AccountList({
   onAdd: () => void
   onEdit: (account: EmailAccountResponse) => void
   onDelete: (id: string) => void
+  onTest: (account: EmailAccountResponse) => void
   deletingId: string | null
 }) {
   if (isLoading) {
@@ -174,7 +198,17 @@ function AccountList({
           <TableBody>
             {accounts.map(account => (
               <TableRow key={account.id}>
-                <TableCell className="font-medium">{account.email_address}</TableCell>
+                <TableCell className="font-medium">
+                  <div>
+                    {account.email_address}
+                    {account.oauth_provider && (
+                      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 mt-1">
+                        <FcGoogle className="h-3 w-3" />
+                        Connected via OAuth
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
                     <Server className="h-3 w-3" />
@@ -198,6 +232,13 @@ function AccountList({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onTest(account)}
+                    >
+                      Test
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -366,8 +407,50 @@ function AddAccountForm({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-6">
+          <div className="text-center mb-4">
+            <h4 className="text-lg font-semibold mb-2">Connect with OAuth (Recommended)</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              The most secure way to connect your email account
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full max-w-sm"
+              onClick={async () => {
+                try {
+                  // Use the signIn.social method with error handling
+                  await authClient.signIn.social({
+                    provider: 'google',
+                    callbackURL: 'http://localhost:3001/settings/email-accounts/oauth-callback',
+                    errorCallbackURL: 'http://localhost:3001/settings/email-accounts'
+                  });
+                } catch (error) {
+                  console.error('OAuth error:', error);
+                  // If the method fails, try manual redirect
+                  window.location.href = 'http://localhost:3002/api/auth/signin/google?callbackURL=' + 
+                    encodeURIComponent('http://localhost:3001/settings/email-accounts/oauth-callback');
+                }
+              }}
+            >
+              <FcGoogle className="mr-2 h-5 w-5" />
+              Connect with Google
+            </Button>
+          </div>
+          
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or connect manually</span>
+            </div>
+          </div>
+        </div>
+
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-          <h4 className="text-sm font-semibold mb-2">Common Email Provider Settings</h4>
+          <h4 className="text-sm font-semibold mb-2">Manual Connection Settings</h4>
           <div className="space-y-2 text-sm">
             <div>
               <span className="font-medium">Gmail:</span>

@@ -5,7 +5,8 @@ import { imapLogger } from './imap-logger';
 
 export interface ImapConfig {
   user: string;
-  password: string;
+  password?: string;
+  xoauth2?: string;
   host: string;
   port: number;
   tls?: boolean;
@@ -73,9 +74,8 @@ export class ImapConnection extends EventEmitter {
     this.emailAccountId = emailAccountId;
 
     // Configure IMAP connection
-    this.imap = new Imap({
+    const imapConfig: any = {
       user: config.user,
-      password: config.password,
       host: config.host,
       port: config.port,
       tls: config.tls ?? (config.port === 993),
@@ -87,7 +87,20 @@ export class ImapConnection extends EventEmitter {
         idleInterval: 300000,
         forceNoop: true
       }
-    });
+    };
+
+    // Use OAuth2 if available, otherwise use password
+    if (config.xoauth2) {
+      console.log('ImapConnection: Using XOAuth2 authentication');
+      imapConfig.xoauth2 = config.xoauth2;
+    } else if (config.password) {
+      console.log('ImapConnection: Using password authentication');
+      imapConfig.password = config.password;
+    } else {
+      throw new ImapConnectionError('No authentication method provided', 'AUTH_MISSING');
+    }
+
+    this.imap = new Imap(imapConfig);
 
     this.setupEventHandlers();
   }

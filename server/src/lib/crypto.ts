@@ -75,3 +75,9 @@ export function decryptPassword(encryptedData: string): string {
     throw new Error('Failed to decrypt password');
   }
 }
+
+// Generic encrypt function (alias for encryptPassword)
+export const encrypt = encryptPassword;
+
+// Generic decrypt function (alias for decryptPassword)
+export const decrypt = decryptPassword;

@@ -4,6 +4,7 @@ CREATE TABLE "user" (
     email TEXT UNIQUE NOT NULL,
     "emailVerified" BOOLEAN NOT NULL DEFAULT false,
     name TEXT,
+    image TEXT,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -40,5 +41,6 @@ CREATE TABLE "verification" (
     identifier TEXT NOT NULL,
     value TEXT NOT NULL,
     "expiresAt" TIMESTAMP NOT NULL,
-    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

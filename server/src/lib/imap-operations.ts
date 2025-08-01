@@ -1,8 +1,9 @@
 import { ImapConnection, ImapConnectionError } from './imap-connection';
 import { imapPool } from './imap-pool';
-import { decryptPassword } from './crypto';
+import { decryptPassword, decrypt } from './crypto';
 import { pool } from '../server';
 import { simpleParser } from 'mailparser';
+import { OAuthTokenService } from './oauth-token-service';
 
 export interface EmailAccountConfig {
   id: string;
@@ -11,8 +12,12 @@ export interface EmailAccountConfig {
   imapHost: string;
   imapPort: number;
   imapUsername: string;
-  imapPasswordEncrypted: string;
+  imapPasswordEncrypted?: string;
   imapSecure?: boolean;
+  oauthProvider?: string;
+  oauthRefreshToken?: string;
+  oauthAccessToken?: string;
+  oauthTokenExpiresAt?: Date;
 }
 
 export interface EmailFolder {
@@ -62,7 +67,9 @@ export class ImapOperations {
   static async fromAccountId(accountId: string, userId: string): Promise<ImapOperations> {
     const result = await pool.query(
       `SELECT id, user_id, email_address, imap_host, imap_port, 
-              imap_username, imap_password_encrypted 
+              imap_username, imap_password_encrypted,
+              oauth_provider, oauth_refresh_token, oauth_access_token,
+              oauth_token_expires_at
        FROM email_accounts 
        WHERE id = $1 AND user_id = $2`,
       [accountId, userId]
@@ -81,7 +88,11 @@ export class ImapOperations {
       imapPort: row.imap_port,
       imapUsername: row.imap_username,
       imapPasswordEncrypted: row.imap_password_encrypted,
-      imapSecure: row.imap_port === 993 || row.imap_port === 995
+      imapSecure: row.imap_port === 993 || row.imap_port === 995,
+      oauthProvider: row.oauth_provider,
+      oauthRefreshToken: row.oauth_refresh_token,
+      oauthAccessToken: row.oauth_access_token,
+      oauthTokenExpiresAt: row.oauth_token_expires_at
     };
 
     return new ImapOperations(account);
@@ -89,15 +100,44 @@ export class ImapOperations {
 
   private async getConnection(): Promise<ImapConnection> {
     if (!this.connection) {
-      const password = decryptPassword(this.account.imapPasswordEncrypted);
-      
-      const config = {
+      let config: any = {
         user: this.account.imapUsername,
-        password,
         host: this.account.imapHost,
         port: this.account.imapPort,
         tls: this.account.imapSecure
       };
+
+      // Use OAuth2 if available
+      if (this.account.oauthProvider && this.account.oauthAccessToken) {
+        console.log('Using OAuth2 authentication for:', this.account.email);
+        
+        // Check if token needs refresh
+        if (this.account.oauthTokenExpiresAt && 
+            OAuthTokenService.needsRefresh(this.account.oauthTokenExpiresAt)) {
+          // TODO: Implement token refresh
+          console.warn('OAuth token needs refresh, but refresh not yet implemented');
+        }
+
+        // Decrypt access token and generate XOAUTH2 string
+        const accessToken = decrypt(this.account.oauthAccessToken);
+        const xoauth2 = OAuthTokenService.generateXOAuth2Token(
+          this.account.email,
+          accessToken
+        );
+        
+        console.log('Generated XOAuth2 token for:', this.account.email);
+        console.log('XOAuth2 token length:', xoauth2.length);
+        
+        config.xoauth2 = xoauth2;
+        // Remove password field to ensure OAuth is used
+        delete config.password;
+      } else if (this.account.imapPasswordEncrypted) {
+        // Fall back to password authentication
+        const password = decryptPassword(this.account.imapPasswordEncrypted);
+        config.password = password;
+      } else {
+        throw new ImapConnectionError('No authentication method available', 'AUTH_MISSING');
+      }
 
       this.connection = await imapPool.getConnection(
         config,
