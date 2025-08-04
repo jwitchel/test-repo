@@ -109,15 +109,11 @@ export class ImapOperations {
 
       // Use OAuth2 if available
       if (this.account.oauthProvider && this.account.oauthAccessToken) {
-        console.log('Using OAuth2 authentication for:', this.account.email);
-        
         let accessToken = decrypt(this.account.oauthAccessToken);
         
         // Check if token needs refresh
         if (this.account.oauthTokenExpiresAt && 
             OAuthTokenService.needsRefresh(this.account.oauthTokenExpiresAt)) {
-          console.log('OAuth token expired, refreshing...');
-          
           if (!this.account.oauthRefreshToken) {
             throw new ImapConnectionError('OAuth refresh token not available', 'AUTH_REFRESH_TOKEN_MISSING');
           }
@@ -136,8 +132,6 @@ export class ImapOperations {
             // Update the account object with new token info
             this.account.oauthAccessToken = encrypt(newTokens.accessToken);
             this.account.oauthTokenExpiresAt = newTokens.expiresAt;
-            
-            console.log('OAuth token refreshed successfully');
           } catch (error) {
             console.error('Failed to refresh OAuth token:', error);
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -153,9 +147,6 @@ export class ImapOperations {
           this.account.email,
           accessToken
         );
-        
-        console.log('Generated XOAuth2 token for:', this.account.email);
-        console.log('XOAuth2 token length:', xoauth2.length);
         
         config.xoauth2 = xoauth2;
         // Remove password field to ensure OAuth is used

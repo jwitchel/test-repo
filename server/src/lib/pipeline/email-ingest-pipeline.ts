@@ -168,6 +168,7 @@ export class EmailIngestPipeline {
         emailId: email.messageId,
         userId,
         extractedText: email.extractedText,
+        rawText: email.textContent || email.extractedText, // Store original text
         recipientEmail: email.to[0]?.address || '',
         subject: email.subject,
         sentDate: email.date.toISOString(),

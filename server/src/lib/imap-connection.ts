@@ -91,10 +91,8 @@ export class ImapConnection extends EventEmitter {
 
     // Use OAuth2 if available, otherwise use password
     if (config.xoauth2) {
-      console.log('ImapConnection: Using XOAuth2 authentication');
       imapConfig.xoauth2 = config.xoauth2;
     } else if (config.password) {
-      console.log('ImapConnection: Using password authentication');
       imapConfig.password = config.password;
     } else {
       throw new ImapConnectionError('No authentication method provided', 'AUTH_MISSING');

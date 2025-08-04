@@ -6,7 +6,8 @@ dotenv.config();
 export interface EmailMetadata {
   emailId: string;
   userId: string;
-  extractedText: string;
+  extractedText: string;      // Cleaned text (no signature)
+  rawText?: string;           // Original email with signature (optional for backward compat)
   recipientEmail: string;
   subject: string;
   sentDate: string;

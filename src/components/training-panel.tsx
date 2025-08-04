@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp, Brain } from 'lucide-react'
+import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp, Brain, Sparkles } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -36,6 +36,7 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
   const [isWiping, setIsWiping] = useState(false)
   const [showWipeDialog, setShowWipeDialog] = useState(false)
   const [isAnalyzingPatterns, setIsAnalyzingPatterns] = useState(false)
+  const [isCleaningEmails, setIsCleaningEmails] = useState(false)
   const [emailCount, setEmailCount] = useState('100')
   // Default to tomorrow to include all emails up to today
   const tomorrow = new Date()
@@ -181,6 +182,32 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
     }
   }
 
+  const handleCleanEmails = async () => {
+    setIsCleaningEmails(true)
+
+    try {
+      const response = await fetch('http://localhost:3002/api/training/clean-emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to clean emails')
+      }
+
+      const result = await response.json()
+      success(`Email cleaning complete! Cleaned ${result.totalCleaned} out of ${result.totalProcessed} emails (${result.percentageCleaned}%).`)
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Failed to clean emails')
+    } finally {
+      setIsCleaningEmails(false)
+    }
+  }
+
   return (
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -276,48 +303,71 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button
-            onClick={handleLoadEmails}
-            disabled={emailAccountId === 'demo-account-001'}
-            size="sm"
-            className="flex-1"
-          >
-            <Upload className="h-3 w-3 mr-1" />
-            Load Emails
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Button
+              onClick={handleLoadEmails}
+              disabled={emailAccountId === 'demo-account-001'}
+              size="sm"
+              className="flex-1"
+            >
+              <Upload className="h-3 w-3 mr-1" />
+              Load Emails
+            </Button>
+
+            <Button
+              onClick={handleAnalyzePatterns}
+              disabled={isAnalyzingPatterns}
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              title="Analyze writing patterns from loaded emails"
+            >
+              {isAnalyzingPatterns ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Brain className="h-3 w-3 mr-1" />
+                  Analyze Patterns
+                </>
+              )}
+            </Button>
+
+            <Button
+              onClick={() => setShowWipeDialog(true)}
+              disabled={isWiping}
+              size="sm"
+              variant="destructive"
+            >
+              {isWiping ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
 
           <Button
-            onClick={handleAnalyzePatterns}
-            disabled={isAnalyzingPatterns}
+            onClick={handleCleanEmails}
+            disabled={isCleaningEmails}
             size="sm"
             variant="secondary"
-            className="flex-1"
-            title="Analyze writing patterns from loaded emails"
+            className="w-full"
+            title="Remove signatures from loaded emails"
           >
-            {isAnalyzingPatterns ? (
+            {isCleaningEmails ? (
               <>
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Analyzing...
+                Cleaning...
               </>
             ) : (
               <>
-                <Brain className="h-3 w-3 mr-1" />
-                Analyze Patterns
+                <Sparkles className="h-3 w-3 mr-1" />
+                Clean Emails
               </>
-            )}
-          </Button>
-
-          <Button
-            onClick={() => setShowWipeDialog(true)}
-            disabled={isWiping}
-            size="sm"
-            variant="destructive"
-          >
-            {isWiping ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Trash2 className="h-3 w-3" />
             )}
           </Button>
         </div>

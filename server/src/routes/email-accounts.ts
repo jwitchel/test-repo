@@ -236,12 +236,19 @@ router.post('/:id/test', requireAuth, async (req, res): Promise<void> => {
     
     try {
       const imapOps = await ImapOperations.fromAccountId(accountId, userId);
-      const folders = await imapOps.getFolders();
+      const success = await imapOps.testConnection();
+      
+      if (!success) {
+        res.status(400).json({ 
+          error: 'Connection test failed',
+          details: 'IMAP_TEST_FAILED'
+        });
+        return;
+      }
       
       res.json({ 
         success: true, 
-        folderCount: folders.length,
-        folders: folders.map(f => f.name)
+        message: 'Connection successful'
       });
     } catch (error: any) {
       console.error('IMAP test connection error:', error);

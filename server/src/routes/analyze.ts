@@ -8,6 +8,7 @@ import { VectorStore } from '../lib/vector/qdrant-client';
 import { EmbeddingService } from '../lib/vector/embedding-service';
 import { SelectedExample } from '../lib/pipeline/example-selector';
 import { imapLogger } from '../lib/imap-logger';
+import { replyExtractor } from '../lib/reply-extractor';
 
 // Extend Express Request to include user
 interface AuthenticatedRequest extends Request {
@@ -42,6 +43,62 @@ async function ensureServicesInitialized() {
   }
 }
 
+// Remove obvious signature blocks from incoming emails
+function removeIncomingEmailSignature(text: string): string {
+  const lines = text.split('\n');
+  let signatureStart = -1;
+  
+  // Look for common signature delimiters
+  const signatureDelimiters = [
+    /^--\s*$/,
+    /^—+\s*$/,
+    /^_{3,}\s*$/,
+    /^-{3,}\s*$/,
+    /^={3,}\s*$/,
+    /^\*{3,}\s*$/
+  ];
+  
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 15); i--) {
+    const line = lines[i].trim();
+    
+    // Check for delimiter
+    if (signatureDelimiters.some(pattern => pattern.test(line))) {
+      signatureStart = i;
+      break;
+    }
+    
+    // Check for lines that commonly appear in signatures
+    if (i < lines.length - 2) { // Need at least 2 lines to be a signature
+      const remainingLines = lines.slice(i).join('\n');
+      
+      // Pattern matching for signature indicators
+      const hasPhone = /\b(cell|mobile|phone|tel)[:.]?\s*[\d\s\-\(\)]+/i.test(remainingLines);
+      const hasEmail = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(remainingLines);
+      const hasUrl = /https?:\/\/[^\s]+/.test(remainingLines);
+      const hasJobTitle = /\b(CEO|CTO|CFO|Manager|Director|Partner|Founder|Investor|President|VP|Engineer|Developer)\b/i.test(remainingLines);
+      const hasPipe = /\|/.test(remainingLines);
+      const hasAddress = /\b(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Suite|Ste)\b/i.test(remainingLines);
+      
+      // If we find 2+ signature indicators, assume it's a signature
+      const indicators = [hasPhone, hasEmail, hasUrl, hasJobTitle, hasPipe, hasAddress].filter(Boolean).length;
+      if (indicators >= 2) {
+        signatureStart = i;
+      }
+    }
+  }
+  
+  if (signatureStart > 0) {
+    // Remove the signature and trailing empty lines
+    const result = lines.slice(0, signatureStart);
+    while (result.length > 0 && result[result.length - 1].trim() === '') {
+      result.pop();
+    }
+    return result.join('\n');
+  }
+  
+  return text;
+}
+
 // Analyze email endpoint
 router.post('/api/analyze/email', requireAuth, async (req: Request, res: Response) => {
   const authenticatedReq = req as AuthenticatedRequest;
@@ -70,7 +127,77 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       }
     });
     
-    // Step 1: Extract NLP features
+    // Step 1: Extract only the user's written text (removes quoted content and reply chains)
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'demo-account-001',
+      level: 'info',
+      command: 'reply.extracting',
+      data: {
+        raw: 'Extracting user text from email (removing quoted content)...'
+      }
+    });
+    
+    const extractedContent = replyExtractor.extractUserText(emailBody);
+    
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'demo-account-001',
+      level: 'info',
+      command: 'reply.extracted',
+      data: {
+        parsed: {
+          originalLength: emailBody.length,
+          extractedLength: extractedContent.length,
+          reductionPercentage: emailBody.length > 0 
+            ? Math.round((1 - extractedContent.length / emailBody.length) * 100)
+            : 0
+        }
+      }
+    });
+    
+    // Step 1.5: Remove signature from the extracted content
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'demo-account-001',
+      level: 'info',
+      command: 'signature.removing',
+      data: {
+        raw: 'Removing signature blocks from email...'
+      }
+    });
+    
+    const cleanedContent = removeIncomingEmailSignature(extractedContent);
+    
+    if (cleanedContent.length < extractedContent.length) {
+      const removedText = extractedContent.substring(cleanedContent.length);
+      imapLogger.log(userId, {
+        userId,
+        emailAccountId: 'demo-account-001',
+        level: 'info',
+        command: 'signature.removed',
+        data: {
+          parsed: {
+            originalLength: extractedContent.length,
+            cleanedLength: cleanedContent.length,
+            removedChars: extractedContent.length - cleanedContent.length,
+            removedText: removedText.trim()
+          }
+        }
+      });
+    } else {
+      imapLogger.log(userId, {
+        userId,
+        emailAccountId: 'demo-account-001',
+        level: 'info',
+        command: 'signature.not_found',
+        data: {
+          raw: 'No signature detected in the email'
+        }
+      });
+    }
+    
+    // Step 2: Extract NLP features from the cleaned text
     imapLogger.log(userId, {
       userId,
       emailAccountId: 'demo-account-001',
@@ -81,7 +208,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       }
     });
     
-    const nlpFeatures = extractEmailFeatures(emailBody, {
+    const nlpFeatures = extractEmailFeatures(cleanedContent, {
       email: recipientEmail,
       name: recipientEmail.split('@')[0]
     });
@@ -101,7 +228,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       }
     });
     
-    // Step 2: Detect relationship
+    // Step 3: Detect relationship
     imapLogger.log(userId, {
       userId,
       emailAccountId: 'demo-account-001',
@@ -150,7 +277,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       }
     });
     
-    // Step 3: Look up person
+    // Step 4: Look up person
     imapLogger.log(userId, {
       userId,
       emailAccountId: 'demo-account-001',
@@ -163,10 +290,10 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
     
     const person = await personService.findPersonByEmail(recipientEmail, userId);
     
-    // Step 4: Get enhanced profile with aggregated style
+    // Step 5: Get enhanced profile with aggregated style
     const enhancedProfile = await relationshipService.getEnhancedProfile(userId, recipientEmail);
     
-    // Step 5: Search for similar emails
+    // Step 6: Search for similar emails
     imapLogger.log(userId, {
       userId,
       emailAccountId: 'demo-account-001',
@@ -177,7 +304,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       }
     });
     
-    const { vector } = await embeddingService!.embedText(emailBody);
+    const { vector } = await embeddingService!.embedText(cleanedContent);
     const searchResults = await vectorStore!.searchSimilar({
       userId,
       queryVector: vector,
@@ -215,7 +342,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       });
     }
     
-    // Step 6: Format examples for the prompt
+    // Step 7: Format examples for the prompt
     const selectedExamples: SelectedExample[] = searchResults.map(result => ({
       id: result.id,
       text: result.metadata.extractedText,
@@ -223,7 +350,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       metadata: result.metadata
     }));
     
-    // Step 6.5: Analyze writing patterns
+    // Step 8: Analyze writing patterns
     imapLogger.log(userId, {
       userId,
       emailAccountId: 'demo-account-001',
@@ -349,7 +476,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
     
     const promptFormatter = orchestrator!['promptFormatter'];
     const formattedPrompt = await promptFormatter.formatWithExamples({
-      incomingEmail: emailBody,
+      incomingEmail: cleanedContent,
       recipientEmail,
       examples: selectedExamples,
       relationship: detectedRelationship.relationship,

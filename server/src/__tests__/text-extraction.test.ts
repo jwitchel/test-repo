@@ -1,4 +1,9 @@
-import { emailProcessor } from '../lib/email-processor';
+import { EmailProcessor } from '../lib/email-processor';
+import { Pool } from 'pg';
+
+// Create a mock pool for testing
+const mockPool = {} as Pool;
+const emailProcessor = new EmailProcessor(mockPool);
 import { testEmailGenerator } from '../lib/test-sent-emails';
 import { createPipelineFromEmails, processEmailBatch } from '../lib/sent-email-pipeline';
 import { ParsedMail } from 'mailparser';
@@ -134,11 +139,11 @@ CEO, Acme Corp
   });
 
   describe('Email Processor', () => {
-    it('should process ParsedMail and extract user text', () => {
+    it('should process ParsedMail and extract user text', async () => {
       const testEmail = testEmailGenerator.generateTestEmails()[1]; // Get a reply email
       const parsedMail = testEmailGenerator.convertToParsedMail(testEmail) as unknown as ParsedMail;
       
-      const result = emailProcessor.processEmail(parsedMail);
+      const result = await emailProcessor.processEmail(parsedMail);
       
       expect(result.messageId).toBe(parsedMail.messageId);
       expect(result.userTextPlain).toBe(testEmail.expectedExtraction);
@@ -146,14 +151,14 @@ CEO, Acme Corp
       expect(result.hasQuotedContent).toBe(true);
     });
 
-    it('should preserve both plain and rich text', () => {
+    it('should preserve both plain and rich text', async () => {
       const htmlEmails = testEmailGenerator.generateTestEmails().filter(e => e.htmlContent);
       expect(htmlEmails.length).toBeGreaterThan(0);
       
       // Test with the first HTML email
       const htmlEmail = htmlEmails[0];
       const parsedMail = testEmailGenerator.convertToParsedMail(htmlEmail) as unknown as ParsedMail;
-      const result = emailProcessor.processEmail(parsedMail);
+      const result = await emailProcessor.processEmail(parsedMail);
       
       expect(result.userTextPlain).toBeDefined();
       expect(result.userTextRich).toBeDefined();

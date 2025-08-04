@@ -7,8 +7,13 @@ import { imapLogger } from '../lib/imap-logger';
 import { EmailProcessor } from '../lib/email-processor';
 import { ProcessedEmail } from '../lib/pipeline/types';
 import { WritingPatternAnalyzer } from '../lib/pipeline/writing-pattern-analyzer';
+import { RegexSignatureDetector } from '../lib/regex-signature-detector';
+import { pool } from '../server';
+import { EmbeddingService } from '../lib/vector/embedding-service';
 
 const router = express.Router();
+const regexSignatureDetector = new RegexSignatureDetector(pool);
+const emailProcessor = new EmailProcessor(pool);
 
 // Load sent emails into vector DB
 router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> => {
@@ -27,7 +32,6 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
     // Initialize services
     imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
     const orchestrator = new ToneLearningOrchestrator();
-    const emailProcessor = new EmailProcessor();
     
     // Convert startDate to Date object and add 1 day to make it inclusive
     const beforeDate = new Date(startDate);
@@ -84,6 +88,19 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       }
     });
 
+    // First, collect a sample of emails to detect signature
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId,
+      level: 'info',
+      command: 'SIGNATURE_DETECTION_START',
+      data: { 
+        raw: 'Analyzing emails to detect signature pattern...'
+      }
+    });
+
+
+
     // Simple sequential processing
     let processed = 0;
     let errors = 0;
@@ -100,8 +117,12 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
         const fullMessage = await imapOps.getMessage(folderUsed, message.uid);
         
         if (fullMessage.parsed) {
+          // Get the ORIGINAL text from the parsed email (before any processing)
+          const originalText = fullMessage.parsed.text || '';
+          const originalHtml = fullMessage.parsed.html || null;
+          
           // Process to extract user content
-          const processedContent = emailProcessor.processEmail(fullMessage.parsed, {
+          const processedContent = await emailProcessor.processEmail(fullMessage.parsed, {
             userId,
             emailAccountId
           });
@@ -124,9 +145,9 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
             cc: [],
             bcc: [],
             subject: fullMessage.parsed.subject || '',
-            textContent: processedContent.userTextPlain,
-            htmlContent: processedContent.userTextRich || null,
-            extractedText: processedContent.userTextPlain
+            textContent: originalText,  // ORIGINAL text (with quotes, signatures, etc)
+            htmlContent: originalHtml,   // ORIGINAL HTML
+            extractedText: processedContent.userTextPlain  // PROCESSED text (sender's content only)
           };
 
           // Process ONE email at a time through the orchestrator - sequential method
@@ -249,14 +270,30 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
   const startTime = Date.now();
   
   try {
-    const { force = false } = req.body;
-    
     // Initialize services
     const patternAnalyzer = new WritingPatternAnalyzer();
     await patternAnalyzer.initialize();
     
     const vectorStore = new VectorStore();
     await vectorStore.initialize();
+    
+    
+    // Clear existing patterns to make the operation idempotent
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'pattern-training',
+      level: 'info',
+      command: 'patterns.training.clearing',
+      data: {
+        raw: 'Clearing existing writing patterns...'
+      }
+    });
+    
+    await patternAnalyzer.clearPatterns(userId);
+    
+    // Get relationship stats
+    const relationshipStats = await vectorStore.getRelationshipStats(userId);
+    const relationships = Object.keys(relationshipStats);
     
     // Log the start of pattern analysis
     imapLogger.log(userId, {
@@ -269,9 +306,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       }
     });
     
-    // Get all unique relationships for this user from vector store
-    const relationshipStats = await vectorStore.getRelationshipStats(userId);
-    const relationships = Object.keys(relationshipStats);
+    // Note: relationshipStats and relationships were already retrieved above for signature detection
     
     // Add 'aggregate' for overall patterns
     relationships.push('aggregate');
@@ -281,22 +316,6 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     
     for (const relationship of relationships) {
       try {
-        // Check if patterns already exist (unless forced)
-        if (!force) {
-          const existingPatterns = await patternAnalyzer.loadPatterns(userId, relationship === 'aggregate' ? undefined : relationship);
-          if (existingPatterns) {
-            imapLogger.log(userId, {
-              userId,
-              emailAccountId: 'pattern-training',
-              level: 'info',
-              command: 'patterns.training.skip',
-              data: {
-                raw: `Skipping ${relationship} - patterns already exist`
-              }
-            });
-            continue;
-          }
-        }
         
         // Fetch emails for this relationship
         const corpusSize = parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200');
@@ -332,20 +351,34 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
           continue;
         }
         
-        // Convert to ProcessedEmail format
-        const emailsForAnalysis = emails.map((email: any) => ({
-          uid: email.id,
-          messageId: email.id,
-          inReplyTo: null,
-          date: new Date(email.metadata.sentDate || Date.now()),
-          from: [{ address: userId, name: '' }],
-          to: [{ address: email.metadata.recipientEmail || '', name: '' }],
-          cc: [],
-          bcc: [],
-          subject: email.metadata.subject || '',
-          textContent: email.metadata.extractedText || '',
-          htmlContent: null,
-          extractedText: email.metadata.extractedText || ''
+        // Convert to ProcessedEmail format and remove signatures using regex patterns
+        const emailsForAnalysis = await Promise.all(emails.map(async (email: any) => {
+          let extractedText = email.metadata.extractedText || '';
+          
+          // Remove signature using regex patterns
+          const signatureResult = await regexSignatureDetector.removeSignature(extractedText, userId);
+          extractedText = signatureResult.cleanedText;
+          
+          if (email === emails[0] && signatureResult.signature) {
+            console.log(`[Pattern Analysis] Signature removal for first email in '${relationship}':`);
+            console.log(`  Matched pattern: ${signatureResult.matchedPattern}`);
+            console.log(`  Text now ends with:`, extractedText.split('\n').slice(-5).join(' | '));
+          }
+          
+          return {
+            uid: email.id,
+            messageId: email.id,
+            inReplyTo: null,
+            date: new Date(email.metadata.sentDate || Date.now()),
+            from: [{ address: userId, name: '' }],
+            to: [{ address: email.metadata.recipientEmail || '', name: '' }],
+            cc: [],
+            bcc: [],
+            subject: email.metadata.subject || '',
+            textContent: extractedText,
+            htmlContent: null,
+            extractedText: extractedText
+          };
         }));
         
         imapLogger.log(userId, {
@@ -485,6 +518,159 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     res.status(500).json({ 
       error: 'Failed to analyze patterns',
       details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Clean signatures from existing emails
+router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    
+    // Log the start of cleaning
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'info',
+      command: 'CLEAN_EMAILS_START',
+      data: { 
+        parsed: { action: 'Starting email signature cleaning' }
+      }
+    });
+
+    // Initialize services
+    const vectorStore = new VectorStore();
+    await vectorStore.initialize();
+    
+    const embeddingService = new EmbeddingService();
+    await embeddingService.initialize();
+    
+    // Get all relationships for the user
+    const relationshipStats = await vectorStore.getRelationshipStats(userId);
+    const relationships = Object.keys(relationshipStats);
+    
+    let totalProcessed = 0;
+    let totalCleaned = 0;
+    const results: any[] = [];
+    
+    for (const relationship of relationships) {
+      const emails = await vectorStore.getByRelationship(userId, relationship, 1000);
+      
+      for (const email of emails) {
+        // Use rawText if available, otherwise use extractedText
+        const originalText = email.metadata.rawText || email.metadata.extractedText || '';
+        
+        // Remove signature
+        const result = await regexSignatureDetector.removeSignature(originalText, userId);
+        
+        if (result.signature && result.cleanedText.trim()) {
+          // Log the email that was cleaned
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'all',
+            level: 'info',
+            command: 'CLEAN_EMAIL',
+            data: { 
+              parsed: {
+                emailId: email.id,
+                relationship,
+                status: 'cleaned',
+                before: originalText,
+                after: result.cleanedText,
+                signatureRemoved: result.signature,
+                matchedPattern: result.matchedPattern
+              }
+            }
+          });
+          
+          // Update the email in vector store
+          const updatedMetadata = {
+            ...email.metadata,
+            extractedText: result.cleanedText,
+            rawText: originalText
+          };
+          
+          // Re-embed with cleaned text
+          const { vector } = await embeddingService.embedText(result.cleanedText);
+          
+          // Update in vector store
+          await vectorStore.upsertEmail({
+            id: email.id,
+            userId,
+            vector,
+            metadata: updatedMetadata
+          });
+          
+          totalCleaned++;
+          results.push({
+            emailId: email.id,
+            relationship,
+            signatureLength: result.signature.split('\n').length
+          });
+        } else {
+          // Log emails that didn't need cleaning
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'all',
+            level: 'info',
+            command: 'CLEAN_EMAIL',
+            data: { 
+              parsed: {
+                emailId: email.id,
+                relationship,
+                status: 'no_signature_found',
+                text: originalText
+              }
+            }
+          });
+        }
+        
+        totalProcessed++;
+      }
+    }
+    
+    // Log completion
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'info',
+      command: 'CLEAN_EMAILS_COMPLETE',
+      data: { 
+        parsed: {
+          totalProcessed,
+          totalCleaned,
+          percentageCleaned: totalProcessed > 0 ? (totalCleaned / totalProcessed * 100).toFixed(1) : 0
+        }
+      }
+    });
+    
+    res.json({
+      success: true,
+      totalProcessed,
+      totalCleaned,
+      percentageCleaned: totalProcessed > 0 ? (totalCleaned / totalProcessed * 100).toFixed(1) : 0,
+      results: results.slice(0, 10) // Return first 10 for UI feedback
+    });
+    
+  } catch (error) {
+    console.error('Error cleaning emails:', error);
+    
+    const userId = (req as any).user.id;
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'error',
+      command: 'CLEAN_EMAILS_ERROR',
+      data: { 
+        parsed: { 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        }
+      }
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to clean emails',
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });

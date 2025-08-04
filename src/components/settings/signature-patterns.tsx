@@ -5,39 +5,29 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Plus, Trash2, AlertCircle, CheckCircle, Wand2 } from 'lucide-react'
+import { Loader2, Plus, Trash2, AlertCircle, CheckCircle } from 'lucide-react'
 
-interface SignaturePattern {
-  pattern: string
-  isValid: boolean
-  error?: string
-}
 
-interface PatternSuggestion {
-  pattern: string
-  matches: string[]
-}
 
 export function SignaturePatterns() {
   const [patterns, setPatterns] = useState<string[]>([])
-  const [defaultPatterns, setDefaultPatterns] = useState<string[]>([])
   const [newPattern, setNewPattern] = useState('')
   const [testText, setTestText] = useState('')
-  const [testResults, setTestResults] = useState<any>(null)
-  const [suggestions, setSuggestions] = useState<PatternSuggestion[]>([])
+  const [testResults, setTestResults] = useState<{
+    patterns?: Array<{ pattern: string; matches?: unknown[]; wouldRemoveFrom?: number; error?: string }>
+    removal?: { cleanedText: string; signature: string; matchedPattern: string }
+  } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   const { success, error } = useToast()
 
   // Load patterns on mount
   useEffect(() => {
     loadPatterns()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadPatterns = async () => {
     try {
@@ -49,7 +39,6 @@ export function SignaturePatterns() {
       
       const data = await response.json()
       setPatterns(data.patterns || [])
-      setDefaultPatterns(data.defaults || [])
     } catch (err) {
       error('Failed to load signature patterns')
       console.error(err)
@@ -71,7 +60,7 @@ export function SignaturePatterns() {
       if (!response.ok) {
         const data = await response.json()
         if (data.details) {
-          error(`Invalid patterns: ${data.details.map((d: any) => d.pattern).join(', ')}`)
+          error(`Invalid patterns: ${data.details.map((d: { pattern: string }) => d.pattern).join(', ')}`)
         } else {
           throw new Error(data.error || 'Failed to save patterns')
         }
@@ -94,7 +83,7 @@ export function SignaturePatterns() {
         new RegExp(newPattern)
         setPatterns([...patterns, newPattern.trim()])
         setNewPattern('')
-      } catch (e) {
+      } catch {
         error('Invalid regular expression')
       }
     }
@@ -134,43 +123,7 @@ export function SignaturePatterns() {
     }
   }
 
-  const loadSuggestions = async () => {
-    setIsLoadingSuggestions(true)
-    try {
-      const response = await fetch('http://localhost:3002/api/signature-patterns/suggestions', {
-        credentials: 'include'
-      })
-      
-      if (!response.ok) throw new Error('Failed to load suggestions')
-      
-      const data = await response.json()
-      if (data.message) {
-        error(data.message)
-      } else {
-        setSuggestions(data.examples || [])
-        if (data.suggestedPatterns && data.suggestedPatterns.length > 0) {
-          success(`Found ${data.suggestedPatterns.length} pattern suggestions from ${data.sampleSize} emails`)
-        }
-      }
-    } catch (err) {
-      error('Failed to load pattern suggestions')
-      console.error(err)
-    } finally {
-      setIsLoadingSuggestions(false)
-    }
-  }
 
-  const addSuggestion = (pattern: string) => {
-    if (!patterns.includes(pattern)) {
-      setPatterns([...patterns, pattern])
-      success('Pattern added')
-    }
-  }
-
-  const useDefaults = () => {
-    setPatterns(defaultPatterns)
-    success('Default patterns loaded')
-  }
 
   if (isLoading) {
     return (
@@ -188,13 +141,6 @@ export function SignaturePatterns() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label>Signature Detection Patterns</Label>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={useDefaults}
-          >
-            Use Defaults
-          </Button>
         </div>
         <p className="text-sm text-muted-foreground">
           Regular expressions to match and remove email signatures. Patterns are tested from the bottom of emails upward.
@@ -236,7 +182,7 @@ export function SignaturePatterns() {
             type="text"
             value={newPattern}
             onChange={(e) => setNewPattern(e.target.value)}
-            placeholder="e.g., ^--+\s*$ or ^Best regards,?\s*$"
+            placeholder="e.g., ——+[\s\S]*?ycbm\.com\/"
             className="font-mono text-sm"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -252,66 +198,11 @@ export function SignaturePatterns() {
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Hint: Use multiline patterns like <code className="bg-muted px-1 py-0.5 rounded">——+[\s\S]*?ycbm\.com\/</code> to match signatures that span multiple lines
+        </p>
       </div>
 
-      {/* Pattern Suggestions */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>Pattern Suggestions</Label>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadSuggestions}
-            disabled={isLoadingSuggestions}
-          >
-            {isLoadingSuggestions ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Wand2 className="h-4 w-4" />
-            )}
-            <span className="ml-2">Analyze My Emails</span>
-          </Button>
-        </div>
-        
-        {suggestions.length > 0 && (
-          <div className="space-y-2">
-            {suggestions.map((suggestion, index) => (
-              <div key={index} className="border rounded-lg p-3 space-y-2">
-                <div className="flex items-start justify-between">
-                  <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
-                    {suggestion.pattern}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => addSuggestion(suggestion.pattern)}
-                    disabled={patterns.includes(suggestion.pattern)}
-                  >
-                    {patterns.includes(suggestion.pattern) ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Matches:</p>
-                  {suggestion.matches.slice(0, 2).map((match, i) => (
-                    <p key={i} className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                      {match}
-                    </p>
-                  ))}
-                  {suggestion.matches.length > 2 && (
-                    <p className="text-xs text-muted-foreground">
-                      +{suggestion.matches.length - 2} more
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Test Patterns */}
       <div className="space-y-2">

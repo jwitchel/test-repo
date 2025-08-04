@@ -96,7 +96,6 @@ export class OAuthTokenService {
     }
 
     try {
-      console.log('[OAuthTokenService] Refreshing tokens for Google OAuth');
       
       // Google OAuth token refresh endpoint
       const tokenEndpoint = 'https://oauth2.googleapis.com/token';
@@ -157,7 +156,6 @@ export class OAuthTokenService {
       // Store the new tokens
       await this.storeTokens(emailAccountId, newTokens, '');
       
-      console.log('[OAuthTokenService] Tokens refreshed successfully');
       return newTokens;
     } catch (error) {
       console.error('[OAuthTokenService] Error refreshing tokens:', error);

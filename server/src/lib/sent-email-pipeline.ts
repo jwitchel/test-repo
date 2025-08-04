@@ -1,7 +1,8 @@
 import _ from 'highland';
 import { ParsedMail } from 'mailparser';
 import { imapLogger } from './imap-logger';
-import { emailProcessor, ProcessedEmail, ProcessingContext } from './email-processor';
+import { EmailProcessor, ProcessedEmail, ProcessingContext } from './email-processor';
+import { pool } from '../server';
 
 // Pipeline configuration from environment
 const PIPELINE_CONCURRENCY = parseInt(process.env.EMAIL_PIPELINE_CONCURRENCY || '1', 10);
@@ -24,8 +25,10 @@ export interface PipelineMetrics {
 export class SentEmailPipeline {
   private metrics: PipelineMetrics;
   private context: ProcessingContext;
+  private emailProcessor: EmailProcessor;
 
   constructor(private options: PipelineOptions) {
+    this.emailProcessor = new EmailProcessor(pool);
     this.metrics = {
       processedCount: 0,
       errorCount: 0,
@@ -135,7 +138,7 @@ export class SentEmailPipeline {
    */
   private async processEmail(email: ParsedMail): Promise<ProcessedEmail | null> {
     try {
-      const result = emailProcessor.processEmail(email, this.context);
+      const result = await this.emailProcessor.processEmail(email, this.context);
       return result;
     } catch (error) {
       // Error is logged in the errors handler

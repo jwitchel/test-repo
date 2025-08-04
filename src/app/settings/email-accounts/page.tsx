@@ -67,7 +67,7 @@ export default function EmailAccountsPage() {
 
       if (response.ok) {
         const result = await response.json()
-        success(`Connection test successful! Found ${result.folderCount} folders`)
+        success(result.message || 'Connection test successful!')
       } else {
         const errorData = await response.json()
         showError(errorData.error || 'Connection test failed')
