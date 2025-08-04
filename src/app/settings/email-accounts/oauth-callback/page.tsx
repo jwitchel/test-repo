@@ -43,7 +43,7 @@ export default function OAuthCallbackPage() {
         if (accountsResponse.ok) {
           const accounts = await accountsResponse.json()
           console.log('OAuth accounts:', accounts)
-          const googleAccount = accounts.find((a: any) => a.providerId === 'google')
+          const googleAccount = accounts.find((a: { providerId: string }) => a.providerId === 'google')
           
           if (googleAccount) {
             console.log('Google account data:', googleAccount)

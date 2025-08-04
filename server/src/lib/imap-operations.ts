@@ -1,6 +1,6 @@
 import { ImapConnection, ImapConnectionError } from './imap-connection';
 import { imapPool } from './imap-pool';
-import { decryptPassword, decrypt } from './crypto';
+import { decryptPassword, decrypt, encrypt } from './crypto';
 import { pool } from '../server';
 import { simpleParser } from 'mailparser';
 import { OAuthTokenService } from './oauth-token-service';
@@ -111,15 +111,44 @@ export class ImapOperations {
       if (this.account.oauthProvider && this.account.oauthAccessToken) {
         console.log('Using OAuth2 authentication for:', this.account.email);
         
+        let accessToken = decrypt(this.account.oauthAccessToken);
+        
         // Check if token needs refresh
         if (this.account.oauthTokenExpiresAt && 
             OAuthTokenService.needsRefresh(this.account.oauthTokenExpiresAt)) {
-          // TODO: Implement token refresh
-          console.warn('OAuth token needs refresh, but refresh not yet implemented');
+          console.log('OAuth token expired, refreshing...');
+          
+          if (!this.account.oauthRefreshToken) {
+            throw new ImapConnectionError('OAuth refresh token not available', 'AUTH_REFRESH_TOKEN_MISSING');
+          }
+          
+          try {
+            const refreshToken = decrypt(this.account.oauthRefreshToken);
+            const newTokens = await OAuthTokenService.refreshTokens(
+              refreshToken,
+              this.account.oauthProvider,
+              this.account.id
+            );
+            
+            // Update the access token for this connection
+            accessToken = newTokens.accessToken;
+            
+            // Update the account object with new token info
+            this.account.oauthAccessToken = encrypt(newTokens.accessToken);
+            this.account.oauthTokenExpiresAt = newTokens.expiresAt;
+            
+            console.log('OAuth token refreshed successfully');
+          } catch (error) {
+            console.error('Failed to refresh OAuth token:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new ImapConnectionError(
+              `OAuth token refresh failed: ${errorMessage}`, 
+              'AUTH_REFRESH_FAILED'
+            );
+          }
         }
 
-        // Decrypt access token and generate XOAUTH2 string
-        const accessToken = decrypt(this.account.oauthAccessToken);
+        // Generate XOAUTH2 string with the (possibly refreshed) access token
         const xoauth2 = OAuthTokenService.generateXOAuth2Token(
           this.account.email,
           accessToken
