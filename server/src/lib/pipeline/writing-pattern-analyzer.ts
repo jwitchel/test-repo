@@ -802,6 +802,19 @@ export class WritingPatternAnalyzer {
   }
 
   /**
+   * Clear existing patterns for a user
+   */
+  async clearPatterns(userId: string): Promise<void> {
+    const query = `
+      DELETE FROM tone_preferences 
+      WHERE user_id = $1 
+        AND profile_data->>'writingPatterns' IS NOT NULL
+    `;
+    
+    await db.query(query, [userId]);
+  }
+
+  /**
    * Load patterns from database
    */
   async loadPatterns(
