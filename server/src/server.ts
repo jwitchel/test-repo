@@ -95,6 +95,7 @@ import generateRoutes from './routes/generate';
 import trainingRoutes from './routes/training';
 import oauthEmailRoutes from './routes/oauth-email';
 import accountsRoutes from './routes/accounts';
+import signaturePatternsRoutes from './routes/signature-patterns';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -108,6 +109,7 @@ app.use('/api/generate', generateRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/oauth-email', oauthEmailRoutes);
 app.use('/api', accountsRoutes);
+app.use('/api/signature-patterns', signaturePatternsRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -1,0 +1,385 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Alert } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useToast } from '@/hooks/use-toast'
+import { Loader2, Plus, Trash2, AlertCircle, CheckCircle, Wand2 } from 'lucide-react'
+
+interface SignaturePattern {
+  pattern: string
+  isValid: boolean
+  error?: string
+}
+
+interface PatternSuggestion {
+  pattern: string
+  matches: string[]
+}
+
+export function SignaturePatterns() {
+  const [patterns, setPatterns] = useState<string[]>([])
+  const [defaultPatterns, setDefaultPatterns] = useState<string[]>([])
+  const [newPattern, setNewPattern] = useState('')
+  const [testText, setTestText] = useState('')
+  const [testResults, setTestResults] = useState<any>(null)
+  const [suggestions, setSuggestions] = useState<PatternSuggestion[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isTesting, setIsTesting] = useState(false)
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const { success, error } = useToast()
+
+  // Load patterns on mount
+  useEffect(() => {
+    loadPatterns()
+  }, [])
+
+  const loadPatterns = async () => {
+    try {
+      const response = await fetch('http://localhost:3002/api/signature-patterns', {
+        credentials: 'include'
+      })
+      
+      if (!response.ok) throw new Error('Failed to load patterns')
+      
+      const data = await response.json()
+      setPatterns(data.patterns || [])
+      setDefaultPatterns(data.defaults || [])
+    } catch (err) {
+      error('Failed to load signature patterns')
+      console.error(err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const savePatterns = async () => {
+    setIsSaving(true)
+    try {
+      const response = await fetch('http://localhost:3002/api/signature-patterns', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ patterns })
+      })
+      
+      if (!response.ok) {
+        const data = await response.json()
+        if (data.details) {
+          error(`Invalid patterns: ${data.details.map((d: any) => d.pattern).join(', ')}`)
+        } else {
+          throw new Error(data.error || 'Failed to save patterns')
+        }
+        return
+      }
+      
+      success('Signature patterns saved successfully')
+    } catch (err) {
+      error('Failed to save patterns')
+      console.error(err)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const addPattern = () => {
+    if (newPattern.trim()) {
+      // Test if it's a valid regex
+      try {
+        new RegExp(newPattern)
+        setPatterns([...patterns, newPattern.trim()])
+        setNewPattern('')
+      } catch (e) {
+        error('Invalid regular expression')
+      }
+    }
+  }
+
+  const removePattern = (index: number) => {
+    setPatterns(patterns.filter((_, i) => i !== index))
+  }
+
+  const testPatterns = async () => {
+    if (!testText.trim()) {
+      error('Please enter some text to test')
+      return
+    }
+
+    setIsTesting(true)
+    try {
+      const response = await fetch('http://localhost:3002/api/signature-patterns/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          text: testText,
+          patterns: patterns.length > 0 ? patterns : undefined
+        })
+      })
+      
+      if (!response.ok) throw new Error('Failed to test patterns')
+      
+      const data = await response.json()
+      setTestResults(data)
+    } catch (err) {
+      error('Failed to test patterns')
+      console.error(err)
+    } finally {
+      setIsTesting(false)
+    }
+  }
+
+  const loadSuggestions = async () => {
+    setIsLoadingSuggestions(true)
+    try {
+      const response = await fetch('http://localhost:3002/api/signature-patterns/suggestions', {
+        credentials: 'include'
+      })
+      
+      if (!response.ok) throw new Error('Failed to load suggestions')
+      
+      const data = await response.json()
+      if (data.message) {
+        error(data.message)
+      } else {
+        setSuggestions(data.examples || [])
+        if (data.suggestedPatterns && data.suggestedPatterns.length > 0) {
+          success(`Found ${data.suggestedPatterns.length} pattern suggestions from ${data.sampleSize} emails`)
+        }
+      }
+    } catch (err) {
+      error('Failed to load pattern suggestions')
+      console.error(err)
+    } finally {
+      setIsLoadingSuggestions(false)
+    }
+  }
+
+  const addSuggestion = (pattern: string) => {
+    if (!patterns.includes(pattern)) {
+      setPatterns([...patterns, pattern])
+      success('Pattern added')
+    }
+  }
+
+  const useDefaults = () => {
+    setPatterns(defaultPatterns)
+    success('Default patterns loaded')
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Current Patterns */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Signature Detection Patterns</Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={useDefaults}
+          >
+            Use Defaults
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Regular expressions to match and remove email signatures. Patterns are tested from the bottom of emails upward.
+        </p>
+        
+        {patterns.length === 0 ? (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <div className="ml-2">
+              <p className="text-sm">No patterns configured. Using default patterns.</p>
+            </div>
+          </Alert>
+        ) : (
+          <div className="space-y-2">
+            {patterns.map((pattern, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <code className="flex-1 p-2 bg-muted rounded text-sm font-mono">
+                  {pattern}
+                </code>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removePattern(index)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add New Pattern */}
+      <div className="space-y-2">
+        <Label htmlFor="new-pattern">Add Pattern</Label>
+        <div className="flex gap-2">
+          <Input
+            id="new-pattern"
+            type="text"
+            value={newPattern}
+            onChange={(e) => setNewPattern(e.target.value)}
+            placeholder="e.g., ^--+\s*$ or ^Best regards,?\s*$"
+            className="font-mono text-sm"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addPattern()
+              }
+            }}
+          />
+          <Button
+            onClick={addPattern}
+            disabled={!newPattern.trim()}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Pattern Suggestions */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Pattern Suggestions</Label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadSuggestions}
+            disabled={isLoadingSuggestions}
+          >
+            {isLoadingSuggestions ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4" />
+            )}
+            <span className="ml-2">Analyze My Emails</span>
+          </Button>
+        </div>
+        
+        {suggestions.length > 0 && (
+          <div className="space-y-2">
+            {suggestions.map((suggestion, index) => (
+              <div key={index} className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-start justify-between">
+                  <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                    {suggestion.pattern}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => addSuggestion(suggestion.pattern)}
+                    disabled={patterns.includes(suggestion.pattern)}
+                  >
+                    {patterns.includes(suggestion.pattern) ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Matches:</p>
+                  {suggestion.matches.slice(0, 2).map((match, i) => (
+                    <p key={i} className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                      {match}
+                    </p>
+                  ))}
+                  {suggestion.matches.length > 2 && (
+                    <p className="text-xs text-muted-foreground">
+                      +{suggestion.matches.length - 2} more
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Test Patterns */}
+      <div className="space-y-2">
+        <Label htmlFor="test-text">Test Your Patterns</Label>
+        <Textarea
+          id="test-text"
+          value={testText}
+          onChange={(e) => setTestText(e.target.value)}
+          placeholder="Paste an email here to test signature detection..."
+          rows={6}
+          className="font-mono text-sm"
+        />
+        <Button
+          onClick={testPatterns}
+          disabled={!testText.trim() || isTesting}
+          variant="outline"
+        >
+          {isTesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Test Patterns
+        </Button>
+        
+        {testResults && (
+          <div className="mt-4 space-y-4">
+            {testResults.removal.signature && (
+              <Alert>
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <div className="ml-2">
+                  <p className="text-sm font-medium">Signature detected!</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Matched pattern: <code className="bg-muted px-1 py-0.5 rounded">
+                      {testResults.removal.matchedPattern}
+                    </code>
+                  </p>
+                  <details className="mt-2">
+                    <summary className="text-sm cursor-pointer">View detected signature</summary>
+                    <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-x-auto">
+                      {testResults.removal.signature}
+                    </pre>
+                  </details>
+                </div>
+              </Alert>
+            )}
+            
+            {!testResults.removal.signature && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <div className="ml-2">
+                  <p className="text-sm">No signature detected with current patterns</p>
+                </div>
+              </Alert>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <Button
+          onClick={savePatterns}
+          disabled={isSaving}
+        >
+          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save Patterns
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// Import Input component since it's missing
+import { Input } from '@/components/ui/input'

@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
+import { Separator } from '@/components/ui/separator'
+import { SignaturePatterns } from '@/components/settings/signature-patterns'
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -52,6 +54,17 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <Button>Save Changes</Button>
+                
+                <Separator className="my-6" />
+                
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium">Email Signature Detection</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure patterns to automatically detect and remove your email signature when analyzing your writing style.
+                  </p>
+                </div>
+                
+                <SignaturePatterns />
               </CardContent>
             </Card>
 
