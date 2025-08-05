@@ -41,10 +41,15 @@ async function testWritingPatternsPartial() {
         { pattern: '[right to the point]', frequency: 0.10, notes: 'Skips greeting in follow-ups' },
         { pattern: '[Name] -', frequency: 0.05 }
       ],
-      closingPatterns: [
-        { pattern: 'Thanks,\\nJohn', frequency: 0.50 },
-        { pattern: 'Best,\\nJohn', frequency: 0.30 },
-        { pattern: 'John', frequency: 0.20 }
+      valediction: [
+        { phrase: 'Thanks', percentage: 50 },
+        { phrase: 'Best', percentage: 30 },
+        { phrase: '[None]', percentage: 20 }
+      ],
+      typedName: [
+        { phrase: 'John', percentage: 80 },
+        { phrase: '-J', percentage: 10 },
+        { phrase: '[None]', percentage: 10 }
       ],
       negativePatterns: [
         // Example patterns that would be identified by the LLM:

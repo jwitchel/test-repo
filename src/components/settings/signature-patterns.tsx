@@ -226,27 +226,27 @@ export function SignaturePatterns() {
         
         {testResults && (
           <div className="mt-4 space-y-4">
-            {testResults.removal.signature && (
+            {testResults.removal?.signature && (
               <Alert>
                 <CheckCircle className="h-4 w-4 text-green-500" />
                 <div className="ml-2">
                   <p className="text-sm font-medium">Signature detected!</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Matched pattern: <code className="bg-muted px-1 py-0.5 rounded">
-                      {testResults.removal.matchedPattern}
+                      {testResults.removal?.matchedPattern}
                     </code>
                   </p>
                   <details className="mt-2">
                     <summary className="text-sm cursor-pointer">View detected signature</summary>
                     <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-x-auto">
-                      {testResults.removal.signature}
+                      {testResults.removal?.signature}
                     </pre>
                   </details>
                 </div>
               </Alert>
             )}
             
-            {!testResults.removal.signature && (
+            {!testResults.removal?.signature && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <div className="ml-2">

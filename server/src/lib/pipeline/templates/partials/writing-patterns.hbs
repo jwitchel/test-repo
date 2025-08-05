@@ -18,9 +18,14 @@ OPENINGS (use exactly as shown):
 - "{{{this.pattern}}}" ({{percent this.frequency}}%){{#if this.notes}} - {{{this.notes}}}{{/if}}
 {{/each}}
 
-CLOSINGS (use exactly as shown):
-{{#each patterns.closingPatterns}}
-- "{{{this.pattern}}}" ({{percent this.frequency}}%)
+VALEDICTIONS (closing phrases):
+{{#each patterns.valediction}}
+- {{{this.phrase}}} ({{this.percentage}}%)
+{{/each}}
+
+TYPED NAME FORMATS:
+{{#each patterns.typedName}}
+- {{{this.phrase}}} ({{this.percentage}}%)
 {{/each}}
 
 NEVER DO THESE THINGS:

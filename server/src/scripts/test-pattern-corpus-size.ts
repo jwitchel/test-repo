@@ -91,7 +91,8 @@ async function testPatternCorpusSize() {
         console.log(chalk.gray('  Pattern summary:'));
         console.log(chalk.gray(`    - Sentence avg length: ${patterns.sentencePatterns.avgLength.toFixed(1)} words`));
         console.log(chalk.gray(`    - Opening patterns: ${patterns.openingPatterns.length}`));
-        console.log(chalk.gray(`    - Closing patterns: ${patterns.closingPatterns.length}`));
+        console.log(chalk.gray(`    - Valedictions: ${patterns.valediction.length}`));
+        console.log(chalk.gray(`    - Typed names: ${patterns.typedName.length}`));
         console.log(chalk.gray(`    - Unique expressions: ${patterns.uniqueExpressions.length}`));
         console.log(chalk.gray(`    - Negative patterns: ${patterns.negativePatterns.length}`));
         

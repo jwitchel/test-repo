@@ -313,6 +313,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     
     let totalEmailsAnalyzed = 0;
     let relationshipsAnalyzed = 0;
+    const emailCountsByRelationship: Record<string, number> = {};
     
     for (const relationship of relationships) {
       try {
@@ -412,6 +413,11 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
         totalEmailsAnalyzed += emailsForAnalysis.length;
         relationshipsAnalyzed++;
         
+        // Track email counts per relationship (excluding 'aggregate')
+        if (relationship !== 'aggregate') {
+          emailCountsByRelationship[relationship] = emailsForAnalysis.length;
+        }
+        
         imapLogger.log(userId, {
           userId,
           emailAccountId: 'pattern-training',
@@ -423,7 +429,8 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
               emailsAnalyzed: emailsForAnalysis.length,
               patternsFound: {
                 openings: patterns.openingPatterns.length,
-                closings: patterns.closingPatterns.length,
+                valedictions: patterns.valediction.length,
+                typedNames: patterns.typedName.length,
                 negative: patterns.negativePatterns.length,
                 unique: patterns.uniqueExpressions.length
               }
@@ -470,6 +477,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
         totalEmailsAnalyzed,
         relationshipsAnalyzed: relationshipsAnalyzed - 1, // Exclude 'aggregate' from count
         relationships: relationships.filter(r => r !== 'aggregate'),
+        emailCountsByRelationship,
         includesAggregatePatterns: true, // Indicate that aggregate patterns are included
         durationSeconds,
         corpusSize: parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200'),

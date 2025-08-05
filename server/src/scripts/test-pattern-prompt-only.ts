@@ -42,10 +42,15 @@ async function testPatternPrompt() {
         { pattern: 'Hey [Name]!', frequency: 0.20 },
         { pattern: '[right to the point]', frequency: 0.10, notes: 'In follow-up threads' }
       ],
-      closingPatterns: [
-        { pattern: 'Best,\\nJohn', frequency: 0.60 },
-        { pattern: 'Thanks,\\nJohn', frequency: 0.30 },
-        { pattern: '-John', frequency: 0.10 }
+      valediction: [
+        { phrase: 'Thanks', percentage: 44 },
+        { phrase: 'Best', percentage: 35 },
+        { phrase: '[None]', percentage: 21 }
+      ],
+      typedName: [
+        { phrase: '-John', percentage: 90 },
+        { phrase: '-j', percentage: 5 },
+        { phrase: '[None]', percentage: 5 }
       ],
       negativePatterns: [
         // LLM would identify patterns like:

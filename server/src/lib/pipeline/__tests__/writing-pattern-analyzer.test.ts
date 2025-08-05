@@ -101,8 +101,12 @@ describe('WritingPatternAnalyzer', () => {
       openingPatterns: [
         { pattern: 'Hi there', frequency: 0.8 }
       ],
-      closingPatterns: [
-        { pattern: 'Best regards', frequency: 0.9 }
+      valediction: [
+        { phrase: 'Best regards', percentage: 90 },
+        { phrase: '[None]', percentage: 10 }
+      ],
+      typedName: [
+        { phrase: 'John', percentage: 100 }
       ],
       negativePatterns: [],
       responsePatterns: {

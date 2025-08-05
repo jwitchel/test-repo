@@ -31,9 +31,14 @@ export interface OpeningPattern {
   notes?: string;
 }
 
-export interface ClosingPattern {
-  pattern: string;
-  frequency: number;
+export interface ValedictionPattern {
+  phrase: string;
+  percentage: number;
+}
+
+export interface TypedNamePattern {
+  phrase: string;
+  percentage: number;
 }
 
 export interface NegativePattern {
@@ -59,7 +64,8 @@ export interface WritingPatterns {
   sentencePatterns: SentencePatterns;
   paragraphPatterns: ParagraphPattern[];
   openingPatterns: OpeningPattern[];
-  closingPatterns: ClosingPattern[];
+  valediction: ValedictionPattern[];
+  typedName: TypedNamePattern[];
   negativePatterns: NegativePattern[];
   responsePatterns: ResponsePatterns;
   uniqueExpressions: UniqueExpression[];
@@ -258,7 +264,7 @@ export class WritingPatternAnalyzer {
       level: 'info',
       command: 'pattern.analysis.complete',
       data: {
-        raw: `Found ${roundedPatterns.openingPatterns.length} opening patterns, ${roundedPatterns.closingPatterns.length} closing patterns, ${roundedPatterns.negativePatterns.length} negative patterns, ${roundedPatterns.uniqueExpressions.length} unique expressions`,
+        raw: `Found ${roundedPatterns.openingPatterns.length} opening patterns, ${roundedPatterns.valediction.length} valedictions, ${roundedPatterns.typedName.length} typed names, ${roundedPatterns.negativePatterns.length} negative patterns, ${roundedPatterns.uniqueExpressions.length} unique expressions`,
         parsed: {
           totalEmails: emails.length,
           batchSize,
@@ -269,7 +275,8 @@ export class WritingPatternAnalyzer {
           relationship: relationship || 'aggregate',
           patterns: {
             openings: roundedPatterns.openingPatterns.length,
-            closings: roundedPatterns.closingPatterns.length,
+            valedictions: roundedPatterns.valediction.length,
+            typedNames: roundedPatterns.typedName.length,
             negative: roundedPatterns.negativePatterns.length,
             unique: roundedPatterns.uniqueExpressions.length
           }
@@ -464,14 +471,6 @@ export class WritingPatternAnalyzer {
       }))
     );
 
-    // Aggregate closing patterns with context awareness
-    const closingPatterns = this.mergePatternsByFrequency(
-      batchWeights.map(({ batch, weight }) => ({ 
-        patterns: batch.closingPatterns, 
-        weight 
-      }))
-    );
-
     // Aggregate negative patterns (union of all, keep highest confidence)
     const negativePatterns = this.mergeNegativePatterns(
       batchResults.map(b => b.negativePatterns)
@@ -507,11 +506,28 @@ export class WritingPatternAnalyzer {
       }))
     );
 
+    // Aggregate valediction patterns
+    const valediction = this.mergePercentagePatterns(
+      batchWeights.map(({ batch, weight }) => ({ 
+        patterns: batch.valediction || [], 
+        weight 
+      }))
+    );
+
+    // Aggregate typed name patterns
+    const typedName = this.mergePercentagePatterns(
+      batchWeights.map(({ batch, weight }) => ({ 
+        patterns: batch.typedName || [], 
+        weight 
+      }))
+    );
+
     return {
       sentencePatterns,
       paragraphPatterns,
       openingPatterns,
-      closingPatterns,
+      valediction,
+      typedName,
       negativePatterns,
       responsePatterns,
       uniqueExpressions
@@ -618,6 +634,39 @@ export class WritingPatternAnalyzer {
         return result;
       })
       .sort((a, b) => b.frequency - a.frequency); // Sort by frequency only
+  }
+
+  private mergePercentagePatterns<T extends { phrase: string; percentage: number }>(
+    batchData: { patterns: T[]; weight: number }[]
+  ): T[] {
+    const merged = new Map<string, { 
+      totalPercentage: number; 
+      totalWeight: number; 
+      original: T;
+    }>();
+    
+    batchData.forEach(({ patterns, weight }) => {
+      patterns.forEach(pattern => {
+        const existing = merged.get(pattern.phrase);
+        if (existing) {
+          existing.totalPercentage += pattern.percentage * weight;
+          existing.totalWeight += weight;
+        } else {
+          merged.set(pattern.phrase, {
+            totalPercentage: pattern.percentage * weight,
+            totalWeight: weight,
+            original: pattern
+          });
+        }
+      });
+    });
+
+    return Array.from(merged.values())
+      .map(data => ({
+        ...data.original,
+        percentage: Math.round(data.totalPercentage / data.totalWeight)
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
   }
 
   private mergeNegativePatterns(patternArrays: NegativePattern[][]): NegativePattern[] {

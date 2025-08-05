@@ -31,30 +31,38 @@ Extract the following patterns with specific examples and frequencies:
    - Note variations like "Hi John," vs "Hi John!" vs "John -"
    - Be very specific about punctuation and formatting
 
-4. CLOSINGS (exact text with frequencies)
-   - List each unique closing with percentage used
-   - Include exact formatting (e.g., "Thanks,\nJohn" vs "Thanks, John")
-   - Note if they sometimes omit closings
+4. VALEDICTION PATTERNS
+   - Analyze closing phrases before the name (e.g., "Thanks", "Sincerely,", "Best,")
+   - Include "[None]" if no valediction is used in some emails
+   - Calculate percentage of emails using each valediction
+   - IMPORTANT: Percentages must add up to exactly 100%
+   
+5. TYPED NAME PATTERNS
+   - Analyze how the sender types their name (e.g., "-John", "-j", "John", full name)
+   - Include "[None]" if no typed name is used in some emails
+   - Calculate percentage of emails using each format
+   - IMPORTANT: Percentages must add up to exactly 100%
 
-5. WHAT THEY NEVER DO (important!)
+6. WHAT THEY NEVER DO (important!)
    - Analyze what is consistently absent from their writing style
    - Only report patterns where you have strong evidence of absence across the entire corpus
    - Do NOT assume common patterns are avoided unless you've verified their absence
    - Focus on surprising or distinctive omissions specific to this person
    - Base confidence levels on how thoroughly you've checked the corpus
 
-6. RESPONSE PATTERNS
+7. RESPONSE PATTERNS
    - Percentage of immediate/brief vs contemplative/detailed responses
    - How they handle questions (direct answer vs acknowledge-then-answer)
    - Note if they use inline responses or bottom-post
 
-7. UNIQUE EXPRESSIONS
+8. UNIQUE EXPRESSIONS
    - Phrases they commonly use (e.g., "Does that make sense?", "Quick question")
    - Their way of expressing agreement/disagreement
    - Transition words they prefer
    - Include context and approximate frequency
 
-Return ONLY a JSON object matching this exact structure:
+Return ONLY a JSON object matching this exact structure.
+IMPORTANT: For both "valediction" and "typedName" arrays, the percentages across all entries MUST sum to exactly 100%:
 {
   "sentencePatterns": {
     "avgLength": <number>,
@@ -82,10 +90,16 @@ Return ONLY a JSON object matching this exact structure:
       "notes": "<optional notes about usage>"
     }
   ],
-  "closingPatterns": [
+  "valediction": [
     {
-      "pattern": "<exact text>",
-      "frequency": <decimal 0-1>
+      "phrase": "<exact valediction phrase or '[None]'>",
+      "percentage": <number 0-100>
+    }
+  ],
+  "typedName": [
+    {
+      "phrase": "<exact typed name format or '[None]'>",
+      "percentage": <number 0-100>
     }
   ],
   "negativePatterns": [

@@ -31,8 +31,13 @@ describe('Writing Patterns Partial', () => {
         { pattern: 'Hi [Name],', frequency: 0.80 },
         { pattern: '[right to the point]', frequency: 0.20, notes: 'For follow-ups' }
       ],
-      closingPatterns: [
-        { pattern: 'Best,\\nSarah', frequency: 0.70 }
+      valediction: [
+        { phrase: 'Best,', percentage: 70 },
+        { phrase: '[None]', percentage: 30 }
+      ],
+      typedName: [
+        { phrase: 'Sarah', percentage: 70 },
+        { phrase: '[None]', percentage: 30 }
       ],
       negativePatterns: [
         {
@@ -92,7 +97,8 @@ describe('Writing Patterns Partial', () => {
       },
       paragraphPatterns: [],
       openingPatterns: [],
-      closingPatterns: [],
+      valediction: [],
+      typedName: [],
       negativePatterns: [],
       responsePatterns: {
         immediate: 1,
@@ -130,7 +136,8 @@ describe('Writing Patterns Partial', () => {
       openingPatterns: [
         { pattern: 'Hi & hello', frequency: 0.5 }
       ],
-      closingPatterns: [],
+      valediction: [],
+      typedName: [],
       negativePatterns: [
         {
           description: 'None noted',
