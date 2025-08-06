@@ -4,6 +4,7 @@ import { pool as db } from '../../server';
 import { imapLogger } from '../imap-logger';
 import { TemplateManager } from './template-manager';
 import { decryptPassword } from '../crypto';
+import { nameRedactor } from '../name-redactor';
 
 // Pattern data structures that match what we'll store in JSONB
 export interface SentencePatterns {
@@ -298,13 +299,27 @@ export class WritingPatternAnalyzer {
       throw new Error('LLM client not initialized');
     }
 
-    // Prepare email content for analysis
-    const emailTexts = emails.map(email => ({
-      date: email.date.toISOString(),
-      to: email.to.map(t => t.address).join(', '),
-      subject: email.subject,
-      content: email.extractedText
-    }));
+    // Prepare email content for analysis with name redaction
+    let totalNamesRedacted = 0;
+    const emailTexts = emails.map(email => {
+      // Redact names from the email content
+      const redactionResult = nameRedactor.redactNames(email.extractedText);
+      totalNamesRedacted += redactionResult.namesFound.length;
+      
+      return {
+        date: email.date.toISOString(),
+        to: email.to.map(t => t.address).join(', '),
+        subject: email.subject,
+        content: redactionResult.text,
+        // Store original names for reference (not sent to LLM)
+        _originalNames: redactionResult.namesFound
+      };
+    });
+    
+    // Log redaction statistics
+    if (totalNamesRedacted > 0) {
+      console.log(`[Pattern Analysis] Redacted ${totalNamesRedacted} names from ${emails.length} emails`);
+    }
 
     // Prepare template data
     const templateData = {

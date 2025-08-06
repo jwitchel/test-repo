@@ -8,6 +8,8 @@ export interface EmailMetadata {
   userId: string;
   extractedText: string;      // Cleaned text (no signature)
   rawText?: string;           // Original email with signature (optional for backward compat)
+  redactedNames?: string[];   // Names that were redacted from the email
+  redactedEmails?: string[];  // Email addresses that were redacted
   recipientEmail: string;
   subject: string;
   sentDate: string;

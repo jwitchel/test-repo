@@ -186,7 +186,8 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
     setIsCleaningEmails(true)
 
     try {
-      const response = await fetch('http://localhost:3002/api/training/clean-emails', {
+      // Use the combined endpoint that does both signature cleaning and name redaction
+      const response = await fetch('http://localhost:3002/api/training/process-emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -196,13 +197,15 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to clean emails')
+        throw new Error(data.error || 'Failed to process emails')
       }
 
       const result = await response.json()
-      success(`Email cleaning complete! Cleaned ${result.totalCleaned} out of ${result.totalProcessed} emails (${result.percentageCleaned}%).`)
+      
+      // Show combined results
+      success(`Email processing complete! Cleaned ${result.totalCleaned} signatures and redacted ${result.totalNamesFound} names + ${result.totalEmailsFound} emails from ${result.totalProcessed} emails.`)
     } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to clean emails')
+      error(err instanceof Error ? err.message : 'Failed to process emails')
     } finally {
       setIsCleaningEmails(false)
     }
@@ -356,17 +359,17 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
             size="sm"
             variant="secondary"
             className="w-full"
-            title="Remove signatures from loaded emails"
+            title="Remove signatures and redact names from loaded emails"
           >
             {isCleaningEmails ? (
               <>
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Cleaning...
+                Processing...
               </>
             ) : (
               <>
                 <Sparkles className="h-3 w-3 mr-1" />
-                Clean Emails
+                Clean & Redact
               </>
             )}
           </Button>

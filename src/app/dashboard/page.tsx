@@ -165,6 +165,24 @@ export default function DashboardPage() {
               </Button>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Vector Database</CardTitle>
+              <CardDescription>Browse Qdrant collections</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">View and manage email vectors, embeddings, and metadata</p>
+              <div className="mt-2 p-2 bg-muted rounded-md">
+                <p className="text-xs font-medium">Collections:</p>
+                <p className="text-xs text-muted-foreground">• emails - Stored email embeddings</p>
+                <p className="text-xs text-muted-foreground">• Features: redacted names, relationships</p>
+              </div>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="http://localhost:6333/dashboard" target="_blank" rel="noopener noreferrer">Open Qdrant Dashboard</a>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

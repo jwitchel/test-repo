@@ -683,4 +683,372 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
+// Process emails: clean signatures and redact names
+router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    
+    // Import nameRedactor
+    const { nameRedactor } = await import('../lib/name-redactor');
+    
+    // Log the start
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'info',
+      command: 'PROCESS_EMAILS_START',
+      data: { 
+        parsed: { action: 'Starting email processing (signature removal + name redaction)' }
+      }
+    });
+
+    // Initialize services
+    const vectorStore = new VectorStore();
+    await vectorStore.initialize();
+    
+    const embeddingService = new EmbeddingService();
+    await embeddingService.initialize();
+    
+    // Get all relationships for the user
+    const relationshipStats = await vectorStore.getRelationshipStats(userId);
+    const relationships = Object.keys(relationshipStats);
+    
+    let totalProcessed = 0;
+    let totalCleaned = 0;
+    let totalRedacted = 0;
+    let totalNamesFound = 0;
+    let totalEmailsFound = 0;
+    const results: any[] = [];
+    
+    for (const relationship of relationships) {
+      const emails = await vectorStore.getByRelationship(userId, relationship, 1000);
+      
+      for (const email of emails) {
+        // Get the original text (prefer rawText if available)
+        const originalText = email.metadata.rawText || email.metadata.extractedText || '';
+        
+        // Step 1: Remove signature
+        const signatureResult = await regexSignatureDetector.removeSignature(originalText, userId);
+        const textAfterSignatureRemoval = signatureResult.cleanedText || originalText;
+        
+        // Step 2: Redact names and emails from the signature-cleaned text
+        const redactionResult = nameRedactor.redactNames(textAfterSignatureRemoval);
+        const finalText = redactionResult.text;
+        
+        // Only update if something changed
+        if (signatureResult.signature || redactionResult.namesFound.length > 0 || redactionResult.emailsFound.length > 0) {
+          // Log the processing
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'all',
+            level: 'info',
+            command: 'PROCESS_EMAIL',
+            data: { 
+              parsed: {
+                emailId: email.id,
+                relationship,
+                signatureRemoved: !!signatureResult.signature,
+                namesRedacted: redactionResult.namesFound,
+                namesCount: redactionResult.namesFound.length,
+                emailsRedacted: redactionResult.emailsFound,
+                emailsCount: redactionResult.emailsFound.length
+              }
+            }
+          });
+          
+          // Update the email in vector store
+          const updatedMetadata = {
+            ...email.metadata,
+            extractedText: finalText,  // Store fully processed text
+            rawText: originalText,     // Keep original text
+            redactedNames: redactionResult.namesFound,  // Store list of redacted names
+            redactedEmails: redactionResult.emailsFound  // Store list of redacted emails
+          };
+          
+          // Re-embed with fully processed text
+          const { vector } = await embeddingService.embedText(finalText);
+          
+          // Update in vector store
+          await vectorStore.upsertEmail({
+            id: email.id,
+            userId,
+            vector,
+            metadata: updatedMetadata
+          });
+          
+          if (signatureResult.signature) totalCleaned++;
+          if (redactionResult.namesFound.length > 0 || redactionResult.emailsFound.length > 0) totalRedacted++;
+          totalNamesFound += redactionResult.namesFound.length;
+          totalEmailsFound += redactionResult.emailsFound.length;
+          
+          results.push({
+            emailId: email.id,
+            relationship,
+            signatureRemoved: !!signatureResult.signature,
+            namesRedacted: redactionResult.namesFound,
+            emailsRedacted: redactionResult.emailsFound
+          });
+        }
+        
+        totalProcessed++;
+        
+        // Log progress every 50 emails
+        if (totalProcessed % 50 === 0) {
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'all',
+            level: 'info',
+            command: 'PROCESS_PROGRESS',
+            data: { 
+              parsed: {
+                processed: totalProcessed,
+                cleaned: totalCleaned,
+                redacted: totalRedacted,
+                totalNames: totalNamesFound,
+                totalEmails: totalEmailsFound
+              }
+            }
+          });
+        }
+      }
+    }
+    
+    // Log completion
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'info',
+      command: 'PROCESS_EMAILS_COMPLETE',
+      data: { 
+        parsed: {
+          totalProcessed,
+          totalCleaned,
+          totalRedacted,
+          totalNamesFound,
+          totalEmailsFound,
+          percentageCleaned: totalProcessed > 0 ? (totalCleaned / totalProcessed * 100).toFixed(1) : 0,
+          percentageWithNames: totalProcessed > 0 ? (totalRedacted / totalProcessed * 100).toFixed(1) : 0
+        }
+      }
+    });
+    
+    res.json({
+      success: true,
+      totalProcessed,
+      totalCleaned,
+      totalRedacted,
+      totalNamesFound,
+      totalEmailsFound,
+      percentageCleaned: totalProcessed > 0 ? (totalCleaned / totalProcessed * 100).toFixed(1) : 0,
+      percentageWithNames: totalProcessed > 0 ? (totalRedacted / totalProcessed * 100).toFixed(1) : 0,
+      results: results.slice(0, 10) // Return first 10 for UI feedback
+    });
+    
+  } catch (error) {
+    console.error('Error processing emails:', error);
+    
+    const userId = (req as any).user.id;
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'error',
+      command: 'PROCESS_EMAILS_ERROR',
+      data: { 
+        parsed: { 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        }
+      }
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to process emails',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Redact names from existing emails
+router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    
+    // Import nameRedactor
+    const { nameRedactor } = await import('../lib/name-redactor');
+    
+    // Log the start of redaction
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'info',
+      command: 'REDACT_NAMES_START',
+      data: { 
+        parsed: { action: 'Starting name redaction for existing emails' }
+      }
+    });
+
+    // Initialize services
+    const vectorStore = new VectorStore();
+    await vectorStore.initialize();
+    
+    const embeddingService = new EmbeddingService();
+    await embeddingService.initialize();
+    
+    // Get all relationships for the user
+    const relationshipStats = await vectorStore.getRelationshipStats(userId);
+    const relationships = Object.keys(relationshipStats);
+    
+    let totalProcessed = 0;
+    let totalRedacted = 0;
+    let totalNamesFound = 0;
+    const results: any[] = [];
+    
+    for (const relationship of relationships) {
+      const emails = await vectorStore.getByRelationship(userId, relationship, 1000);
+      
+      for (const email of emails) {
+        // Skip if already has redacted names stored
+        if (email.metadata.redactedNames && email.metadata.redactedNames.length > 0) {
+          totalProcessed++;
+          continue;
+        }
+        
+        // Use extractedText (which should already have signatures removed) for redaction
+        // Fall back to rawText if extractedText is not available
+        const textToRedact = email.metadata.extractedText || email.metadata.rawText || '';
+        
+        // Store the original text (before any processing) if not already stored
+        const originalText = email.metadata.rawText || email.metadata.extractedText || '';
+        
+        // Redact names from the signature-cleaned text
+        const redactionResult = nameRedactor.redactNames(textToRedact);
+        
+        if (redactionResult.namesFound.length > 0) {
+          // Log the email that was redacted
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'all',
+            level: 'info',
+            command: 'REDACT_EMAIL',
+            data: { 
+              parsed: {
+                emailId: email.id,
+                relationship,
+                status: 'redacted',
+                namesFound: redactionResult.namesFound,
+                count: redactionResult.namesFound.length
+              }
+            }
+          });
+          
+          // Update the email in vector store
+          const updatedMetadata = {
+            ...email.metadata,
+            extractedText: redactionResult.text,  // Store redacted text
+            rawText: originalText,               // Keep original text
+            redactedNames: redactionResult.namesFound  // Store list of redacted names
+          };
+          
+          // Re-embed with redacted text
+          const { vector } = await embeddingService.embedText(redactionResult.text);
+          
+          // Update in vector store
+          await vectorStore.upsertEmail({
+            id: email.id,
+            userId,
+            vector,
+            metadata: updatedMetadata
+          });
+          
+          totalRedacted++;
+          totalNamesFound += redactionResult.namesFound.length;
+          results.push({
+            emailId: email.id,
+            relationship,
+            namesRedacted: redactionResult.namesFound
+          });
+        } else {
+          // Update metadata to indicate no names were found
+          const updatedMetadata = {
+            ...email.metadata,
+            redactedNames: []  // Empty array indicates processing was done but no names found
+          };
+          
+          // Update in vector store (no need to re-embed if text didn't change)
+          await vectorStore.upsertEmail({
+            id: email.id,
+            userId,
+            vector: email.vector,  // Keep existing vector
+            metadata: updatedMetadata
+          });
+        }
+        
+        totalProcessed++;
+        
+        // Log progress every 50 emails
+        if (totalProcessed % 50 === 0) {
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'all',
+            level: 'info',
+            command: 'REDACT_PROGRESS',
+            data: { 
+              parsed: {
+                processed: totalProcessed,
+                redacted: totalRedacted,
+                totalNames: totalNamesFound
+              }
+            }
+          });
+        }
+      }
+    }
+    
+    // Log completion
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'info',
+      command: 'REDACT_NAMES_COMPLETE',
+      data: { 
+        parsed: {
+          totalProcessed,
+          totalRedacted,
+          totalNamesFound,
+          percentageWithNames: totalProcessed > 0 ? (totalRedacted / totalProcessed * 100).toFixed(1) : 0
+        }
+      }
+    });
+    
+    res.json({
+      success: true,
+      totalProcessed,
+      totalRedacted,
+      totalNamesFound,
+      percentageWithNames: totalProcessed > 0 ? (totalRedacted / totalProcessed * 100).toFixed(1) : 0,
+      results: results.slice(0, 10) // Return first 10 for UI feedback
+    });
+    
+  } catch (error) {
+    console.error('Error redacting names:', error);
+    
+    const userId = (req as any).user.id;
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'all',
+      level: 'error',
+      command: 'REDACT_NAMES_ERROR',
+      data: { 
+        parsed: { 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        }
+      }
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to redact names',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

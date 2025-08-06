@@ -4,6 +4,7 @@ import { EmbeddingService } from '../vector/embedding-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
 import { withRetry } from './retry-utils';
 import { StyleAggregationService } from '../style/style-aggregation-service';
+import { nameRedactor } from '../name-redactor';
 
 export interface BatchResult {
   success: number;
@@ -117,8 +118,17 @@ export class EmailIngestPipeline {
   }
   
   async processEmail(userId: string, email: ProcessedEmail) {
-    // Extract NLP features
-    const features = extractEmailFeatures(email.extractedText, {
+    // Redact names from the email text before processing
+    const redactionResult = nameRedactor.redactNames(email.extractedText);
+    const redactedText = redactionResult.text;
+    
+    // Log redaction if names were found
+    if (redactionResult.namesFound.length > 0) {
+      console.log(`[Email Ingestion] Redacted ${redactionResult.namesFound.length} names from email ${email.messageId}`);
+    }
+    
+    // Extract NLP features from redacted text
+    const features = extractEmailFeatures(redactedText, {
       email: email.to[0]?.address || '',
       name: email.to[0]?.name || ''
     });
@@ -148,9 +158,9 @@ export class EmailIngestPipeline {
       });
     }
     
-    // Generate embedding with retry
+    // Generate embedding with retry - use redacted text for embedding
     const { vector } = await withRetry(
-      () => this.embeddingService.embedText(email.extractedText),
+      () => this.embeddingService.embedText(redactedText),
       {
         onRetry: (error, attempt) => {
           console.warn(`Embedding generation failed (attempt ${attempt}):`, error.message);
@@ -167,8 +177,10 @@ export class EmailIngestPipeline {
       metadata: {
         emailId: email.messageId,
         userId,
-        extractedText: email.extractedText,
-        rawText: email.textContent || email.extractedText, // Store original text
+        extractedText: redactedText, // Store redacted text for analysis
+        rawText: email.extractedText, // Store original (unredacted) text
+        redactedNames: redactionResult.namesFound, // Store names that were redacted
+        redactedEmails: redactionResult.emailsFound, // Store emails that were redacted
         recipientEmail: email.to[0]?.address || '',
         subject: email.subject,
         sentDate: email.date.toISOString(),
