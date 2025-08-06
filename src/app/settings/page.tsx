@@ -17,12 +17,6 @@ export default function SettingsPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-background p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-primary">
-              ← Back to Dashboard
-            </Link>
-          </div>
-
           <h1 className="text-3xl font-bold mb-8">Settings</h1>
 
           <div className="space-y-6">

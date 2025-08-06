@@ -439,33 +439,11 @@ export default function ImapLogsDemoPage() {
   return (
     <ProtectedRoute>
       <div className="h-screen bg-zinc-50 dark:bg-zinc-900 flex flex-col overflow-hidden">
-        {/* Compact Header Bar */}
-        <div className="h-16 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <MailOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Email AI Pipeline Demo
-            </h1>
-          </div>
+        {/* Header with Account and LLM Selection */}
+        <div className="h-16 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Inspector</h1>
           
-          {/* Navigation Links */}
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Button>
-            </Link>
-            <Link href="/settings">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Settings className="h-4 w-4" />
-                Settings
-              </Button>
-            </Link>
-          </div>
-          
-          {/* Account and LLM Selection in Header */}
-          <div className="flex items-center gap-4 ml-auto">
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Label htmlFor="header-account-select" className="text-sm">Account:</Label>
               <Select value={selectedAccountId} onValueChange={handleAccountChange}>

@@ -66,3 +66,4 @@ test-mail-config/
 jest.config.js.map
 coverage/
 .jest/
+roundcube/db/sqlite.db

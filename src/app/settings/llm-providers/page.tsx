@@ -323,11 +323,6 @@ export default function LLMProvidersPage() {
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-6xl">
-      <div className="mb-6">
-        <Link href="/settings" className="text-sm text-muted-foreground hover:text-primary">
-          ← Back to Settings
-        </Link>
-      </div>
       
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">LLM Providers</h1>

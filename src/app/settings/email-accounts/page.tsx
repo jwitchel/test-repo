@@ -90,12 +90,6 @@ export default function EmailAccountsPage() {
   return (
     <ProtectedRoute>
       <div className="container max-w-4xl py-8 px-8">
-        <div className="mb-4">
-          <a href="/settings" className="text-sm text-muted-foreground hover:text-primary">
-            ← Back to Settings
-          </a>
-        </div>
-        
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Email Accounts</h1>
           <p className="text-muted-foreground">

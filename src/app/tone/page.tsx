@@ -195,45 +195,34 @@ export default function TonePage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
-        <div className="max-w-7xl mx-auto px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                  Your Writing Tone Analysis
-                </h1>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                  Based on {toneData.totalEmailsAnalyzed} analyzed emails
-                </p>
-              </div>
-            </div>
-            <Button 
-              onClick={handleRefresh} 
-              disabled={refreshing}
-              variant="outline"
-              size="sm"
-            >
-              {refreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8">
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+              Your Writing Tone Analysis
+            </h1>
+            <p className="text-zinc-600 dark:text-zinc-400 mt-2">
+              Based on {toneData.totalEmailsAnalyzed} analyzed emails
+            </p>
+          </div>
+          <Button 
+            onClick={handleRefresh} 
+            disabled={refreshing}
+            variant="outline"
+            size="sm"
+          >
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </>
+            )}
+          </Button>
+        </div>
         {/* Relationship Tabs */}
         <Tabs value={selectedRelationship} onValueChange={setSelectedRelationship} className="space-y-6">
           <TabsList className="grid w-full grid-cols-auto gap-2" style={{ gridTemplateColumns: `repeat(${Object.keys(toneData.profiles).length}, minmax(0, 1fr))` }}>
