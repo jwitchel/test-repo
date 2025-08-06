@@ -113,9 +113,9 @@ export default function DashboardPage() {
               <CardDescription>Your writing style analysis</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">No tone profile created yet</p>
-              <Button className="mt-4" size="sm">
-                Create Profile
+              <p className="text-sm text-muted-foreground">View your analyzed writing patterns and tone</p>
+              <Button className="mt-4" size="sm" asChild>
+                <a href="/tone">View Tone Analysis</a>
               </Button>
             </CardContent>
           </Card>
