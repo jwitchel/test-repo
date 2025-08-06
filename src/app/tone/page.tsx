@@ -32,8 +32,8 @@ interface WritingPatterns {
   openingPatterns: Array<{
     pattern?: string
     text?: string
-    percentage: number
-    frequency?: number
+    percentage: number  // Now normalized 0-1, displayed as %
+    frequency?: number  // Legacy field for backward compatibility
   }>
   valediction: Array<{
     phrase: string
@@ -59,7 +59,8 @@ interface WritingPatterns {
   uniqueExpressions: Array<{
     phrase: string
     context: string
-    frequency: number
+    frequency?: number  // Legacy field
+    occurrenceRate?: number  // New field name
   }>
 }
 
@@ -282,27 +283,27 @@ export default function TonePage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Short sentences</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={patterns.sentencePatterns.distribution.short} className="w-24 h-2" />
+                          <Progress value={patterns.sentencePatterns.distribution.short * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {patterns.sentencePatterns.distribution.short}%
+                            {Math.round(patterns.sentencePatterns.distribution.short * 100)}%
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Medium sentences</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={patterns.sentencePatterns.distribution.medium} className="w-24 h-2" />
+                          <Progress value={patterns.sentencePatterns.distribution.medium * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {patterns.sentencePatterns.distribution.medium}%
+                            {Math.round(patterns.sentencePatterns.distribution.medium * 100)}%
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Long sentences</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={patterns.sentencePatterns.distribution.long} className="w-24 h-2" />
+                          <Progress value={patterns.sentencePatterns.distribution.long * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {patterns.sentencePatterns.distribution.long}%
+                            {Math.round(patterns.sentencePatterns.distribution.long * 100)}%
                           </span>
                         </div>
                       </div>
@@ -338,9 +339,9 @@ export default function TonePage() {
                       <div key={idx} className="flex items-center justify-between">
                         <span className="text-sm font-medium">{pattern.text || pattern.pattern || 'Unknown'}</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={pattern.percentage || 0} className="w-24 h-2" />
+                          <Progress value={(pattern.percentage || pattern.frequency || 0) * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {pattern.percentage || 0}%
+                            {Math.round((pattern.percentage || pattern.frequency || 0) * 100)}%
                           </span>
                         </div>
                       </div>
@@ -370,9 +371,9 @@ export default function TonePage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Progress value={pattern.percentage || 0} className="w-24 h-2" />
+                          <Progress value={pattern.percentage > 1 ? pattern.percentage : (pattern.percentage || 0) * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {pattern.percentage || 0}%
+                            {pattern.percentage > 1 ? pattern.percentage : Math.round((pattern.percentage || 0) * 100)}%
                           </span>
                         </div>
                       </div>
@@ -395,15 +396,15 @@ export default function TonePage() {
                       <div>
                         <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Immediate responses</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Progress value={patterns.responsePatterns.immediate || 0} className="flex-1 h-2" />
-                          <span className="text-sm font-medium">{patterns.responsePatterns.immediate || 0}%</span>
+                          <Progress value={(patterns.responsePatterns.immediate || 0) * 100} className="flex-1 h-2" />
+                          <span className="text-sm font-medium">{Math.round((patterns.responsePatterns.immediate || 0) * 100)}%</span>
                         </div>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Contemplative responses</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Progress value={patterns.responsePatterns.contemplative || 0} className="flex-1 h-2" />
-                          <span className="text-sm font-medium">{patterns.responsePatterns.contemplative || 0}%</span>
+                          <Progress value={(patterns.responsePatterns.contemplative || 0) * 100} className="flex-1 h-2" />
+                          <span className="text-sm font-medium">{Math.round((patterns.responsePatterns.contemplative || 0) * 100)}%</span>
                         </div>
                       </div>
                     </div>
@@ -433,9 +434,9 @@ export default function TonePage() {
                         <div key={idx} className="flex items-center justify-between">
                           <span className="text-sm font-medium">{pattern.phrase}</span>
                           <div className="flex items-center gap-2">
-                            <Progress value={pattern.percentage} className="w-20 h-2" />
+                            <Progress value={pattern.percentage > 1 ? pattern.percentage : pattern.percentage * 100} className="w-20 h-2" />
                             <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                              {pattern.percentage}%
+                              {pattern.percentage > 1 ? pattern.percentage : Math.round(pattern.percentage * 100)}%
                             </span>
                           </div>
                         </div>
@@ -461,9 +462,9 @@ export default function TonePage() {
                         <div key={idx} className="flex items-center justify-between">
                           <span className="text-sm font-medium">{pattern.style || pattern.phrase || 'Unknown'}</span>
                           <div className="flex items-center gap-2">
-                            <Progress value={pattern.percentage} className="w-20 h-2" />
+                            <Progress value={pattern.percentage > 1 ? pattern.percentage : pattern.percentage * 100} className="w-20 h-2" />
                             <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                              {pattern.percentage}%
+                              {pattern.percentage > 1 ? pattern.percentage : Math.round(pattern.percentage * 100)}%
                             </span>
                           </div>
                         </div>
@@ -493,7 +494,7 @@ export default function TonePage() {
                             <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">{expr.context}</p>
                           </div>
                           <Badge variant="secondary" className="ml-2">
-                            {expr.frequency}x
+                            {Math.round((expr.occurrenceRate || expr.frequency || 0) * 100)}%
                           </Badge>
                         </div>
                       </div>

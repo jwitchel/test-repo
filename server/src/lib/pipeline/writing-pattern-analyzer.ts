@@ -26,20 +26,21 @@ export interface ParagraphPattern {
   description: string;
 }
 
+// All distribution patterns use 'percentage' stored as decimal 0.0-1.0
 export interface OpeningPattern {
   pattern: string;
-  frequency: number;
+  percentage: number;  // Changed from frequency to percentage for consistency
   notes?: string;
 }
 
 export interface ValedictionPattern {
   phrase: string;
-  percentage: number;
+  percentage: number;  // Stored as decimal 0.0-1.0, displayed as percentage
 }
 
 export interface TypedNamePattern {
   phrase: string;
-  percentage: number;
+  percentage: number;  // Stored as decimal 0.0-1.0, displayed as percentage
 }
 
 export interface NegativePattern {
@@ -58,7 +59,7 @@ export interface ResponsePatterns {
 export interface UniqueExpression {
   phrase: string;
   context: string;
-  frequency: number;
+  occurrenceRate: number;  // Changed from frequency to occurrenceRate for clarity
 }
 
 export interface WritingPatterns {
@@ -605,7 +606,7 @@ export class WritingPatternAnalyzer {
     }));
   }
 
-  private mergePatternsByFrequency<T extends { pattern: string; frequency: number }>(
+  private mergePatternsByFrequency<T extends { pattern: string; frequency?: number; percentage?: number }>(
     batchData: { patterns: T[]; weight: number }[]
   ): T[] {
     const merged = new Map<string, { 
@@ -617,9 +618,11 @@ export class WritingPatternAnalyzer {
     
     batchData.forEach(({ patterns, weight }) => {
       patterns.forEach(pattern => {
+        // Support both frequency and percentage fields during transition
+        const freq = pattern.frequency ?? pattern.percentage ?? 0;
         const existing = merged.get(pattern.pattern);
         if (existing) {
-          existing.totalFreq += pattern.frequency * weight;
+          existing.totalFreq += freq * weight;
           existing.totalWeight += weight;
           // Track context variations if pattern has notes
           if ('notes' in pattern && (pattern as any).notes) {
@@ -627,7 +630,7 @@ export class WritingPatternAnalyzer {
           }
         } else {
           merged.set(pattern.pattern, {
-            totalFreq: pattern.frequency * weight,
+            totalFreq: freq * weight,
             totalWeight: weight,
             original: pattern,
             contexts: new Set('notes' in pattern && (pattern as any).notes ? [(pattern as any).notes] : [])
@@ -636,19 +639,32 @@ export class WritingPatternAnalyzer {
       });
     });
 
-    return Array.from(merged.values())
+    // Calculate raw percentages first
+    const rawPatterns = Array.from(merged.values())
       .map(data => {
         const result: any = {
           ...data.original,
-          frequency: data.totalFreq / data.totalWeight
+          percentage: data.totalFreq / data.totalWeight  // Use percentage for consistency
         };
+        delete result.frequency;  // Remove old frequency field
         // Add context information if multiple contexts found
         if (data.contexts.size > 1 && 'notes' in result) {
           result.notes = `Used in ${data.contexts.size} different contexts`;
         }
         return result;
       })
-      .sort((a, b) => b.frequency - a.frequency); // Sort by frequency only
+      .sort((a, b) => b.percentage - a.percentage);
+    
+    // Normalize to ensure sum equals 1.0
+    const sum = rawPatterns.reduce((acc, p) => acc + p.percentage, 0);
+    if (sum > 0) {
+      return rawPatterns.map(p => ({
+        ...p,
+        percentage: this.roundNumericValues(p.percentage / sum, 4) as number
+      }));
+    }
+    
+    return rawPatterns;
   }
 
   private mergePercentagePatterns<T extends { phrase: string; percentage: number }>(
@@ -676,12 +692,24 @@ export class WritingPatternAnalyzer {
       });
     });
 
-    return Array.from(merged.values())
+    // Calculate raw percentages first
+    const rawPatterns = Array.from(merged.values())
       .map(data => ({
         ...data.original,
-        percentage: Math.round(data.totalPercentage / data.totalWeight)
+        percentage: data.totalPercentage / data.totalWeight
       }))
       .sort((a, b) => b.percentage - a.percentage);
+    
+    // Normalize to ensure sum equals 1.0
+    const sum = rawPatterns.reduce((acc, p) => acc + p.percentage, 0);
+    if (sum > 0) {
+      return rawPatterns.map(p => ({
+        ...p,
+        percentage: this.roundNumericValues(p.percentage / sum, 4) as number
+      }));
+    }
+    
+    return rawPatterns;
   }
 
   private mergeNegativePatterns(patternArrays: NegativePattern[][]): NegativePattern[] {
@@ -796,8 +824,10 @@ export class WritingPatternAnalyzer {
       expressions.forEach(expr => {
         const key = expr.phrase.toLowerCase();
         const existing = merged.get(key);
+        // Support both frequency and occurrenceRate fields during transition
+        const rate = (expr as any).frequency ?? expr.occurrenceRate ?? 0;
         if (existing) {
-          existing.totalFreq += expr.frequency * weight;
+          existing.totalFreq += rate * weight;
           existing.totalWeight += weight;
           // Track context frequency
           const contextWeight = existing.contexts.get(expr.context) || 0;
@@ -806,7 +836,7 @@ export class WritingPatternAnalyzer {
           // No hardcoded relationship keywords - relationships are dynamic
         } else {
           merged.set(key, {
-            totalFreq: expr.frequency * weight,
+            totalFreq: rate * weight,
             totalWeight: weight,
             contexts: new Map([[expr.context, weight]]),
             relationshipTypes: new Set(),  // Relationships come from actual data, not keywords
@@ -836,10 +866,10 @@ export class WritingPatternAnalyzer {
         return {
           phrase: data.originalPhrase,
           context: primaryContext,
-          frequency: data.totalFreq / data.totalWeight
+          occurrenceRate: this.roundNumericValues(data.totalFreq / data.totalWeight, 4) as number
         };
       })
-      .sort((a, b) => b.frequency - a.frequency)
+      .sort((a, b) => b.occurrenceRate - a.occurrenceRate)
       .slice(0, parseInt(process.env.PATTERN_UNIQUE_EXPRESSIONS_COUNT || '15'));
   }
 
