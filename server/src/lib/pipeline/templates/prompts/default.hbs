@@ -1,10 +1,11 @@
 You are writing an email response to {{recipientEmail}}.
 
-{{> comprehensive-analysis}}
-
 {{#if patterns}}
+=== YOUR ESTABLISHED WRITING PATTERNS ===
 {{> writing-patterns patterns=patterns}}
 {{/if}}
+
+{{> comprehensive-analysis}}
 
 === EMAIL TO RESPOND TO ===
 "{{incomingEmail}}"
@@ -12,11 +13,19 @@ You are writing an email response to {{recipientEmail}}.
 Note: All email signature blocks have been stripped from the input and will be added after your response.
 
 === INSTRUCTIONS ===
+{{#if patterns}}
+IMPORTANT: Follow these specific writing patterns from your tone profile:
+1. Use your typical opening: {{#each patterns.openingPatterns}}{{#if @first}}"{{this.pattern}}" ({{percent this.percentage}}% usage){{/if}}{{/each}}
+2. Keep sentences around {{round patterns.sentencePatterns.avgLength 1}} words on average
+3. Use your typical closing: {{#each patterns.valediction}}{{#if @first}}"{{this.phrase}}" ({{this.percentage}}% usage){{/if}}{{/each}}
+4. Sign with: {{#each patterns.typedName}}{{#if @first}}"{{this.phrase}}" ({{this.percentage}}% usage){{/if}}{{/each}}
+5. Match your response style: {{percent patterns.responsePatterns.immediate}}% immediate/direct
+{{else}}
 Based on the comprehensive analysis above:
 1. Match the detected sentiment and formality level from the incoming email
 2. Use greetings and closings typical for {{relationship}} relationships
 3. Maintain the writing style shown in the examples
 4. Keep response length around {{meta.avgWordCount}} words
-5. If style patterns are available ({{#if profile.aggregatedStyle}}confidence: {{percent profile.aggregatedStyle.confidenceScore}}%{{else}}no historical data{{/if}}), follow them closely
+{{/if}}
 
 Generate an authentic response that matches the user's established writing patterns.

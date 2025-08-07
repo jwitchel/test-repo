@@ -24,14 +24,6 @@ LINGUISTIC STYLE:
 - Sentence structure: {{nlpFeatures.linguisticStyle.sentenceStructure}}
 - Conversational markers: {{#if nlpFeatures.linguisticStyle.conversationalMarkers}}{{join nlpFeatures.linguisticStyle.conversationalMarkers ", "}}{{else}}N/A{{/if}}
 
-CONTENT ANALYSIS:
-- Context type: {{nlpFeatures.contextType}}
-- Questions asked: {{#if nlpFeatures.questions}}{{length nlpFeatures.questions}} - "{{join nlpFeatures.questions '", "'}}"{{else}}0{{/if}}
-- Action items: {{#if nlpFeatures.actionItems}}{{length nlpFeatures.actionItems}}{{else}}0{{/if}}
-{{#each nlpFeatures.actionItems}}
-  - {{this.type}}: "{{this.text}}"
-{{/each}}
-
 RELATIONSHIP HINTS:
 - Familiarity level: {{nlpFeatures.relationshipHints.familiarityLevel}}
 - Greeting style: {{nlpFeatures.relationshipHints.linguisticMarkers.greetingStyle}}

@@ -374,8 +374,44 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
     let writingPatterns = null;
     
     try {
-      // Try to load existing patterns
-      writingPatterns = await patternAnalyzer.loadPatterns(userId, detectedRelationship.relationship);
+      // First try to load aggregate patterns (overall tone profile)
+      writingPatterns = await patternAnalyzer.loadPatterns(userId);
+      
+      if (writingPatterns) {
+        imapLogger.log(userId, {
+          userId,
+          emailAccountId: 'demo-account-001',
+          level: 'info',
+          command: 'patterns.loaded',
+          data: {
+            raw: 'Loaded aggregate writing patterns from tone profile',
+            parsed: {
+              type: 'aggregate',
+              hasPatterns: true
+            }
+          }
+        });
+      } else {
+        // If no aggregate patterns, try relationship-specific patterns
+        writingPatterns = await patternAnalyzer.loadPatterns(userId, detectedRelationship.relationship);
+        
+        if (writingPatterns) {
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'demo-account-001',
+            level: 'info',
+            command: 'patterns.loaded',
+            data: {
+              raw: `Loaded relationship-specific patterns for ${detectedRelationship.relationship}`,
+              parsed: {
+                type: 'relationship',
+                relationship: detectedRelationship.relationship,
+                hasPatterns: true
+              }
+            }
+          });
+        }
+      }
       
       // If no patterns exist, analyze from a larger corpus
       if (!writingPatterns && patternAnalyzer['llmClient']) {

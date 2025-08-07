@@ -8,8 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, MailOpen, Send, Loader2, Zap, Home, Settings } from 'lucide-react'
-import Link from 'next/link'
+import { ChevronLeft, ChevronRight, Send, Loader2, Zap } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -105,9 +104,7 @@ John`
 export default function ImapLogsDemoPage() {
   const { user } = useAuth()
   const { success, error: showError } = useToast()
-  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(DEMO_ACCOUNT_ID)
-  const [, setIsLoading] = useState(true)
+  const [selectedAccountId] = useState<string>(DEMO_ACCOUNT_ID)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   
   // LLM Provider state
@@ -122,6 +119,9 @@ export default function ImapLogsDemoPage() {
   const [recipientEmail, setRecipientEmail] = useState('')
   const [relationshipType, setRelationshipType] = useState('auto-detect')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  
+  // Relationship types state
+  const [relationshipTypes, setRelationshipTypes] = useState<string[]>([])
   
   // Analysis results state
   interface NLPFeatures {
@@ -246,42 +246,9 @@ export default function ImapLogsDemoPage() {
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null)
   const [activeTab, setActiveTab] = useState('email-input')
 
-  // Fetch user's email accounts and LLM providers on mount
+  // Fetch LLM providers and relationship types on mount
   useEffect(() => {
     let mounted = true;
-    
-    const loadAccounts = async () => {
-      try {
-        const response = await fetch('http://localhost:3002/api/email-accounts', {
-          credentials: 'include'
-        })
-        
-        if (!mounted) return;
-        
-        if (response.ok) {
-          const accounts: EmailAccount[] = await response.json()
-          setEmailAccounts(accounts)
-          
-          // If user has accounts, prefer user1@testmail.local or select the first one
-          if (accounts.length > 0) {
-            const testAccount = accounts.find(acc => acc.email_address === 'user1@testmail.local');
-            if (testAccount) {
-              setSelectedAccountId(testAccount.id)
-            } else {
-              setSelectedAccountId(accounts[0].id)
-            }
-          }
-        } else if (response.status !== 404) {
-          console.error('Failed to fetch email accounts')
-        }
-      } catch (err) {
-        console.error('Error fetching email accounts:', err)
-      } finally {
-        if (mounted) {
-          setIsLoading(false)
-        }
-      }
-    }
     
     const loadProviders = async () => {
       try {
@@ -309,18 +276,31 @@ export default function ImapLogsDemoPage() {
       }
     }
     
-    loadAccounts()
+    const loadRelationshipTypes = async () => {
+      try {
+        const response = await fetch('http://localhost:3002/api/relationships/types', {
+          credentials: 'include'
+        })
+        
+        if (!mounted) return;
+        
+        if (response.ok) {
+          const types = await response.json()
+          setRelationshipTypes(types)
+        }
+      } catch (err) {
+        console.error('Error fetching relationship types:', err)
+      }
+    }
+    
     loadProviders()
+    loadRelationshipTypes()
     
     return () => {
       mounted = false;
     }
   }, []) // Empty dependency array - only run once on mount
 
-
-  const handleAccountChange = (accountId: string) => {
-    setSelectedAccountId(accountId)
-  }
 
   const handleLoadExample = (exampleKey: keyof typeof EXAMPLE_EMAILS) => {
     const example = EXAMPLE_EMAILS[exampleKey]
@@ -439,30 +419,11 @@ export default function ImapLogsDemoPage() {
   return (
     <ProtectedRoute>
       <div className="h-screen bg-zinc-50 dark:bg-zinc-900 flex flex-col overflow-hidden">
-        {/* Header with Account and LLM Selection */}
+        {/* Header with LLM Selection */}
         <div className="h-16 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Inspector</h1>
           
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="header-account-select" className="text-sm">Account:</Label>
-              <Select value={selectedAccountId} onValueChange={handleAccountChange}>
-                <SelectTrigger id="header-account-select" className="w-[200px]">
-                  <SelectValue placeholder="Select an account" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={DEMO_ACCOUNT_ID}>
-                    Demo Account
-                  </SelectItem>
-                  {emailAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.email_address}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
             <div className="flex items-center gap-2">
               <Label htmlFor="header-llm-select" className="text-sm">LLM:</Label>
               <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
@@ -528,13 +489,8 @@ export default function ImapLogsDemoPage() {
             {!isSidebarCollapsed && (
               <div className="p-2 overflow-y-auto flex flex-col gap-2">
                 <TrainingPanel 
-                  emailAccountId={selectedAccountId}
+                  emailAccountId={DEMO_ACCOUNT_ID}
                   userId={user?.id || ''}
-                  emailAddress={
-                    selectedAccountId === DEMO_ACCOUNT_ID 
-                      ? undefined 
-                      : emailAccounts.find(acc => acc.id === selectedAccountId)?.email_address
-                  }
                 />
               </div>
             )}
@@ -580,12 +536,11 @@ export default function ImapLogsDemoPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="auto-detect">Auto-detect</SelectItem>
-                                  <SelectItem value="colleague">Colleague</SelectItem>
-                                  <SelectItem value="friend">Friend</SelectItem>
-                                  <SelectItem value="family">Family</SelectItem>
-                                  <SelectItem value="manager">Manager</SelectItem>
-                                  <SelectItem value="client">Client</SelectItem>
-                                  <SelectItem value="spouse">Spouse</SelectItem>
+                                  {relationshipTypes.map((type) => (
+                                    <SelectItem key={type} value={type}>
+                                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>
@@ -984,7 +939,7 @@ export default function ImapLogsDemoPage() {
             {/* IMAP Logs Panel - Full Width */}
             <div className="flex-1 px-2 pb-2 min-h-0">
               <ImapLogViewer 
-                emailAccountId={selectedAccountId} 
+                emailAccountId={DEMO_ACCOUNT_ID} 
                 className="h-full"
               />
             </div>

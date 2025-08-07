@@ -291,10 +291,6 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     
     await patternAnalyzer.clearPatterns(userId);
     
-    // Get relationship stats
-    const relationshipStats = await vectorStore.getRelationshipStats(userId);
-    const relationships = Object.keys(relationshipStats);
-    
     // Log the start of pattern analysis
     imapLogger.log(userId, {
       userId,
@@ -302,69 +298,92 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       level: 'info',
       command: 'patterns.training.start',
       data: {
-        raw: 'Starting comprehensive pattern analysis for all relationships'
+        raw: 'Starting comprehensive pattern analysis across all email accounts'
       }
     });
     
-    // Note: relationshipStats and relationships were already retrieved above for signature detection
+    // Get ALL emails for the user across ALL accounts and relationships
+    const scrollResult = await vectorStore['client'].scroll(vectorStore['collectionName'], {
+      filter: {
+        must: [
+          { key: 'userId', match: { value: userId } }
+        ]
+      },
+      limit: 10000,
+      with_payload: true,
+      with_vector: false
+    });
     
-    // Add 'aggregate' for overall patterns
-    relationships.push('aggregate');
+    const allEmails = scrollResult.points.map(point => ({
+      id: point.id,
+      metadata: point.payload as any
+    }));
     
+    if (allEmails.length === 0) {
+      res.status(404).json({ 
+        error: 'No emails found',
+        message: 'Please load emails before analyzing patterns'
+      });
+      return;
+    }
+    
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'pattern-training',
+      level: 'info',
+      command: 'patterns.training.corpus_size',
+      data: {
+        parsed: {
+          totalEmails: allEmails.length,
+          emailAccounts: new Set(allEmails.map((e: any) => e.metadata.emailAccountId)).size,
+          relationships: new Set(allEmails.map((e: any) => e.metadata.relationship?.type)).size
+        }
+      }
+    });
+    
+    // Group emails by relationship type (ignoring email account)
+    const emailsByRelationship: Record<string, any[]> = {};
+    allEmails.forEach((email: any) => {
+      const relationship = email.metadata.relationship?.type || 'unknown';
+      if (!emailsByRelationship[relationship]) {
+        emailsByRelationship[relationship] = [];
+      }
+      emailsByRelationship[relationship].push(email);
+    });
+    
+    const relationships = Object.keys(emailsByRelationship);
+    
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: 'pattern-training',
+      level: 'info',
+      command: 'patterns.training.relationships_found',
+      data: {
+        parsed: {
+          relationships,
+          counts: Object.fromEntries(
+            relationships.map(rel => [rel, emailsByRelationship[rel].length])
+          )
+        }
+      }
+    });
+    
+    // Analyze patterns for each relationship AND aggregate
+    const allPatterns: Record<string, any> = {};
     let totalEmailsAnalyzed = 0;
-    let relationshipsAnalyzed = 0;
-    const emailCountsByRelationship: Record<string, number> = {};
     
-    for (const relationship of relationships) {
-      try {
+    try {
+      // First, analyze patterns for each relationship
+      for (const relationship of relationships) {
+        const emails = emailsByRelationship[relationship];
         
-        // Fetch emails for this relationship
-        const corpusSize = parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200');
-        let emails;
-        
-        if (relationship === 'aggregate') {
-          // For aggregate, get a sample across all relationships
-          const sampleEmails: any[] = [];
-          const perRelationshipLimit = Math.ceil(corpusSize / Math.max(relationships.length - 1, 1));
-          
-          for (const rel of relationships) {
-            if (rel === 'aggregate') continue;
-            const relEmails = await vectorStore.getByRelationship(userId, rel, perRelationshipLimit);
-            sampleEmails.push(...relEmails);
-          }
-          
-          emails = sampleEmails.slice(0, corpusSize);
-        } else {
-          // Get emails for specific relationship
-          emails = await vectorStore.getByRelationship(userId, relationship, corpusSize);
-        }
-        
-        if (emails.length === 0) {
-          imapLogger.log(userId, {
-            userId,
-            emailAccountId: 'pattern-training',
-            level: 'info',
-            command: 'patterns.training.skip',
-            data: {
-              raw: `Skipping ${relationship} - no emails found`
-            }
-          });
-          continue;
-        }
-        
-        // Convert to ProcessedEmail format and remove signatures using regex patterns
+        // Convert to ProcessedEmail format and remove signatures
         const emailsForAnalysis = await Promise.all(emails.map(async (email: any) => {
           let extractedText = email.metadata.extractedText || '';
           
           // Remove signature using regex patterns
           const signatureResult = await regexSignatureDetector.removeSignature(extractedText, userId);
           extractedText = signatureResult.cleanedText;
-          
-          if (email === emails[0] && signatureResult.signature) {
-            console.log(`[Pattern Analysis] Signature removal for first email in '${relationship}':`);
-            console.log(`  Matched pattern: ${signatureResult.matchedPattern}`);
-            console.log(`  Text now ends with:`, extractedText.split('\n').slice(-5).join(' | '));
-          }
           
           return {
             uid: email.id,
@@ -395,28 +414,23 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
           }
         });
         
-        // Analyze patterns
+        // Analyze patterns for this relationship
         const patterns = await patternAnalyzer.analyzeWritingPatterns(
           userId,
           emailsForAnalysis,
-          relationship === 'aggregate' ? undefined : relationship
+          relationship
         );
         
-        // Save patterns
+        // Save patterns for this relationship
         await patternAnalyzer.savePatterns(
           userId,
           patterns,
-          relationship === 'aggregate' ? undefined : relationship,
+          relationship,
           emailsForAnalysis.length
         );
         
+        allPatterns[relationship] = patterns;
         totalEmailsAnalyzed += emailsForAnalysis.length;
-        relationshipsAnalyzed++;
-        
-        // Track email counts per relationship (excluding 'aggregate')
-        if (relationship !== 'aggregate') {
-          emailCountsByRelationship[relationship] = emailsForAnalysis.length;
-        }
         
         imapLogger.log(userId, {
           userId,
@@ -437,54 +451,122 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
             }
           }
         });
+      }
+      
+      // Now analyze aggregate patterns (all emails combined)
+      const allEmailsForAnalysis = await Promise.all(allEmails.map(async (email: any) => {
+        let extractedText = email.metadata.extractedText || '';
         
-      } catch (error) {
-        console.error(`Error analyzing patterns for ${relationship}:`, error);
-        imapLogger.log(userId, {
-          userId,
-          emailAccountId: 'pattern-training',
-          level: 'error',
-          command: 'patterns.training.error',
-          data: {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            parsed: { relationship }
+        // Remove signature using regex patterns
+        const signatureResult = await regexSignatureDetector.removeSignature(extractedText, userId);
+        extractedText = signatureResult.cleanedText;
+        
+        return {
+          uid: email.id,
+          messageId: email.id,
+          inReplyTo: null,
+          date: new Date(email.metadata.sentDate || Date.now()),
+          from: [{ address: userId, name: '' }],
+          to: [{ address: email.metadata.recipientEmail || '', name: '' }],
+          cc: [],
+          bcc: [],
+          subject: email.metadata.subject || '',
+          textContent: extractedText,
+          htmlContent: null,
+          extractedText: extractedText
+        };
+      }));
+      
+      imapLogger.log(userId, {
+        userId,
+        emailAccountId: 'pattern-training',
+        level: 'info',
+        command: 'patterns.training.analyzing',
+        data: {
+          parsed: {
+            relationship: 'aggregate',
+            emailCount: allEmailsForAnalysis.length
           }
-        });
-      }
-    }
-    
-    // Collect all patterns for final output
-    const consolidatedPatterns: Record<string, any> = {};
-    
-    for (const relationship of relationships) {
-      try {
-        const patterns = await patternAnalyzer.loadPatterns(userId, relationship === 'aggregate' ? undefined : relationship);
-        if (patterns) {
-          consolidatedPatterns[relationship] = patterns;
         }
-      } catch (error) {
-        console.error(`Error loading patterns for ${relationship}:`, error);
-      }
+      });
+      
+      // Analyze aggregate patterns
+      const aggregatePatterns = await patternAnalyzer.analyzeWritingPatterns(
+        userId,
+        allEmailsForAnalysis,
+        undefined // undefined means aggregate
+      );
+      
+      // Save aggregate patterns
+      await patternAnalyzer.savePatterns(
+        userId,
+        aggregatePatterns,
+        undefined, // undefined means aggregate
+        allEmailsForAnalysis.length
+      );
+      
+      allPatterns['aggregate'] = aggregatePatterns;
+      
+      imapLogger.log(userId, {
+        userId,
+        emailAccountId: 'pattern-training',
+        level: 'info',
+        command: 'patterns.training.saved',
+        data: {
+          parsed: {
+            relationship: 'aggregate',
+            emailsAnalyzed: allEmailsForAnalysis.length,
+            patternsFound: {
+              openings: aggregatePatterns.openingPatterns.length,
+              valedictions: aggregatePatterns.valediction.length,
+              typedNames: aggregatePatterns.typedName.length,
+              negative: aggregatePatterns.negativePatterns.length,
+              unique: aggregatePatterns.uniqueExpressions.length
+            }
+          }
+        }
+      });
+        
+    } catch (error) {
+      console.error('Error analyzing patterns:', error);
+      imapLogger.log(userId, {
+        userId,
+        emailAccountId: 'pattern-training',
+        level: 'error',
+        command: 'patterns.training.error',
+        data: {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      throw error;
     }
     
     const endTime = Date.now();
     const durationSeconds = Math.round((endTime - startTime) / 1000);
     
-    // Create consolidated output with meta block
-    const consolidatedOutput = {
+    // Get relationship breakdown for metadata
+    const relationshipBreakdown: Record<string, number> = {};
+    allEmails.forEach((email: any) => {
+      const rel = email.metadata.relationship?.type || 'unknown';
+      relationshipBreakdown[rel] = (relationshipBreakdown[rel] || 0) + 1;
+    });
+    
+    // Get the pattern analyzer's model name
+    const modelUsed = 'gpt-4o-mini'; // Default model name
+    
+    // Create output with analysis results
+    const output = {
       meta: {
         analysisDate: new Date().toISOString(),
-        totalEmailsAnalyzed,
-        relationshipsAnalyzed: relationshipsAnalyzed - 1, // Exclude 'aggregate' from count
-        relationships: relationships.filter(r => r !== 'aggregate'),
-        emailCountsByRelationship,
-        includesAggregatePatterns: true, // Indicate that aggregate patterns are included
+        totalEmailsAnalyzed: totalEmailsAnalyzed,
+        totalEmailsInCorpus: allEmails.length,
+        emailAccounts: new Set(allEmails.map((e: any) => e.metadata.emailAccountId)).size,
+        relationshipBreakdown,
+        relationshipsAnalyzed: relationships.length + 1, // +1 for aggregate
         durationSeconds,
-        corpusSize: parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200'),
-        maxTokens: parseInt(process.env.PATTERN_ANALYSIS_MAX_TOKENS || '20000'),
-        modelUsed: patternAnalyzer.getModelName()
+        modelUsed
       },
-      patterns: consolidatedPatterns
+      patternsByRelationship: allPatterns
     };
     
     imapLogger.log(userId, {
@@ -494,10 +576,10 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       command: 'patterns.training.complete',
       data: {
         parsed: {
-          totalEmailsAnalyzed,
-          relationshipsAnalyzed: relationshipsAnalyzed - 1, // Actual relationship count
-          aggregatePatternsIncluded: true,
-          relationships: relationships.filter(r => r !== 'aggregate')
+          totalEmailsAnalyzed: totalEmailsAnalyzed,
+          emailAccounts: new Set(allEmails.map((e: any) => e.metadata.emailAccountId)).size,
+          relationshipBreakdown,
+          relationshipsAnalyzed: relationships.length + 1 // +1 for aggregate
         }
       }
     });
@@ -509,16 +591,18 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       level: 'info',
       command: 'patterns.training.consolidated',
       data: {
-        raw: JSON.stringify(consolidatedOutput, null, 2)
+        raw: JSON.stringify(output, null, 2)
       }
     });
     
     res.json({
       success: true,
       emailsAnalyzed: totalEmailsAnalyzed,
-      relationshipsAnalyzed: relationshipsAnalyzed - 1, // Subtract 1 to exclude 'aggregate' from count
-      relationships: relationships.filter(r => r !== 'aggregate'),
-      patterns: consolidatedPatterns
+      emailAccounts: new Set(allEmails.map((e: any) => e.metadata.emailAccountId)).size,
+      relationshipsAnalyzed: relationships.length + 1, // +1 for aggregate
+      relationships: [...relationships, 'aggregate'],
+      patternsByRelationship: allPatterns,
+      durationSeconds
     });
     
   } catch (error) {
