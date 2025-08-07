@@ -15,7 +15,7 @@ PARAGRAPH STRUCTURE:
 
 OPENINGS (use exactly as shown):
 {{#each patterns.openingPatterns}}
-- "{{{this.pattern}}}" ({{percent this.frequency}}%){{#if this.notes}} - {{{this.notes}}}{{/if}}
+- "{{{this.pattern}}}" ({{percent this.percentage}}%){{#if this.notes}} - {{{this.notes}}}{{/if}}
 {{/each}}
 
 VALEDICTIONS (closing phrases):
@@ -44,5 +44,5 @@ RESPONSE STYLE:
 
 UNIQUE PHRASES TO USE:
 {{#each patterns.uniqueExpressions}}
-- "{{{this.phrase}}}" - use {{{this.context}}} ({{percent this.frequency}}%)
+- "{{{this.phrase}}}" - use {{{this.context}}} ({{percent this.occurrenceRate}}%)
 {{/each}}

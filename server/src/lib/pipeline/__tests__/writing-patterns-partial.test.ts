@@ -28,8 +28,8 @@ describe('Writing Patterns Partial', () => {
         { type: 'single-line', percentage: 60, description: 'Quick responses' }
       ],
       openingPatterns: [
-        { pattern: 'Hi [Name],', frequency: 0.80 },
-        { pattern: '[right to the point]', frequency: 0.20, notes: 'For follow-ups' }
+        { pattern: 'Hi [Name],', percentage: 0.80 },
+        { pattern: '[right to the point]', percentage: 0.20, notes: 'For follow-ups' }
       ],
       valediction: [
         { phrase: 'Best,', percentage: 70 },
@@ -52,7 +52,7 @@ describe('Writing Patterns Partial', () => {
         questionHandling: 'acknowledge-then-answer'
       },
       uniqueExpressions: [
-        { phrase: 'Happy to help', context: 'When offering assistance', frequency: 0.40 }
+        { phrase: 'Happy to help', context: 'When offering assistance', occurrenceRate: 0.40 }
       ]
     };
 
@@ -114,7 +114,7 @@ describe('Writing Patterns Partial', () => {
     // Should still have section headers even if empty
     expect(result).toContain('PARAGRAPH STRUCTURE:');
     expect(result).toContain('OPENINGS (use exactly as shown):');
-    expect(result).toContain('CLOSINGS (use exactly as shown):');
+    expect(result).toContain('VALEDICTIONS (closing phrases):');
     expect(result).toContain('NEVER DO THESE THINGS:');
     expect(result).toContain('UNIQUE PHRASES TO USE:');
     
@@ -134,7 +134,7 @@ describe('Writing Patterns Partial', () => {
       },
       paragraphPatterns: [],
       openingPatterns: [
-        { pattern: 'Hi & hello', frequency: 0.5 }
+        { pattern: 'Hi & hello', percentage: 0.5 }
       ],
       valediction: [],
       typedName: [],
@@ -151,7 +151,7 @@ describe('Writing Patterns Partial', () => {
         questionHandling: 'direct'
       },
       uniqueExpressions: [
-        { phrase: 'Let\'s sync up', context: 'When scheduling', frequency: 0.2 }
+        { phrase: 'Let\'s sync up', context: 'When scheduling', occurrenceRate: 0.2 }
       ]
     };
 

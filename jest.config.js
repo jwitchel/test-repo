@@ -12,7 +12,8 @@ module.exports = {
     'writing-pattern-analyzer.test.ts',
     'llm-providers.test.ts',
     'generate.test.ts',
-    'style-preferences.test.ts'
+    'style-preferences.test.ts',
+    'text-extraction.test.ts'
   ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   collectCoverageFrom: [

@@ -94,6 +94,7 @@ import llmProvidersRoutes from './routes/llm-providers';
 import generateRoutes from './routes/generate';
 import trainingRoutes from './routes/training';
 import oauthEmailRoutes from './routes/oauth-email';
+import oauthDirectRoutes from './routes/oauth-direct';
 import accountsRoutes from './routes/accounts';
 import signaturePatternsRoutes from './routes/signature-patterns';
 
@@ -108,6 +109,7 @@ app.use('/api/llm-providers', llmProvidersRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/oauth-email', oauthEmailRoutes);
+app.use('/api/oauth-direct', oauthDirectRoutes);
 app.use('/api', accountsRoutes);
 app.use('/api/signature-patterns', signaturePatternsRoutes);
 
