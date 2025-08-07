@@ -47,11 +47,6 @@ TEXT STATISTICS:
 - Formality score: {{round nlpFeatures.stats.formalityScore 2}}
 - Contraction density: {{round nlpFeatures.stats.contractionDensity 2}}
 
-LINGUISTIC PATTERNS:
-- Common phrases: {{#if nlpFeatures.phrases}}{{#each nlpFeatures.phrases}}"{{this.text}}" ({{this.frequency}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
-- Contractions: {{#if nlpFeatures.contractions}}{{#each nlpFeatures.contractions}}{{this.contraction}}→{{this.expanded}} ({{this.count}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
-- Sentence starters: {{#if nlpFeatures.sentenceStarters}}{{#each nlpFeatures.sentenceStarters}}"{{this.text}}" ({{this.count}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
-- Closings detected: {{#if nlpFeatures.closings}}{{#each nlpFeatures.closings}}"{{this.text}}" ({{this.count}}x){{#unless @last}}, {{/unless}}{{/each}}{{else}}N/A{{/if}}
 {{else}}
 NO NLP FEATURES EXTRACTED - Analysis unavailable
 {{/if}}

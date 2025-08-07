@@ -15,7 +15,7 @@ export interface AggregatedStyle {
   greetings: Array<{ text: string; frequency: number; percentage: number }>;
   closings: Array<{ text: string; frequency: number; percentage: number }>;
   emojis: Array<{ emoji: string; frequency: number; contexts: string[] }>;
-  contractions: { uses: boolean; frequency: number; examples: string[] };
+  // contractions field removed - no longer analyzed
   sentimentProfile: { 
     primaryTone: string; 
     averageWarmth: number; 
@@ -24,7 +24,7 @@ export interface AggregatedStyle {
   vocabularyProfile: {
     complexityLevel: string;
     technicalTerms: string[];
-    commonPhrases: Array<{ phrase: string; frequency: number }>;
+    commonPhrases: Array<{ phrase: string; frequency: number }>; // No longer populated
   };
   structuralPatterns: {
     averageEmailLength: number;
@@ -60,14 +60,11 @@ export class StyleAggregationService {
     const greetingMap = new Map<string, number>();
     const closingMap = new Map<string, number>();
     const emojiMap = new Map<string, Set<string>>();
-    const phraseMap = new Map<string, number>();
-    const contractionExamples = new Set<string>();
     
     let totalWarmth = 0;
     let totalFormality = 0;
     let totalWords = 0;
     let totalSentences = 0;
-    let usesContractions = 0;
     
     for (const result of searchResults) {
       const features = result.metadata.features as EmailFeatures;
@@ -79,13 +76,7 @@ export class StyleAggregationService {
         greetingMap.set(greeting, count + 1);
       }
       
-      // Aggregate closings
-      if (features.closings && features.closings.length > 0) {
-        features.closings.forEach(closing => {
-          const count = closingMap.get(closing.text) || 0;
-          closingMap.set(closing.text, count + closing.count);
-        });
-      }
+      // Removed closings aggregation - now using only relationship hints
       
       // Also check closing style from relationship hints
       if (features.relationshipHints?.linguisticMarkers?.closingStyle) {
@@ -102,24 +93,9 @@ export class StyleAggregationService {
         emojiMap.get(emoji)!.add(features.sentiment.primary);
       });
       
-      // Aggregate contractions
-      if (features.contractions && features.contractions.length > 0) {
-        usesContractions++;
-        // Get actual contraction examples
-        features.contractions.forEach(c => {
-          if (contractionExamples.size < 10) {
-            contractionExamples.add(c.contraction);
-          }
-        });
-      }
+      // Removed contractions aggregation - data no longer available
       
-      // Aggregate phrases (2+ words, frequency > 1)
-      features.phrases
-        .filter((p: any) => p.text.split(' ').length >= 2 && p.frequency > 1)
-        .forEach((phrase: any) => {
-          const count = phraseMap.get(phrase.text) || 0;
-          phraseMap.set(phrase.text, count + phrase.frequency);
-        });
+      // Removed phrases aggregation - data no longer available
       
       // Aggregate metrics
       totalWarmth += features.tonalQualities.warmth;
@@ -161,20 +137,11 @@ export class StyleAggregationService {
         contexts: Array.from(contexts)
       }));
     
-    const sortedPhrases = Array.from(phraseMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
-      .map(([phrase, frequency]) => ({ phrase, frequency }));
     
     return {
       greetings: sortedGreetings,
       closings: sortedClosings,
       emojis: sortedEmojis,
-      contractions: {
-        uses: usesContractions > emailCount * 0.3,
-        frequency: usesContractions,
-        examples: Array.from(contractionExamples).slice(0, 10)
-      },
       sentimentProfile: {
         primaryTone: this.determinePrimaryTone(totalWarmth / emailCount),
         averageWarmth: totalWarmth / emailCount,
@@ -183,7 +150,7 @@ export class StyleAggregationService {
       vocabularyProfile: {
         complexityLevel: this.determineComplexityLevel(totalWords / totalSentences),
         technicalTerms: [], // Could extract from features if needed
-        commonPhrases: sortedPhrases
+        commonPhrases: []
       },
       structuralPatterns: {
         averageEmailLength: totalWords / emailCount,
@@ -270,11 +237,6 @@ export class StyleAggregationService {
       greetings: [],
       closings: [],
       emojis: [],
-      contractions: {
-        uses: false,
-        frequency: 0,
-        examples: []
-      },
       sentimentProfile: {
         primaryTone: 'neutral',
         averageWarmth: 0.5,

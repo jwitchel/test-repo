@@ -39,7 +39,6 @@ export interface EnhancedRelationshipProfile extends RelationshipProfile {
     greetings: Array<{ text: string; frequency: number; percentage: number }>;
     closings: Array<{ text: string; frequency: number; percentage: number }>;
     emojis: Array<{ emoji: string; frequency: number; contexts: string[] }>;
-    contractions: { uses: boolean; frequency: number; examples: string[] };
     sentimentProfile: { 
       primaryTone: string; 
       averageWarmth: number; 

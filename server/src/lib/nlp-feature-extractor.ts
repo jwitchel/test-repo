@@ -67,11 +67,7 @@ nlp.plugin(emailPlugin);
 
 export interface EmailFeatures {
   // Linguistic patterns
-  phrases: Array<{ text: string; frequency: number; context: string }>;
-  contractions: Array<{ contraction: string; expanded: string; count: number }>;
   questions: string[];
-  sentenceStarters: Array<{ text: string; count: number }>;
-  closings: Array<{ text: string; count: number }>;
   
   // Enhanced sentiment analysis
   sentiment: {
@@ -152,11 +148,8 @@ export function extractEmailFeatures(emailText: string, recipientInfo?: { email?
   const linguisticStyle = analyzeLinguisticStyle(doc);
   
   return {
-    phrases: extractCommonPhrases(emailText),
-    contractions: extractCommonContractions(emailText),
+    // Removed linguistic patterns: phrases, contractions, sentenceStarters, closings
     questions: doc.questions().out('array'),
-    sentenceStarters: extractSentenceStarters(emailText),
-    closings: extractClosings(emailText),
     sentiment: enhancedSentiment,
     tonalQualities: tonalQualities,
     linguisticStyle: linguisticStyle,
@@ -505,163 +498,6 @@ function determineFamiliarityLevel(
   } else {
     return 'professional';
   }
-}
-
-function extractCommonContractions(text: string): Array<{ contraction: string; expanded: string; count: number }> {
-  const doc = nlp(text);
-  const contractionMap = new Map<string, { expanded: string; count: number }>();
-  
-  // Use compromise's contractions() method to find contractions
-  const contractions = (doc as any).contractions();
-  
-  // Get both original and expanded forms
-  const contractionsList = contractions.out('array');
-  const expandedList = contractions.expand().out('array');
-  
-  // Process each contraction with its expansion
-  contractionsList.forEach((contraction: string, index: number) => {
-    const key = contraction.toLowerCase();
-    let expanded = expandedList[index];
-    
-    // Normalize expansion capitalization for consistency
-    if (expanded.toLowerCase() === 'will not') {
-      expanded = 'will not';
-    } else if (key === "i'll" || key === "i've" || key === "i'd" || key === "i'm") {
-      // Keep "I" capitalized for first person
-      expanded = expanded;
-    } else {
-      // For other contractions, use lowercase
-      expanded = expanded.toLowerCase();
-    }
-    
-    if (contractionMap.has(key)) {
-      contractionMap.get(key)!.count++;
-    } else {
-      contractionMap.set(key, {
-        expanded: expanded,
-        count: 1
-      });
-    }
-  });
-  
-  return Array.from(contractionMap.entries())
-    .map(([contraction, data]) => ({
-      contraction,
-      expanded: data.expanded,
-      count: data.count
-    }))
-    .sort((a, b) => b.count - a.count);
-}
-
-function extractCommonPhrases(emailText: string): Array<{ text: string; frequency: number; context: string }> {
-  const text = emailText;
-  const doc = nlp(text);
-  const phrases: Map<string, number> = new Map();
-  
-  // Use compromise to get sentences and extract n-grams
-  const sentences = doc.sentences();
-  
-  sentences.forEach((sentence: any) => {
-    const terms = sentence.terms();
-    const termCount = terms.length;
-    
-    // Extract 2-4 word phrases
-    for (let n = 2; n <= 4; n++) {
-      for (let i = 0; i <= termCount - n; i++) {
-        const phraseTerms = terms.slice(i, i + n);
-        const phraseText = phraseTerms.text().toLowerCase().replace(/[,;:]/g, '');
-        
-        if (phraseText.length > 5) { // Skip very short phrases
-          phrases.set(phraseText, (phrases.get(phraseText) || 0) + 1);
-        }
-      }
-    }
-  });
-  
-  // Categorize phrases by context using compromise
-  return Array.from(phrases.entries())
-    .filter(([_, count]) => count >= 2) // Only phrases used 2+ times
-    .map(([text, frequency]) => {
-      const phraseDoc = nlp(text);
-      let context = 'general';
-      
-      // Use compromise matching for context detection
-      if (phraseDoc.match('(please|would|could|kindly|per our|as requested|for your)').found) {
-        context = 'request';
-      } else if (phraseDoc.match('(thanks|thank you|appreciate)').found) {
-        context = 'gratitude';
-      } else if (phraseDoc.match('(sorry|apologize|regret)').found) {
-        context = 'apology';
-      } else if (phraseDoc.match('(yes|yeah|sure|ok|agree)').found) {
-        context = 'agreement';
-      } else if (phraseDoc.match('(no|not|don\'t|won\'t)').found) {
-        context = 'disagreement';
-      }
-      
-      return { text, frequency, context };
-    })
-    .sort((a, b) => b.frequency - a.frequency)
-    .slice(0, 20); // Top 20 phrases
-}
-
-function extractSentenceStarters(text: string): Array<{ text: string; count: number }> {
-  const doc = nlp(text);
-  const starters: Map<string, number> = new Map();
-  
-  // Use compromise's sentence detection
-  const sentences = doc.sentences();
-  
-  sentences.forEach((sentence: any) => {
-    const terms = sentence.terms();
-    if (terms.length >= 2) {
-      // Get first 2-3 words
-      const firstTwo = terms.slice(0, 2).text().toLowerCase();
-      const firstThree = terms.length >= 3 ? terms.slice(0, 3).text().toLowerCase() : null;
-      
-      // Skip if starts with common articles/conjunctions
-      const firstWord = terms.first().text().toLowerCase();
-      if (!['the', 'a', 'an', 'and', 'or', 'but'].includes(firstWord)) {
-        starters.set(firstTwo, (starters.get(firstTwo) || 0) + 1);
-        if (firstThree && terms.slice(0, 3).length === 3) {
-          starters.set(firstThree, (starters.get(firstThree) || 0) + 1);
-        }
-      }
-    }
-  });
-  
-  return Array.from(starters.entries())
-    .filter(([_, count]) => count >= 2)
-    .map(([text, count]) => ({ text, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
-}
-
-function extractClosings(emailText: string): Array<{ text: string; count: number }> {
-  const text = emailText;
-  // Look for common closing patterns in last 150 chars
-  const lastPart = text.slice(-150);
-  const doc = nlp(lastPart);
-  const closings: Map<string, number> = new Map();
-  
-  // Use compromise to find closing phrases
-  const formalClosings = doc.match('(sincerely|respectfully|cordially|yours truly|yours sincerely)');
-  const casualClosings = doc.match('(best|regards|cheers|thanks|thank you|take care|talk soon|later|bye|love|xoxo)');
-  const compoundClosings = doc.match('(best regards|kind regards|warm regards|many thanks|looking forward)');
-  
-  // Process each type of closing
-  [formalClosings, casualClosings, compoundClosings].forEach(closingSet => {
-    if (closingSet.found) {
-      closingSet.forEach((match: any) => {
-        // Remove trailing punctuation for consistency
-        const closing = match.text().toLowerCase().replace(/[,!.?]+$/, '');
-        closings.set(closing, (closings.get(closing) || 0) + 1);
-      });
-    }
-  });
-  
-  return Array.from(closings.entries())
-    .map(([text, count]) => ({ text, count }))
-    .sort((a, b) => b.count - a.count);
 }
 
 function analyzeEnhancedSentiment(text: string, _doc: any, winkResult: any): EmailFeatures['sentiment'] {
