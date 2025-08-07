@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Database, Terminal } from 'lucide-react'
+import { Database, Terminal, ExternalLink } from 'lucide-react'
 
 export default function DbBrowserPage() {
   return (
@@ -34,6 +34,15 @@ export default function DbBrowserPage() {
               </div>
 
               <div className="space-y-4">
+                <div className="mb-4">
+                  <Button asChild className="w-full" size="lg">
+                    <a href="http://localhost:8889" target="_blank" rel="noopener noreferrer">
+                      Open pgAdmin
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
+
                 <div>
                   <h3 className="text-sm font-medium mb-2">Using psql CLI:</h3>
                   <div className="bg-zinc-900 text-zinc-100 p-3 rounded-md font-mono text-xs overflow-x-auto">
