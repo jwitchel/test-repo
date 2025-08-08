@@ -159,7 +159,8 @@ export class TestDataManager {
       subject,
       textContent: body,
       htmlContent: null,
-      extractedText: body
+      userReply: body,
+      respondedTo: ''
     };
   }
 }
@@ -268,7 +269,8 @@ export class MockDataGenerator {
       subject,
       textContent: body,
       htmlContent: null,
-      extractedText: body
+      userReply: body,
+      respondedTo: ''
     };
   }
   

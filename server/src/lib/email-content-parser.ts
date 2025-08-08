@@ -1,6 +1,6 @@
 import { simpleParser, ParsedMail } from 'mailparser';
 
-export interface ExtractedText {
+export interface ParsedEmailContent {
   messageId: string;
   from: string;
   to: string[];
@@ -9,14 +9,14 @@ export interface ExtractedText {
   userTextRich?: string;    // HTML/Rich text version if available
 }
 
-export class EmailTextExtractor {
+export class EmailContentParser {
   /**
    * Extract text content from raw email data
    */
-  async extractFromRaw(rawEmail: string | Buffer): Promise<ExtractedText> {
+  async parseFromRaw(rawEmail: string | Buffer): Promise<ParsedEmailContent> {
     try {
       const parsed = await simpleParser(rawEmail);
-      return this.extractFromParsed(parsed);
+      return this.parseFromMailparser(parsed);
     } catch (error) {
       throw new Error(`Failed to parse email: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -25,7 +25,7 @@ export class EmailTextExtractor {
   /**
    * Extract text content from already parsed email
    */
-  extractFromParsed(parsedMail: ParsedMail): ExtractedText {
+  parseFromMailparser(parsedMail: ParsedMail): ParsedEmailContent {
     // Extract basic metadata
     const messageId = parsedMail.messageId || `generated-${Date.now()}`;
     const from = this.extractFromAddress(parsedMail);
@@ -111,4 +111,4 @@ export class EmailTextExtractor {
 }
 
 // Export singleton instance
-export const emailTextExtractor = new EmailTextExtractor();
+export const emailContentParser = new EmailContentParser();

@@ -56,7 +56,8 @@ async function testPipeline() {
         subject: 'Re: Dinner tonight?',
         textContent: "Hey honey! I'll be home by 7pm. Love you!",
         htmlContent: null,
-        extractedText: "Hey honey! I'll be home by 7pm. Love you!"
+        userReply: "Hey honey! I'll be home by 7pm. Love you!",
+        respondedTo: ''
       },
       {
         uid: 'test-uid-2',
@@ -70,7 +71,8 @@ async function testPipeline() {
         subject: 'Re: Project update',
         textContent: "Hi Mike, I've reviewed the proposal and it looks good. Let's schedule a meeting to discuss next steps.",
         htmlContent: null,
-        extractedText: "Hi Mike, I've reviewed the proposal and it looks good. Let's schedule a meeting to discuss next steps."
+        userReply: "Hi Mike, I've reviewed the proposal and it looks good. Let's schedule a meeting to discuss next steps.",
+        respondedTo: ''
       },
       {
         uid: 'test-uid-3',
@@ -84,7 +86,8 @@ async function testPipeline() {
         subject: 'Re: Weekend plans',
         textContent: "Hey dude! Yeah, I'm totally up for hiking on Saturday. What time works for you?",
         htmlContent: null,
-        extractedText: "Hey dude! Yeah, I'm totally up for hiking on Saturday. What time works for you?"
+        userReply: "Hey dude! Yeah, I'm totally up for hiking on Saturday. What time works for you?",
+        respondedTo: ''
       }
     ];
 

@@ -12,7 +12,8 @@ export interface ProcessedEmail {
   subject: string;
   textContent: string | null;
   htmlContent: string | null;
-  extractedText: string;
+  userReply: string;        // Just what the user wrote (no signature, no quotes) 
+  respondedTo: string;      // The quoted content the user was responding to
   relationship?: {
     type: string;
     confidence: number;

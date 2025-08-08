@@ -106,7 +106,18 @@ export class ToneLearningOrchestrator {
       await this.ingestionPipeline.processEmail(userId, email);
       return { processed: 1, errors: 0 };
     } catch (error) {
-      console.error('Error processing single email:', error);
+      // Include email details in error message
+      const emailPreview = email.textContent ? email.textContent.split(/\s+/).slice(0, 50).join(' ') : 'No content';
+      const errorContext = `
+Email Details:
+- Message ID: ${email.messageId}
+- From: ${email.from.map(f => f.address).join(', ')}
+- To: ${email.to.map(t => t.address).join(', ')}
+- Subject: ${email.subject}
+- Preview (first 50 words): ${emailPreview}...
+      `.trim();
+      
+      console.error(`Error processing single email:\n${errorContext}\n`, error);
       return { processed: 0, errors: 1 };
     }
   }
@@ -159,7 +170,7 @@ export class ToneLearningOrchestrator {
       console.log(chalk.gray('Incoming email:'));
       console.log(chalk.gray(`  From: ${incomingEmail.from[0]?.address}`));
       console.log(chalk.gray(`  Subject: ${incomingEmail.subject}`));
-      console.log(chalk.gray(`  Text: ${incomingEmail.extractedText.substring(0, 100)}...`));
+      console.log(chalk.gray(`  Text: ${incomingEmail.userReply.substring(0, 100)}...`));
     }
     
     // Step 1: Select relevant examples
@@ -169,7 +180,7 @@ export class ToneLearningOrchestrator {
     
     const exampleSelection = await this.exampleSelector.selectExamples({
       userId,
-      incomingEmail: incomingEmail.extractedText,
+      incomingEmail: incomingEmail.userReply,
       recipientEmail,
       desiredCount: maxExamples
     });
@@ -218,7 +229,8 @@ export class ToneLearningOrchestrator {
         subject: ex.metadata.subject || '',
         textContent: ex.text,
         htmlContent: null,
-        extractedText: ex.text
+        userReply: ex.text,
+        respondedTo: ''
       }));
       
       writingPatterns = await this.patternAnalyzer.analyzeWritingPatterns(
@@ -251,7 +263,7 @@ export class ToneLearningOrchestrator {
     }
     
     const prompt = await this.promptFormatter.formatWithExamples({
-      incomingEmail: incomingEmail.extractedText,
+      incomingEmail: incomingEmail.userReply,
       recipientEmail,
       examples: exampleSelection.examples,
       relationship: exampleSelection.relationship,

@@ -23,7 +23,6 @@ import {
   Settings,
   LogOut,
   User,
-  FileText,
   Bot
 } from 'lucide-react'
 import { cn } from '@/lib/utils'

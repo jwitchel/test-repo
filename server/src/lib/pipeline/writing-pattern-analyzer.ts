@@ -304,7 +304,7 @@ export class WritingPatternAnalyzer {
     let totalNamesRedacted = 0;
     const emailTexts = emails.map(email => {
       // Redact names from the email content
-      const redactionResult = nameRedactor.redactNames(email.extractedText);
+      const redactionResult = nameRedactor.redactNames(email.userReply);
       totalNamesRedacted += redactionResult.namesFound.length;
       
       return {

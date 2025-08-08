@@ -67,8 +67,8 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
           break;
         }
       } catch (err) {
-        console.log(`Error searching ${folder}:`, err);
-        // Try next folder
+        // This is expected when searching for the correct folder name
+        // Different email providers use different folder names
         continue;
       }
     }
@@ -147,7 +147,8 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
             subject: fullMessage.parsed.subject || '',
             textContent: originalText,  // ORIGINAL text (with quotes, signatures, etc)
             htmlContent: originalHtml,   // ORIGINAL HTML
-            extractedText: processedContent.userTextPlain  // PROCESSED text (sender's content only)
+            userReply: processedContent.userReply,  // Just what the user wrote (no signatures, no quotes)
+            respondedTo: processedContent.respondedTo  // The quoted content the user was responding to
           };
 
           // Process ONE email at a time through the orchestrator - sequential method
@@ -377,29 +378,37 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       for (const relationship of relationships) {
         const emails = emailsByRelationship[relationship];
         
-        // Convert to ProcessedEmail format and remove signatures
-        const emailsForAnalysis = await Promise.all(emails.map(async (email: any) => {
-          let extractedText = email.metadata.extractedText || '';
-          
-          // Remove signature using regex patterns
-          const signatureResult = await regexSignatureDetector.removeSignature(extractedText, userId);
-          extractedText = signatureResult.cleanedText;
-          
-          return {
-            uid: email.id,
-            messageId: email.id,
-            inReplyTo: null,
-            date: new Date(email.metadata.sentDate || Date.now()),
-            from: [{ address: userId, name: '' }],
-            to: [{ address: email.metadata.recipientEmail || '', name: '' }],
-            cc: [],
-            bcc: [],
-            subject: email.metadata.subject || '',
-            textContent: extractedText,
-            htmlContent: null,
-            extractedText: extractedText
-          };
-        }));
+        // Convert to ProcessedEmail format - only process emails with userReply
+        const emailsForAnalysis = await Promise.all(emails
+          .filter((email: any) => {
+            // Include all emails with userReply (including [ForwardedWithoutComment])
+            if (!email.metadata.userReply) {
+              console.warn(`[Pattern Analysis] Skipping email ${email.id} - no userReply field`);
+              return false;
+            }
+            return true;
+          })
+          .map(async (email: any) => {
+            // Use userReply which is the redacted user reply (already processed by pipeline)
+            // This has quotes/signatures removed AND names redacted
+            const textForAnalysis = email.metadata.userReply;
+            
+            return {
+              uid: email.id,
+              messageId: email.id,
+              inReplyTo: null,
+              date: new Date(email.metadata.sentDate || Date.now()),
+              from: [{ address: userId, name: '' }],
+              to: [{ address: email.metadata.recipientEmail || '', name: '' }],
+              cc: [],
+              bcc: [],
+              subject: email.metadata.subject || '',
+              textContent: textForAnalysis,
+              htmlContent: null,
+              userReply: textForAnalysis,
+              respondedTo: ''
+            };
+          }));
         
         imapLogger.log(userId, {
           userId,
@@ -453,29 +462,37 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
         });
       }
       
-      // Now analyze aggregate patterns (all emails combined)
-      const allEmailsForAnalysis = await Promise.all(allEmails.map(async (email: any) => {
-        let extractedText = email.metadata.extractedText || '';
-        
-        // Remove signature using regex patterns
-        const signatureResult = await regexSignatureDetector.removeSignature(extractedText, userId);
-        extractedText = signatureResult.cleanedText;
-        
-        return {
-          uid: email.id,
-          messageId: email.id,
-          inReplyTo: null,
-          date: new Date(email.metadata.sentDate || Date.now()),
-          from: [{ address: userId, name: '' }],
-          to: [{ address: email.metadata.recipientEmail || '', name: '' }],
-          cc: [],
-          bcc: [],
-          subject: email.metadata.subject || '',
-          textContent: extractedText,
-          htmlContent: null,
-          extractedText: extractedText
-        };
-      }));
+      // Now analyze aggregate patterns (all emails combined) - only emails with userReply
+      const allEmailsForAnalysis = await Promise.all(allEmails
+        .filter((email: any) => {
+          // Include all emails with userReply (including [ForwardedWithoutComment])
+          if (!email.metadata.userReply) {
+            console.warn(`[Pattern Analysis - Aggregate] Skipping email ${email.id} - no userReply field`);
+            return false;
+          }
+          return true;
+        })
+        .map(async (email: any) => {
+          // Use userReply which is the redacted user reply (already processed by pipeline)
+          // This has quotes/signatures removed AND names redacted
+          const textForAnalysis = email.metadata.userReply;
+          
+          return {
+            uid: email.id,
+            messageId: email.id,
+            inReplyTo: null,
+            date: new Date(email.metadata.sentDate || Date.now()),
+            from: [{ address: userId, name: '' }],
+            to: [{ address: email.metadata.recipientEmail || '', name: '' }],
+            cc: [],
+            bcc: [],
+            subject: email.metadata.subject || '',
+            textContent: textForAnalysis,
+            htmlContent: null,
+            userReply: textForAnalysis,
+            respondedTo: ''
+          };
+        }));
       
       imapLogger.log(userId, {
         userId,
@@ -650,7 +667,7 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
       
       for (const email of emails) {
         // Use rawText if available, otherwise use extractedText
-        const originalText = email.metadata.rawText || email.metadata.extractedText || '';
+        const originalText = email.metadata.rawText || email.metadata.userReply || '';
         
         // Remove signature
         const result = await regexSignatureDetector.removeSignature(originalText, userId);
@@ -678,7 +695,7 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
           // Update the email in vector store
           const updatedMetadata = {
             ...email.metadata,
-            extractedText: result.cleanedText,
+            userReply: result.cleanedText,
             rawText: originalText
           };
           
@@ -809,7 +826,7 @@ router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
       
       for (const email of emails) {
         // Get the original text (prefer rawText if available)
-        const originalText = email.metadata.rawText || email.metadata.extractedText || '';
+        const originalText = email.metadata.rawText || email.metadata.userReply || '';
         
         // Step 1: Remove signature
         const signatureResult = await regexSignatureDetector.removeSignature(originalText, userId);
@@ -843,7 +860,7 @@ router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
           // Update the email in vector store
           const updatedMetadata = {
             ...email.metadata,
-            extractedText: finalText,  // Store fully processed text
+            userReply: finalText,  // Store fully processed text
             rawText: originalText,     // Keep original text
             redactedNames: redactionResult.namesFound,  // Store list of redacted names
             redactedEmails: redactionResult.emailsFound  // Store list of redacted emails
@@ -998,10 +1015,10 @@ router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
         
         // Use extractedText (which should already have signatures removed) for redaction
         // Fall back to rawText if extractedText is not available
-        const textToRedact = email.metadata.extractedText || email.metadata.rawText || '';
+        const textToRedact = email.metadata.userReply || email.metadata.rawText || '';
         
         // Store the original text (before any processing) if not already stored
-        const originalText = email.metadata.rawText || email.metadata.extractedText || '';
+        const originalText = email.metadata.rawText || email.metadata.userReply || '';
         
         // Redact names from the signature-cleaned text
         const redactionResult = nameRedactor.redactNames(textToRedact);
@@ -1027,7 +1044,7 @@ router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
           // Update the email in vector store
           const updatedMetadata = {
             ...email.metadata,
-            extractedText: redactionResult.text,  // Store redacted text
+            userReply: redactionResult.text,  // Store redacted text
             rawText: originalText,               // Keep original text
             redactedNames: redactionResult.namesFound  // Store list of redacted names
           };

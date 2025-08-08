@@ -69,9 +69,10 @@ async function testPatternCorpusSize() {
           cc: [],
           bcc: [],
           subject: result.metadata.subject || '',
-          textContent: result.metadata.extractedText,
+          textContent: result.metadata.userReply || '',
           htmlContent: null,
-          extractedText: result.metadata.extractedText
+          userReply: result.metadata.userReply || '',
+          respondedTo: ''
         }));
         
         // Analyze patterns

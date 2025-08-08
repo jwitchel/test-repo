@@ -84,7 +84,7 @@ async function benchmarkVectorPerformance() {
         metadata: {
           emailId: `email-${i}`,
           userId: testUserId,
-          extractedText: text,
+          userReply: text,
           recipientEmail: 'test@example.com',
           subject: 'Test Email',
           sentDate: new Date().toISOString(),

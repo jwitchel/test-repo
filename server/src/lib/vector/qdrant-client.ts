@@ -6,8 +6,9 @@ dotenv.config();
 export interface EmailMetadata {
   emailId: string;
   userId: string;
-  extractedText: string;      // Cleaned text (no signature)
   rawText?: string;           // Original email with signature (optional for backward compat)
+  userReply?: string;         // Just what the user wrote (no quotes, no signatures)
+  respondedTo?: string;       // The quoted content the user was responding to
   redactedNames?: string[];   // Names that were redacted from the email
   redactedEmails?: string[];  // Email addresses that were redacted
   recipientEmail: string;
@@ -370,13 +371,48 @@ export class VectorStore {
     await this.initialize();
 
     try {
+      // First, count how many records we're about to delete
+      const scrollResult = await this.client.scroll(this.collectionName, {
+        filter: {
+          must: [
+            { key: 'userId', match: { value: userId } }
+          ]
+        },
+        limit: 1,
+        with_payload: false,
+        with_vector: false
+      });
+      
+      console.log(`[VectorStore] Found ${scrollResult.points.length} records for user ${userId} to delete`);
+      
+      // Delete using the filter
       await this.client.delete(this.collectionName, {
         filter: {
           must: [
             { key: 'userId', match: { value: userId } }
           ]
-        }
+        },
+        wait: true // Wait for the operation to complete
       });
+      
+      console.log(`[VectorStore] Delete operation completed for user ${userId}`);
+      
+      // Verify deletion
+      const verifyResult = await this.client.scroll(this.collectionName, {
+        filter: {
+          must: [
+            { key: 'userId', match: { value: userId } }
+          ]
+        },
+        limit: 1,
+        with_payload: false,
+        with_vector: false
+      });
+      
+      if (verifyResult.points.length > 0) {
+        console.warn(`[VectorStore] Warning: ${verifyResult.points.length} records still remain for user ${userId}`);
+      }
+      
     } catch (error) {
       throw new Error(`Failed to delete user data: ${error}`);
     }

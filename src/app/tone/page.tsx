@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ArrowLeft, RefreshCw, Loader2 } from 'lucide-react'
+import { RefreshCw, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface WritingPatterns {
@@ -174,13 +174,8 @@ export default function TonePage() {
 
   const currentProfile = toneData.profiles[selectedRelationship]
   
-  // The patterns might be directly on currentProfile if writingPatterns was spread
-  let patterns = currentProfile
-  
-  // Check if patterns are nested under writingPatterns
-  if (currentProfile?.writingPatterns) {
-    patterns = currentProfile.writingPatterns
-  }
+  // Extract the writing patterns from the profile
+  const patterns: WritingPatterns | undefined = currentProfile?.writingPatterns
   
   // Debug logging
   if (patterns) {
@@ -445,9 +440,8 @@ export default function TonePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {(patterns?.typedName || patterns?.TypedName || patterns?.typed_name) && 
-                     (patterns.typedName || patterns.TypedName || patterns.typed_name).length > 0 ? (
-                      (patterns.typedName || patterns.TypedName || patterns.typed_name).map((pattern, idx) => (
+                    {patterns?.typedName && patterns.typedName.length > 0 ? (
+                      patterns.typedName.map((pattern, idx) => (
                         <div key={idx} className="flex items-center justify-between">
                           <span className="text-sm font-medium">{pattern.style || pattern.phrase || 'Unknown'}</span>
                           <div className="flex items-center gap-2">
@@ -552,25 +546,25 @@ export default function TonePage() {
                       {new Date(currentProfile.last_updated).toLocaleDateString()}
                     </p>
                   </div>
-                  {currentProfile.meta?.modelUsed && (
+                  {(typeof currentProfile.meta?.modelUsed === 'string') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">AI Model</p>
                       <p className="font-medium">{currentProfile.meta.modelUsed}</p>
                     </div>
                   )}
-                  {currentProfile.meta?.corpusSize && (
+                  {(typeof currentProfile.meta?.corpusSize === 'number') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Sample Size</p>
                       <p className="font-medium">{currentProfile.meta.corpusSize} emails</p>
                     </div>
                   )}
-                  {currentProfile.meta?.confidence && (
+                  {(typeof currentProfile.meta?.confidence === 'number') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Confidence Level</p>
                       <p className="font-medium">{Math.round(currentProfile.meta.confidence * 100)}%</p>
                     </div>
                   )}
-                  {currentProfile.meta?.lastAnalyzed && (
+                  {(typeof currentProfile.meta?.lastAnalyzed === 'string') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Analysis Date</p>
                       <p className="font-medium">
@@ -578,7 +572,7 @@ export default function TonePage() {
                       </p>
                     </div>
                   )}
-                  {currentProfile.meta?.emailCount && (
+                  {(typeof currentProfile.meta?.emailCount === 'number') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Email Count (Meta)</p>
                       <p className="font-medium">{currentProfile.meta.emailCount}</p>

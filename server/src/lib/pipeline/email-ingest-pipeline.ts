@@ -118,17 +118,31 @@ export class EmailIngestPipeline {
   }
   
   async processEmail(userId: string, email: ProcessedEmail) {
-    // Redact names from the email text before processing
-    const redactionResult = nameRedactor.redactNames(email.extractedText);
-    const redactedText = redactionResult.text;
+    // Handle emails without userReply - set placeholder for forwarded emails
+    let userReplyToProcess = email.userReply;
+    if (!userReplyToProcess) {
+      console.log(`[Email Ingestion] Forwarded email without comment - using placeholder
+Email Details:
+- Message ID: ${email.messageId}
+- From: ${email.from.map(f => f.address).join(', ')}
+- To: ${email.to.map(t => t.address).join(', ')}
+- Subject: ${email.subject}`);
+      
+      userReplyToProcess = '[ForwardedWithoutComment]';
+    }
+    
+    // Redact names from the user's reply text only
+    const redactionResult = nameRedactor.redactNames(userReplyToProcess);
+    const redactedUserReply = redactionResult.text;
     
     // Log redaction if names were found
     if (redactionResult.namesFound.length > 0) {
       console.log(`[Email Ingestion] Redacted ${redactionResult.namesFound.length} names from email ${email.messageId}`);
     }
     
-    // Extract NLP features from redacted text
-    const features = extractEmailFeatures(redactedText, {
+    // Extract NLP features from the redacted user reply ONLY
+    // We ONLY analyze what the user actually wrote, not quoted content
+    const features = extractEmailFeatures(redactedUserReply, {
       email: email.to[0]?.address || '',
       name: email.to[0]?.name || ''
     });
@@ -145,22 +159,38 @@ export class EmailIngestPipeline {
       };
     } else {
       // Otherwise, detect it
-      relationship = await this.relationshipDetector.detectRelationship({
-        userId,
-        recipientEmail: email.to[0]?.address || '',
-        subject: email.subject,
-        historicalContext: {
-          familiarityLevel: features.relationshipHints.familiarityLevel,
-          hasIntimacyMarkers: features.relationshipHints.intimacyMarkers.length > 0,
-          hasProfessionalMarkers: features.relationshipHints.professionalMarkers.length > 0,
-          formalityScore: features.stats.formalityScore
-        }
-      });
+      try {
+        relationship = await this.relationshipDetector.detectRelationship({
+          userId,
+          recipientEmail: email.to[0]?.address || '',
+          subject: email.subject,
+          historicalContext: {
+            familiarityLevel: features.relationshipHints.familiarityLevel,
+            hasIntimacyMarkers: features.relationshipHints.intimacyMarkers.length > 0,
+            hasProfessionalMarkers: features.relationshipHints.professionalMarkers.length > 0,
+            formalityScore: features.stats.formalityScore
+          }
+        });
+      } catch (error) {
+        const emailPreview = email.textContent ? email.textContent.split(/\s+/).slice(0, 50).join(' ') : 'No content';
+        const errorContext = `
+Email Details:
+- Message ID: ${email.messageId}
+- From: ${email.from.map(f => f.address).join(', ')}
+- To: ${email.to.map(t => t.address).join(', ')}
+- Subject: ${email.subject}
+- Preview (first 50 words): ${emailPreview}...
+        `.trim();
+        
+        console.error(`[Email Ingestion] Failed to detect relationship\n${errorContext}`);
+        throw new Error(`${error instanceof Error ? error.message : 'Failed to detect relationship'}\n${errorContext}`);
+      }
     }
     
-    // Generate embedding with retry - use redacted text for embedding
+    // Generate embedding with retry - use the redacted user reply ONLY
+    // We embed only what the user wrote, not any quoted content
     const { vector } = await withRetry(
-      () => this.embeddingService.embedText(redactedText),
+      () => this.embeddingService.embedText(redactedUserReply),
       {
         onRetry: (error, attempt) => {
           console.warn(`Embedding generation failed (attempt ${attempt}):`, error.message);
@@ -177,8 +207,9 @@ export class EmailIngestPipeline {
       metadata: {
         emailId: email.messageId,
         userId,
-        extractedText: redactedText, // Store redacted text for analysis
-        rawText: email.extractedText, // Store original (unredacted) text
+        userReply: redactedUserReply, // Store redacted user reply for analysis
+        rawText: email.textContent || '', // Store original full text (with quotes, etc)
+        respondedTo: email.respondedTo, // The quoted content the user was responding to
         redactedNames: redactionResult.namesFound, // Store names that were redacted
         redactedEmails: redactionResult.emailsFound, // Store emails that were redacted
         recipientEmail: email.to[0]?.address || '',

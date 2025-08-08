@@ -26,7 +26,6 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, Plus, Trash2, Edit, Check, Zap, WifiOff } from 'lucide-react'
 import useSWR, { mutate } from 'swr'
-import Link from 'next/link'
 
 interface LLMProvider {
   id: string

@@ -345,7 +345,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
     // Step 7: Format examples for the prompt
     const selectedExamples: SelectedExample[] = searchResults.map(result => ({
       id: result.id,
-      text: result.metadata.extractedText,
+      text: result.metadata.userReply || '',
       score: result.score || 0,
       metadata: result.metadata
     }));
@@ -458,9 +458,10 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
             cc: [],
             bcc: [],
             subject: result.metadata.subject || '',
-            textContent: result.metadata.extractedText,
+            textContent: result.metadata.userReply || '',
             htmlContent: null,
-            extractedText: result.metadata.extractedText
+            userReply: result.metadata.userReply || '',
+            respondedTo: ''
           }));
           
           writingPatterns = await patternAnalyzer.analyzeWritingPatterns(

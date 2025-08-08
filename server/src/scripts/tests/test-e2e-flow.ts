@@ -97,7 +97,8 @@ async function runE2ETest() {
         subject: scenario.email.subject,
         textContent: scenario.email.text,
         htmlContent: null,
-        extractedText: scenario.email.text,
+        userReply: scenario.email.text,
+        respondedTo: '',
         relationship: {
           type: 'unknown',
           confidence: 0,

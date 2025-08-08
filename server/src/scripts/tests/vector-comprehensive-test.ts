@@ -92,7 +92,7 @@ async function comprehensiveVectorTest() {
       metadata: {
         emailId: `email-${idx}`,
         userId: testUserId,
-        extractedText: testEmails[idx].text,
+        userReply: testEmails[idx].text,
         recipientEmail: testEmails[idx].recipient,
         subject: 'Test Email',
         sentDate: new Date().toISOString(),
@@ -127,7 +127,7 @@ async function comprehensiveVectorTest() {
       metadata: {
         emailId: `test-single-${Date.now()}`,
         userId: testUserId,
-        extractedText: testText,
+        userReply: testText,
         recipientEmail: 'colleague@company.com',
         subject: 'Project deadline discussion',
         sentDate: new Date().toISOString(),
@@ -164,7 +164,7 @@ async function comprehensiveVectorTest() {
     if (searchResults.length > 0) {
       console.log('   Top results:');
       searchResults.slice(0, 3).forEach((result, idx) => {
-        console.log(`   ${idx + 1}. "${result.metadata.extractedText}" (score: ${result.score?.toFixed(4)}, relationship: ${result.metadata.relationship.type})`);
+        console.log(`   ${idx + 1}. "${result.metadata.userReply}" (score: ${result.score?.toFixed(4)}, relationship: ${result.metadata.relationship.type})`);
       });
     }
 
@@ -190,7 +190,7 @@ async function comprehensiveVectorTest() {
     console.log(`✅ Found ${duplicates.length} near-duplicates for: "${duplicateQuery}"`);
     if (duplicates.length > 0) {
       duplicates.forEach((dup, idx) => {
-        console.log(`   ${idx + 1}. "${dup.metadata.extractedText}" (score: ${dup.score?.toFixed(4)})`);
+        console.log(`   ${idx + 1}. "${dup.metadata.userReply}" (score: ${dup.score?.toFixed(4)})`);
       });
     }
 
@@ -254,7 +254,7 @@ async function comprehensiveVectorTest() {
       metadata: {
         emailId: directTestId,
         userId: 'direct-test-user',
-        extractedText: directTestText,
+        userReply: directTestText,
         recipientEmail: 'test@example.com',
         subject: 'Direct Test',
         sentDate: new Date().toISOString(),
@@ -278,7 +278,7 @@ async function comprehensiveVectorTest() {
     });
     console.log(`✅ Direct search retrieved ${directResults.length} results`);
     if (directResults.length > 0) {
-      console.log(`   Match: "${directResults[0].metadata.extractedText}" (score: ${directResults[0].score?.toFixed(4)})`);
+      console.log(`   Match: "${directResults[0].metadata.userReply}" (score: ${directResults[0].score?.toFixed(4)})`);
     }
     
     // Clean up direct test data

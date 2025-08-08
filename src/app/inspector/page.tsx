@@ -18,12 +18,6 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 
-interface EmailAccount {
-  id: string
-  email_address: string
-  imap_host: string
-  imap_port: number
-}
 
 interface LLMProvider {
   id: string
@@ -104,7 +98,7 @@ John`
 export default function ImapLogsDemoPage() {
   const { user } = useAuth()
   const { success, error: showError } = useToast()
-  const [selectedAccountId] = useState<string>(DEMO_ACCOUNT_ID)
+  const [] = useState<string>(DEMO_ACCOUNT_ID)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   
   // LLM Provider state

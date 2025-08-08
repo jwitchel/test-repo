@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp, Brain, Sparkles, Mail } from 'lucide-react'
+import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp, Brain, Mail } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -50,7 +50,6 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: Trai
   const [isWiping, setIsWiping] = useState(false)
   const [showWipeDialog, setShowWipeDialog] = useState(false)
   const [isAnalyzingPatterns, setIsAnalyzingPatterns] = useState(false)
-  const [isCleaningEmails, setIsCleaningEmails] = useState(false)
   const [emailCount, setEmailCount] = useState('100')
   // Default to tomorrow to include all emails up to today
   const tomorrow = new Date()
@@ -230,34 +229,6 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: Trai
     }
   }
 
-  const handleCleanEmails = async () => {
-    setIsCleaningEmails(true)
-
-    try {
-      // Use the combined endpoint that does both signature cleaning and name redaction
-      const response = await fetch('http://localhost:3002/api/training/process-emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to process emails')
-      }
-
-      const result = await response.json()
-      
-      // Show combined results
-      success(`Email processing complete! Cleaned ${result.totalCleaned} signatures and redacted ${result.totalNamesFound} names + ${result.totalEmailsFound} emails from ${result.totalProcessed} emails.`)
-    } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to process emails')
-    } finally {
-      setIsCleaningEmails(false)
-    }
-  }
 
   return (
     <Card>
@@ -427,26 +398,6 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: Trai
             </Button>
           </div>
 
-          <Button
-            onClick={handleCleanEmails}
-            disabled={isCleaningEmails}
-            size="sm"
-            variant="secondary"
-            className="w-full"
-            title="Remove signatures and redact names from loaded emails"
-          >
-            {isCleaningEmails ? (
-              <>
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-3 w-3 mr-1" />
-                Clean & Redact
-              </>
-            )}
-          </Button>
         </div>
 
         <AlertDialog open={showWipeDialog} onOpenChange={setShowWipeDialog}>

@@ -120,7 +120,7 @@ export class ExampleSelector {
     if (candidates.length <= count) {
       return candidates.map(c => ({
         id: c.id,
-        text: c.metadata.extractedText,
+        text: c.metadata.userReply,
         metadata: c.metadata,
         score: c.score || 0
       }));
@@ -150,7 +150,7 @@ export class ExampleSelector {
           const best = unused[0];
           selected.push({
             id: best.id,
-            text: best.metadata.extractedText,
+            text: best.metadata.userReply,
             metadata: best.metadata,
             score: best.score || 0
           });
@@ -170,7 +170,7 @@ export class ExampleSelector {
     // Simple selection by similarity score when diversity weight is 0
     return candidates.slice(0, count).map(c => ({
       id: c.id,
-      text: c.metadata.extractedText,
+      text: c.metadata.userReply,
       metadata: c.metadata,
       score: c.score || 0
     }));
