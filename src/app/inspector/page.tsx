@@ -238,6 +238,7 @@ export default function ImapLogsDemoPage() {
   }
   
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null)
+  const [editedPrompt, setEditedPrompt] = useState<string>('')
   const [activeTab, setActiveTab] = useState('email-input')
 
   // Fetch LLM providers and relationship types on mount
@@ -342,6 +343,7 @@ export default function ImapLogsDemoPage() {
       console.log('Analysis results:', results)
       console.log('Selected examples:', results.selectedExamples)
       setAnalysisResults(results)
+      setEditedPrompt(decodeHtmlEntitiesSafe(results.llmPrompt))
       
       // Switch to prompt tab after analysis
       setActiveTab('prompt')
@@ -383,7 +385,7 @@ export default function ImapLogsDemoPage() {
         },
         credentials: 'include',
         body: JSON.stringify({
-          llm_prompt: decodeHtmlEntitiesSafe(analysisData.llmPrompt),
+          llm_prompt: editedPrompt || decodeHtmlEntitiesSafe(analysisData.llmPrompt),
           nlp_features: analysisData.nlpFeatures,
           relationship: analysisData.relationship,
           enhanced_profile: analysisData.enhancedProfile,
@@ -795,11 +797,22 @@ export default function ImapLogsDemoPage() {
                                   size="sm" 
                                   variant="outline"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(decodeHtmlEntitiesSafe(analysisResults.llmPrompt))
+                                    navigator.clipboard.writeText(editedPrompt)
                                     success('Prompt copied to clipboard')
                                   }}
                                 >
                                   Copy
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditedPrompt(decodeHtmlEntitiesSafe(analysisResults.llmPrompt))
+                                    success('Prompt reset to original')
+                                  }}
+                                  disabled={editedPrompt === decodeHtmlEntitiesSafe(analysisResults.llmPrompt)}
+                                >
+                                  Reset
                                 </Button>
                                 <Button
                                   onClick={() => handleGenerateReply()}
@@ -823,9 +836,12 @@ export default function ImapLogsDemoPage() {
                               </div>
                             </div>
                             <div className="flex-1 overflow-auto">
-                              <pre className="text-xs bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap">
-                                {decodeHtmlEntitiesSafe(analysisResults.llmPrompt)}
-                              </pre>
+                              <textarea
+                                className="w-full h-full text-xs bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap font-mono resize-none border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                value={editedPrompt}
+                                onChange={(e) => setEditedPrompt(e.target.value)}
+                                placeholder="Edit the prompt here..."
+                              />
                             </div>
                           </div>
                         ) : (
