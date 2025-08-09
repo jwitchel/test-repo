@@ -2,6 +2,18 @@
 
 MIRROR THESE EXACT PATTERNS:
 
+{{!-- Calculate dominant paragraph pattern and response format --}}
+{{#each patterns.paragraphPatterns}}
+  {{#if @first}}
+CRITICAL: For this response, use {{uppercase this.type}} FORMAT (your {{this.percentage}}% pattern).
+{{#if (eq this.type "single-line response")}}The ENTIRE response should be 1-2 sentences maximum, no line breaks.{{/if}}
+{{#if (eq this.type "brief-multi-line")}}Keep response brief (2-4 short lines) with line breaks between distinct points.{{/if}}
+{{#if (eq this.type "multi-paragraph")}}Use multiple paragraphs with proper line breaks between thoughts.{{/if}}
+{{#if (eq this.type "mixed")}}Match the response format to the context - brief for simple matters, detailed for complex topics.{{/if}}
+Target length: {{round ../sentencePatterns.avgLength 0}} words per sentence, aim for {{#if (eq this.type "single-line response")}}1-2 sentences total{{else}}{{#if (eq this.type "brief-multi-line")}}2-4 short lines{{else}}your typical response length{{/if}}{{/if}}.
+  {{/if}}
+{{/each}}
+
 SENTENCE STRUCTURE:
 - Average length: {{round patterns.sentencePatterns.avgLength 1}} words
 - Short sentences (<10 words): {{percent patterns.sentencePatterns.distribution.short}}%

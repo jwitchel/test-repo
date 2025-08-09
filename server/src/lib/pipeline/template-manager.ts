@@ -106,6 +106,11 @@ export class TemplateManager {
       return text ? text.toUpperCase() : '';
     });
     
+    // Equality helper
+    Handlebars.registerHelper('eq', (a: any, b: any) => {
+      return a === b;
+    });
+    
     // Percentage helper
     Handlebars.registerHelper('percent', (value: number) => {
       if (typeof value !== 'number') return '0';
