@@ -18,10 +18,22 @@ router.get('/', requireAuth, async (req, res) => {
     // Transform rows into object with target identifiers as keys
     const profiles: any = {};
     result.rows.forEach(row => {
-      // Use target_identifier as key (e.g., 'aggregate', 'friend', 'manager')
+      // Always return a consistent structure with writingPatterns at the root
+      const writingPatterns = row.profile_data.writingPatterns || {};
+      
       profiles[row.target_identifier] = {
-        ...(row.profile_data.writingPatterns || row.profile_data), // Handle both old and new format
-        meta: row.profile_data.meta,
+        // Writing pattern fields at root level
+        sentencePatterns: writingPatterns.sentencePatterns || null,
+        paragraphPatterns: writingPatterns.paragraphPatterns || [],
+        openingPatterns: writingPatterns.openingPatterns || [],
+        valediction: writingPatterns.valediction || [],
+        typedName: writingPatterns.typedName || [],
+        negativePatterns: writingPatterns.negativePatterns || [],
+        responsePatterns: writingPatterns.responsePatterns || null,
+        uniqueExpressions: writingPatterns.uniqueExpressions || [],
+        
+        // Metadata fields
+        meta: row.profile_data.meta || {},
         emails_analyzed: row.emails_analyzed,
         last_updated: row.last_updated,
         preference_type: row.preference_type

@@ -64,8 +64,7 @@ interface WritingPatterns {
   }>
 }
 
-interface ToneProfile {
-  writingPatterns?: WritingPatterns
+interface ToneProfile extends Partial<WritingPatterns> {
   meta?: {
     modelUsed?: string
     corpusSize?: number
@@ -174,20 +173,8 @@ export default function TonePage() {
 
   const currentProfile = toneData.profiles[selectedRelationship]
   
-  // Extract the writing patterns from the profile
-  const patterns: WritingPatterns | undefined = currentProfile?.writingPatterns
-  
-  // Debug logging
-  if (patterns) {
-    console.log('=== Tone Data Debug ===')
-    console.log('Selected Relationship:', selectedRelationship)
-    console.log('Current Profile:', currentProfile)
-    console.log('Patterns object:', patterns)
-    console.log('Pattern keys:', Object.keys(patterns))
-    console.log('TypedName data:', patterns.typedName)
-    console.log('Valediction data:', patterns.valediction)
-    console.log('Opening patterns:', patterns.openingPatterns)
-  }
+  // The API now returns a consistent structure with pattern fields at the root level
+  const patterns: WritingPatterns | undefined = currentProfile as WritingPatterns
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8">
