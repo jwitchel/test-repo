@@ -61,14 +61,15 @@ describe('Writing Patterns Partial', () => {
     const result = template({ patterns: testPatterns });
 
     // Verify key sections are present
-    expect(result).toContain('=== WRITING PATTERN INSTRUCTIONS ===');
-    expect(result).toContain('SENTENCE STRUCTURE:');
+    expect(result).toContain('=== WRITING PATTERNS FOR THIS RESPONSE ===');
+    expect(result).toContain('FOR MULTIPLE SENTENCE REPLIES THE WRITER USES THE FOLLOWING SENTENCE LENGTHS:');
     expect(result).toContain('Average length: 12.5 words');
     expect(result).toContain('Short sentences (<10 words): 30%');
     
     // Check openings
-    expect(result).toContain('OPENINGS (use exactly as shown):');
+    expect(result).toContain('OPENINGS:');
     expect(result).toContain('"Hi [Name]," (80%)');
+    // The pattern '[right to the point]' should not be transformed in the raw partial test
     expect(result).toContain('"[right to the point]" (20%) - For follow-ups');
     
     // Check negative patterns
@@ -82,7 +83,7 @@ describe('Writing Patterns Partial', () => {
     
     // Check unique expressions
     expect(result).toContain('UNIQUE PHRASES TO USE:');
-    expect(result).toContain('"Happy to help" - use When offering assistance (40%)');
+    expect(result).toContain('"Happy to help" - When offering assistance (40%)');
   });
 
   it('should handle empty pattern sections gracefully', () => {
@@ -113,8 +114,8 @@ describe('Writing Patterns Partial', () => {
 
     // Should still have section headers even if empty
     expect(result).toContain('PARAGRAPH STRUCTURE:');
-    expect(result).toContain('OPENINGS (use exactly as shown):');
-    expect(result).toContain('VALEDICTIONS (closing phrases):');
+    expect(result).toContain('OPENINGS:');
+    expect(result).toContain('VALEDICTIONS (closing phrases before the typed name):');
     expect(result).toContain('NEVER DO THESE THINGS:');
     expect(result).toContain('UNIQUE PHRASES TO USE:');
     
