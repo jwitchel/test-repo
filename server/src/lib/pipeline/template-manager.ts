@@ -192,7 +192,7 @@ export class TemplateManager {
 
   formatExamplesForTemplate(examples: SelectedExample[]): FormattedExample[] {
     return examples.map(ex => ({
-      text: ex.text,
+      text: this.transformExampleText(ex.text),
       relationship: ex.metadata.relationship?.type || 'unknown',
       score: ex.score,
       subject: ex.metadata.subject,
@@ -202,6 +202,14 @@ export class TemplateManager {
       urgency: ex.metadata.features?.urgency?.level,
       keyPhrases: this.extractKeyPhrases(ex)
     }));
+  }
+  
+  private transformExampleText(text: string): string {
+    // Transform special placeholders in example text
+    if (text === '[ForwardedWithoutComment]') {
+      return '(This email was forwarded without adding any personal message)';
+    }
+    return text;
   }
 
   private extractKeyPhrases(example: SelectedExample): string[] {
@@ -266,7 +274,7 @@ export class TemplateManager {
         : undefined,
       profile: params.relationshipProfile,
       nlpFeatures: params.nlpFeatures,
-      patterns: params.writingPatterns || undefined,
+      patterns: params.writingPatterns ? this.transformPatternsForTemplate(params.writingPatterns) : undefined,
       meta: {
         exampleCount: params.examples.length,
         relationshipMatchCount: exactMatches.length,
@@ -274,6 +282,59 @@ export class TemplateManager {
         formalityLevel: this.describeFormalityLevel(avgFormality)
       }
     };
+  }
+
+  private transformPatternsForTemplate(patterns: WritingPatterns): any {
+    // Transform special placeholders into clear instructions
+    return {
+      ...patterns,
+      openingPatterns: patterns.openingPatterns.map(pattern => ({
+        ...pattern,
+        pattern: this.transformPatternText(pattern.pattern),
+        isInstruction: this.isInstructionPattern(pattern.pattern)
+      })),
+      valediction: patterns.valediction.map(pattern => ({
+        ...pattern,
+        phrase: pattern.phrase === '[None]'
+          ? 'skip closing phrase entirely'
+          : pattern.phrase,
+        isInstruction: pattern.phrase === '[None]'
+      })),
+      typedName: patterns.typedName.map(pattern => ({
+        ...pattern,
+        phrase: pattern.phrase === '[None]'
+          ? "don't close with your name at all"
+          : pattern.phrase === '[firstname]'
+          ? 'use first name only'
+          : pattern.phrase,
+        isInstruction: pattern.phrase === '[None]' || pattern.phrase === '[firstname]'
+      }))
+    };
+  }
+
+  private transformPatternText(pattern: string): string {
+    // Transform placeholder patterns into clear instructions
+    if (pattern === '[right to the point]') {
+      return 'start directly with the main point (no greeting)';
+    }
+    if (pattern === '[None]') {
+      return 'skip opening entirely';
+    }
+    if (pattern === '[firstname]') {
+      return 'sse recipient\'s first name only';
+    }
+    // For actual greeting patterns, return as-is
+    return pattern;
+  }
+
+  private isInstructionPattern(pattern: string): boolean {
+    // Determine if this is an instruction pattern (not a literal greeting)
+    const instructionPatterns = [
+      '[right to the point]',
+      '[None]',
+      '[firstname]'
+    ];
+    return instructionPatterns.includes(pattern);
   }
 
   private describeFormalityLevel(score: number): string {

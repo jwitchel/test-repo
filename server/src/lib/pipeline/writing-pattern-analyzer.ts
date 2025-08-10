@@ -599,11 +599,24 @@ export class WritingPatternAnalyzer {
       });
     });
 
-    return Array.from(merged.entries()).map(([type, data]) => ({
-      type,
-      percentage: Math.round(data.totalPercentage / data.totalWeight),
-      description: data.description
-    }));
+    const patterns = Array.from(merged.entries())
+      .map(([type, data]) => ({
+        type,
+        percentage: Math.round(data.totalPercentage / data.totalWeight),
+        description: data.description
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+    
+    // Ensure we always have at least one pattern
+    if (patterns.length === 0) {
+      patterns.push({
+        type: 'mixed',
+        percentage: 100,
+        description: 'Varies between different response formats'
+      });
+    }
+    
+    return patterns;
   }
 
   private mergePatternsByFrequency<T extends { pattern: string; frequency?: number; percentage?: number }>(

@@ -1,6 +1,5 @@
-{{!-- Comprehensive Analysis Context --}}
-
 === INCOMING EMAIL ANALYSIS ===
+Favor any convention you identify in the thread you're replying to.  Otherwise, the following in an NLP analysis of the inbound email you are replying to. It is not a list of instructions. It is a list of patterns identified in the thread. Consider these patterns when writing your response.
 
 {{#if nlpFeatures}}
 SENTIMENT ANALYSIS:
@@ -9,7 +8,6 @@ SENTIMENT ANALYSIS:
 - Confidence: {{round nlpFeatures.sentiment.confidence 2}}
 - Score: {{round nlpFeatures.sentiment.score 2}} (magnitude: {{round nlpFeatures.sentiment.magnitude 2}})
 - Emotions detected: {{#if nlpFeatures.sentiment.emotions}}{{join nlpFeatures.sentiment.emotions ", "}}{{else}}N/A{{/if}}
-- Emojis used: {{#if nlpFeatures.sentiment.emojis}}{{join nlpFeatures.sentiment.emojis " "}}{{else}}N/A{{/if}}
 
 TONAL QUALITIES:
 - Formality: {{round nlpFeatures.tonalQualities.formality 2}}
@@ -43,13 +41,16 @@ Relationship Type: {{relationship}}
 {{/if}}
 
 === YOUR WRITING EXAMPLES ===
+The following are examples of the writer's writing style chosen by similarity to the inbound email and the relationship of {{relationship}}.  
+IMPORTANT:Favor any convention you identify in the thread you're replying to, but you should **rely heavily on these examples for tone**. Consider the similarity score.
 {{#if exactExamples}}
+
 Examples from {{relationship}} relationships ({{exactExamples.length}} found):
 {{#each exactExamples}}
 
-Example {{inc @index}} (Similarity Score: {{round this.score 3}}):
-"{{truncate this.text 250}}"
-{{#if this.subject}}Subject: {{this.subject}}{{/if}}
++++ Example {{inc @index}} (Similarity Score: {{round this.score 2}})+++ 
+Subject: {{this.subject}}
+Body: {{truncate this.text 1000}}
 {{/each}}
 {{else}}
 No examples found for {{relationship}} relationship.
@@ -59,8 +60,7 @@ No examples found for {{relationship}} relationship.
 Additional examples from other relationships:
 {{#each otherExamples}}
 
-Example {{inc @index}} ({{this.relationship}}, Score: {{round this.score 3}}):
-"{{truncate this.text 200}}"
+Example {{inc @index}} ({{this.relationship}}, Similarity Score: {{round this.score 2}}):
+"{{truncate this.text 1000}}"
 {{/each}}
 {{/if}}
-
