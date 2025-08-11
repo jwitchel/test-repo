@@ -16,15 +16,13 @@ export class TypedNameRemover {
     try {
       // Get user's typed name removal preference
       const result = await this.pool.query(
-        `SELECT profile_data->'typedNamePreferences' as preferences
-         FROM tone_preferences
-         WHERE user_id = $1 
-           AND preference_type = 'user'
-           AND target_identifier = 'global'`,
+        `SELECT preferences->'typedName' as typed_name_prefs
+         FROM "user"
+         WHERE id = $1`,
         [userId]
       );
 
-      if (!result.rows.length || !result.rows[0].preferences) {
+      if (!result.rows.length || !result.rows[0].typed_name_prefs) {
         // No preferences set, return text as-is
         return {
           cleanedText: text,
@@ -33,7 +31,7 @@ export class TypedNameRemover {
         };
       }
 
-      const preferences = result.rows[0].preferences;
+      const preferences = result.rows[0].typed_name_prefs;
       const removalRegex = preferences.removalRegex;
 
       if (!removalRegex) {
@@ -86,11 +84,9 @@ export class TypedNameRemover {
   async getTypedNameAppend(userId: string): Promise<string | null> {
     try {
       const result = await this.pool.query(
-        `SELECT profile_data->'typedNamePreferences'->'appendString' as append_string
-         FROM tone_preferences
-         WHERE user_id = $1 
-           AND preference_type = 'user'
-           AND target_identifier = 'global'`,
+        `SELECT preferences->'typedName'->'appendString' as append_string
+         FROM "user"
+         WHERE id = $1`,
         [userId]
       );
 

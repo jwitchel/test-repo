@@ -10,15 +10,13 @@ router.get('/typed-name', requireAuth, async (req, res) => {
     const userId = (req as any).user.id;
     
     const result = await pool.query(
-      `SELECT profile_data->'typedNamePreferences' as preferences
-       FROM tone_preferences
-       WHERE user_id = $1 
-         AND preference_type = 'user'
-         AND target_identifier = 'global'`,
+      `SELECT preferences->'typedName' as typed_name_prefs
+       FROM "user"
+       WHERE id = $1`,
       [userId]
     );
     
-    if (!result.rows.length || !result.rows[0].preferences) {
+    if (!result.rows.length || !result.rows[0].typed_name_prefs) {
       // Return empty preferences if none exist
       return res.json({
         preferences: {
@@ -29,7 +27,7 @@ router.get('/typed-name', requireAuth, async (req, res) => {
     }
     
     return res.json({
-      preferences: result.rows[0].preferences
+      preferences: result.rows[0].typed_name_prefs
     });
   } catch (error) {
     console.error('Error fetching typed name preferences:', error);
@@ -57,40 +55,19 @@ router.post('/typed-name', requireAuth, async (req, res) => {
       }
     }
     
-    // Check if user preferences exist
-    const existingResult = await pool.query(
-      `SELECT id FROM tone_preferences
-       WHERE user_id = $1 
-         AND preference_type = 'user'
-         AND target_identifier = 'global'`,
-      [userId]
+    // Update user preferences
+    await pool.query(
+      `UPDATE "user"
+       SET preferences = jsonb_set(
+         COALESCE(preferences, '{}'),
+         '{typedName}',
+         $1::jsonb,
+         true
+       ),
+       "updatedAt" = NOW()
+       WHERE id = $2`,
+      [JSON.stringify(preferences), userId]
     );
-    
-    if (existingResult.rows.length > 0) {
-      // Update existing preferences
-      await pool.query(
-        `UPDATE tone_preferences
-         SET profile_data = jsonb_set(
-           COALESCE(profile_data, '{}'),
-           '{typedNamePreferences}',
-           $1::jsonb,
-           true
-         ),
-         updated_at = NOW()
-         WHERE user_id = $2 
-           AND preference_type = 'user'
-           AND target_identifier = 'global'`,
-        [JSON.stringify(preferences), userId]
-      );
-    } else {
-      // Create new preferences record
-      await pool.query(
-        `INSERT INTO tone_preferences 
-         (user_id, preference_type, target_identifier, profile_data, emails_analyzed, last_updated)
-         VALUES ($1, 'user', 'global', $2, 0, NOW())`,
-        [userId, JSON.stringify({ typedNamePreferences: preferences })]
-      );
-    }
     
     return res.json({ success: true });
   } catch (error) {

@@ -11,7 +11,11 @@ router.get('/', requireAuth, async (req, res) => {
     const userId = (req as any).user.id;
     
     const result = await pool.query(
-      'SELECT preference_type, target_identifier, profile_data, emails_analyzed, last_updated FROM tone_preferences WHERE user_id = $1',
+      `SELECT preference_type, target_identifier, profile_data, emails_analyzed, last_updated 
+       FROM tone_preferences 
+       WHERE user_id = $1 
+         AND preference_type IN ('aggregate', 'category', 'individual')
+         AND profile_data ? 'writingPatterns'`,
       [userId]
     );
     
