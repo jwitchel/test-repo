@@ -44,11 +44,6 @@ interface WritingPatterns {
     phrase: string
     percentage: number
   }>
-  typedName: Array<{
-    style?: string
-    phrase?: string
-    percentage: number
-  }>
   negativePatterns: Array<{
     expression?: string
     description?: string
@@ -442,30 +437,16 @@ export default function TonePage() {
                 </CardContent>
               </Card>
 
-              {/* Typed Names */}
+              {/* Typed Name Settings */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Name Signatures</CardTitle>
-                  <CardDescription>How you type your name</CardDescription>
+                  <CardTitle>Name Signature</CardTitle>
+                  <CardDescription>Configure how your name appears in email responses</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {patterns?.typedName && patterns.typedName.length > 0 ? (
-                      patterns.typedName.map((pattern, idx) => (
-                        <div key={idx} className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{pattern.style || pattern.phrase || 'Unknown'}</span>
-                          <div className="flex items-center gap-2">
-                            <Progress value={pattern.percentage > 1 ? pattern.percentage : pattern.percentage * 100} className="w-20 h-2" />
-                            <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                              {pattern.percentage > 1 ? pattern.percentage : Math.round(pattern.percentage * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-zinc-500">No name signature patterns found</p>
-                    )}
-                  </div>
+                  <Link href="/settings">
+                    <Button variant="outline" size="sm">Configure Name Settings</Button>
+                  </Link>
                 </CardContent>
               </Card>
             </div>

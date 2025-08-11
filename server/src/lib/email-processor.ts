@@ -4,6 +4,7 @@ import { replyExtractor } from './reply-extractor';
 import { imapLogger } from './imap-logger';
 import { Pool } from 'pg';
 import { RegexSignatureDetector } from './regex-signature-detector';
+import { TypedNameRemover } from './typed-name-remover';
 
 export interface ProcessedEmail extends ParsedEmailContent {
   userTextPlain: string;    // Override to ensure it's the extracted user text
@@ -20,9 +21,11 @@ export interface ProcessingContext {
 
 export class EmailProcessor {
   private signatureDetector: RegexSignatureDetector;
+  private typedNameRemover: TypedNameRemover;
   
   constructor(pool: Pool) {
     this.signatureDetector = new RegexSignatureDetector(pool);
+    this.typedNameRemover = new TypedNameRemover(pool);
   }
 
   /**
@@ -60,10 +63,10 @@ export class EmailProcessor {
     const splitResult = replyExtractor.splitReply(parsedContent.userTextPlain);
     
     // Remove signature from userReply if it exists
-    let userReplyWithoutSignature = splitResult.userReply;
+    let userReplyClean = splitResult.userReply;
     if (splitResult.userReply && context?.userId) {
       const signatureResult = await this.signatureDetector.removeSignature(splitResult.userReply, context.userId);
-      userReplyWithoutSignature = signatureResult.cleanedText;
+      userReplyClean = signatureResult.cleanedText;
       
       if (signatureResult.signature) {
         imapLogger.log(context.userId, {
@@ -76,6 +79,26 @@ export class EmailProcessor {
               messageId: parsedMail.messageId,
               signaturePattern: signatureResult.matchedPattern,
               signatureLength: signatureResult.signature.length
+            }
+          }
+        });
+      }
+      
+      // Remove typed name from userReply
+      const typedNameResult = await this.typedNameRemover.removeTypedName(userReplyClean, context.userId);
+      userReplyClean = typedNameResult.cleanedText;
+      
+      if (typedNameResult.removedText) {
+        imapLogger.log(context.userId, {
+          userId: context.userId,
+          emailAccountId: context.emailAccountId,
+          level: 'info',
+          command: 'TYPED_NAME_REMOVED',
+          data: {
+            parsed: {
+              messageId: parsedMail.messageId,
+              removedText: typedNameResult.removedText,
+              matchedPattern: typedNameResult.matchedPattern
             }
           }
         });
@@ -95,7 +118,7 @@ export class EmailProcessor {
       ...parsedContent,
       userTextPlain: plainResult.userReply,
       userTextRich: processedRichText,
-      userReply: userReplyWithoutSignature,  // User's reply with signature removed
+      userReply: userReplyClean,  // User's reply with signature and typed name removed
       respondedTo: splitResult.respondedTo
     };
 

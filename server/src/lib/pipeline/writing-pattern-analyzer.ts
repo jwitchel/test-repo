@@ -49,10 +49,6 @@ export interface ValedictionPattern {
   percentage: number;  // Stored as decimal 0.0-1.0, displayed as percentage
 }
 
-export interface TypedNamePattern {
-  phrase: string;
-  percentage: number;  // Stored as decimal 0.0-1.0, displayed as percentage
-}
 
 export interface NegativePattern {
   description: string;
@@ -78,7 +74,6 @@ export interface WritingPatterns {
   paragraphPatterns: ParagraphPattern[];
   openingPatterns: OpeningPattern[];
   valediction: ValedictionPattern[];
-  typedName: TypedNamePattern[];
   negativePatterns: NegativePattern[];
   responsePatterns: ResponsePatterns;
   uniqueExpressions: UniqueExpression[];
@@ -529,7 +524,7 @@ export class WritingPatternAnalyzer {
       level: 'info',
       command: 'pattern.analysis.complete',
       data: {
-        raw: `Found ${roundedPatterns.openingPatterns.length} opening patterns, ${roundedPatterns.valediction.length} valedictions, ${roundedPatterns.typedName.length} typed names, ${roundedPatterns.negativePatterns.length} negative patterns, ${roundedPatterns.uniqueExpressions.length} unique expressions`,
+        raw: `Found ${roundedPatterns.openingPatterns.length} opening patterns, ${roundedPatterns.valediction.length} valedictions, ${roundedPatterns.negativePatterns.length} negative patterns, ${roundedPatterns.uniqueExpressions.length} unique expressions`,
         parsed: {
           totalEmails: emails.length,
           batchSize,
@@ -541,7 +536,6 @@ export class WritingPatternAnalyzer {
           patterns: {
             openings: roundedPatterns.openingPatterns.length,
             valedictions: roundedPatterns.valediction.length,
-            typedNames: roundedPatterns.typedName.length,
             negative: roundedPatterns.negativePatterns.length,
             unique: roundedPatterns.uniqueExpressions.length
           }
@@ -819,20 +813,12 @@ export class WritingPatternAnalyzer {
       }))
     );
 
-    // Aggregate typed name patterns
-    const typedName = this.mergePercentagePatterns(
-      batchWeights.map(({ batch, weight }) => ({ 
-        patterns: batch.typedName || [], 
-        weight 
-      }))
-    );
 
     return {
       sentencePatterns,
       paragraphPatterns,
       openingPatterns,
       valediction,
-      typedName,
       negativePatterns,
       responsePatterns,
       uniqueExpressions

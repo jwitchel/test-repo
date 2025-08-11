@@ -309,15 +309,6 @@ export class TemplateManager {
           : pattern.phrase,
         isInstruction: pattern.phrase === '[None]'
       })),
-      typedName: patterns.typedName.map(pattern => ({
-        ...pattern,
-        phrase: pattern.phrase === '[None]'
-          ? "don't close with your name at all"
-          : pattern.phrase === '[firstname]'
-          ? 'use first name only'
-          : pattern.phrase,
-        isInstruction: pattern.phrase === '[None]' || pattern.phrase === '[firstname]'
-      }))
     };
   }
 
@@ -353,9 +344,4 @@ export class TemplateManager {
     if (score >= 0.2) return 'casual';
     return 'very casual';
   }
-
-  // TODO: Implement A/B testing functionality
-  // - Add variant selection based on weights
-  // - Track template performance metrics
-  // - Integrate with draft feedback processor
 }

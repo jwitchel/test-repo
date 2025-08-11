@@ -41,11 +41,7 @@ Extract the following patterns with specific examples and frequencies:
    - Calculate percentage of emails using each valediction
    - IMPORTANT: Percentages must add up to exactly 100%
    
-5. TYPED NAME PATTERNS
-   - Analyze how the sender types their name (e.g., "-John", "-j", "John", full name)
-   - Include "[None]" if no typed name is used in some emails
-   - Calculate percentage of emails using each format
-   - IMPORTANT: Percentages must add up to exactly 100%
+   5. RESERVED
 
 6. WHAT THEY NEVER DO (important!)
    - Analyze what is consistently absent from their writing style
@@ -66,7 +62,7 @@ Extract the following patterns with specific examples and frequencies:
    - Include context and approximate frequency
 
 Return ONLY a JSON object matching this exact structure.
-IMPORTANT: For both "valediction" and "typedName" arrays, the percentages across all entries MUST sum to exactly 100%:
+IMPORTANT: For "valediction" array, the percentages across all entries MUST sum to exactly 100%:
 {
   "sentencePatterns": {
     "avgLength": <number>,
@@ -97,12 +93,6 @@ IMPORTANT: For both "valediction" and "typedName" arrays, the percentages across
   "valediction": [
     {
       "phrase": "<exact valediction phrase or '[None]'>",
-      "percentage": <number 0-100>
-    }
-  ],
-  "typedName": [
-    {
-      "phrase": "<exact typed name format or '[None]'>",
       "percentage": <number 0-100>
     }
   ],

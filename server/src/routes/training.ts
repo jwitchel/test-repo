@@ -453,7 +453,6 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
               patternsFound: {
                 openings: patterns.openingPatterns.length,
                 valedictions: patterns.valediction.length,
-                typedNames: patterns.typedName.length,
                 negative: patterns.negativePatterns.length,
                 unique: patterns.uniqueExpressions.length
               }
@@ -536,7 +535,6 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
             patternsFound: {
               openings: aggregatePatterns.openingPatterns.length,
               valedictions: aggregatePatterns.valediction.length,
-              typedNames: aggregatePatterns.typedName.length,
               negative: aggregatePatterns.negativePatterns.length,
               unique: aggregatePatterns.uniqueExpressions.length
             }

@@ -14,9 +14,13 @@ describe('Writing Patterns Partial', () => {
     const testPatterns: WritingPatterns = {
       sentencePatterns: {
         avgLength: 12.5,
+        medianLength: 13,
+        trimmedMean: 12.8,
         minLength: 2,
         maxLength: 35,
         stdDeviation: 6.2,
+        percentile25: 8,
+        percentile75: 18,
         distribution: {
           short: 0.30,
           medium: 0.55,
@@ -33,10 +37,6 @@ describe('Writing Patterns Partial', () => {
       ],
       valediction: [
         { phrase: 'Best,', percentage: 70 },
-        { phrase: '[None]', percentage: 30 }
-      ],
-      typedName: [
-        { phrase: 'Sarah', percentage: 70 },
         { phrase: '[None]', percentage: 30 }
       ],
       negativePatterns: [
@@ -62,8 +62,8 @@ describe('Writing Patterns Partial', () => {
 
     // Verify key sections are present
     expect(result).toContain('=== WRITING PATTERNS FOR THIS RESPONSE ===');
-    expect(result).toContain('FOR MULTIPLE SENTENCE REPLIES THE WRITER USES THE FOLLOWING SENTENCE LENGTHS:');
-    expect(result).toContain('Average length: 12.5 words');
+    expect(result).toContain('SENTENCE LENGTH PATTERNS:');
+    expect(result).toContain('Typical length (median):');
     expect(result).toContain('Short sentences (<10 words): 30%');
     
     // Check openings
@@ -73,7 +73,7 @@ describe('Writing Patterns Partial', () => {
     expect(result).toContain('"[right to the point]" (20%) - For follow-ups');
     
     // Check negative patterns
-    expect(result).toContain('NEVER DO THESE THINGS:');
+    expect(result).toContain('NOTABLE NEGATIVE PATTERNS TO CONSIDER:');
     expect(result).toContain('None noted');
     
     // Check response patterns
@@ -90,16 +90,19 @@ describe('Writing Patterns Partial', () => {
     const minimalPatterns: WritingPatterns = {
       sentencePatterns: {
         avgLength: 10,
+        medianLength: 10,
+        trimmedMean: 10,
         minLength: 5,
         maxLength: 20,
         stdDeviation: 5,
+        percentile25: 7,
+        percentile75: 15,
         distribution: { short: 0.5, medium: 0.5, long: 0 },
         examples: []
       },
       paragraphPatterns: [],
       openingPatterns: [],
       valediction: [],
-      typedName: [],
       negativePatterns: [],
       responsePatterns: {
         immediate: 1,
@@ -116,7 +119,7 @@ describe('Writing Patterns Partial', () => {
     expect(result).toContain('PARAGRAPH STRUCTURE:');
     expect(result).toContain('OPENINGS:');
     expect(result).toContain('VALEDICTIONS (closing phrases before the typed name):');
-    expect(result).toContain('NEVER DO THESE THINGS:');
+    expect(result).toContain('NOTABLE NEGATIVE PATTERNS TO CONSIDER:');
     expect(result).toContain('UNIQUE PHRASES TO USE:');
     
     // Should render response patterns
@@ -127,9 +130,13 @@ describe('Writing Patterns Partial', () => {
     const patternsWithSpecialChars: WritingPatterns = {
       sentencePatterns: {
         avgLength: 10,
+        medianLength: 10,
+        trimmedMean: 10,
         minLength: 5,
         maxLength: 20,
         stdDeviation: 5,
+        percentile25: 7,
+        percentile75: 15,
         distribution: { short: 0.5, medium: 0.5, long: 0 },
         examples: []
       },
@@ -138,7 +145,6 @@ describe('Writing Patterns Partial', () => {
         { pattern: 'Hi & hello', percentage: 0.5 }
       ],
       valediction: [],
-      typedName: [],
       negativePatterns: [
         {
           description: 'None noted',

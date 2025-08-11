@@ -27,7 +27,6 @@ router.get('/', requireAuth, async (req, res) => {
         paragraphPatterns: writingPatterns.paragraphPatterns || [],
         openingPatterns: writingPatterns.openingPatterns || [],
         valediction: writingPatterns.valediction || [],
-        typedName: writingPatterns.typedName || [],
         negativePatterns: writingPatterns.negativePatterns || [],
         responsePatterns: writingPatterns.responsePatterns || null,
         uniqueExpressions: writingPatterns.uniqueExpressions || [],
