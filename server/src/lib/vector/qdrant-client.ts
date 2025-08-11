@@ -301,13 +301,22 @@ export class VectorStore {
     const searchLimit = limit || 100;
 
     try {
+      // For aggregate, get ALL emails for the user (no relationship filter)
+      const filter = relationship === 'aggregate' 
+        ? {
+            must: [
+              { key: 'userId', match: { value: userId } }
+            ]
+          }
+        : {
+            must: [
+              { key: 'userId', match: { value: userId } },
+              { key: 'relationship.type', match: { value: relationship } }
+            ]
+          };
+
       const results = await this.client.scroll(this.collectionName, {
-        filter: {
-          must: [
-            { key: 'userId', match: { value: userId } },
-            { key: 'relationship.type', match: { value: relationship } }
-          ]
-        },
+        filter,
         limit: searchLimit,
         with_payload: true,
         with_vector: false

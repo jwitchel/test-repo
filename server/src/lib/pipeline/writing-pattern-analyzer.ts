@@ -5,13 +5,24 @@ import { imapLogger } from '../imap-logger';
 import { TemplateManager } from './template-manager';
 import { decryptPassword } from '../crypto';
 import { nameRedactor } from '../name-redactor';
+import nlp from 'compromise';
+import sentencesPlugin from 'compromise-sentences';
+import { VectorStore } from '../vector/qdrant-client';
+import * as ss from 'simple-statistics';
+
+// Extend compromise with sentence plugin
+nlp.plugin(sentencesPlugin);
 
 // Pattern data structures that match what we'll store in JSONB
 export interface SentencePatterns {
   avgLength: number;
+  medianLength: number;  // More robust to outliers
+  trimmedMean: number;   // Mean after removing top/bottom 5%
   minLength: number;
   maxLength: number;
   stdDeviation: number;
+  percentile25: number;  // 25th percentile
+  percentile75: number;  // 75th percentile
   distribution: {
     short: number;    // <10 words
     medium: number;   // 10-25 words
@@ -85,9 +96,249 @@ export class WritingPatternAnalyzer {
   private llmClient: LLMClient | null = null;
   private templateManager: TemplateManager;
   private modelName: string = '';
+  private vectorStore: VectorStore;
 
   constructor() {
     this.templateManager = new TemplateManager();
+    this.vectorStore = new VectorStore();
+  }
+
+  /**
+   * Load sentence statistics from the database if available
+   */
+  async loadSentenceStats(
+    userId: string,
+    relationship: string
+  ): Promise<SentencePatterns | null> {
+    try {
+      const query = `
+        SELECT profile_data->'sentenceStats' as sentence_stats
+        FROM tone_preferences
+        WHERE user_id = $1 
+          AND preference_type = 'category'
+          AND target_identifier = $2
+      `;
+      
+      const result = await db.query(query, [userId, relationship]);
+      
+      if (result.rows.length > 0 && result.rows[0].sentence_stats) {
+        const stats = result.rows[0].sentence_stats;
+        console.log(`[SentenceStats] Loaded from cache for ${relationship}:`, {
+          hasMedian: !!stats.medianLength,
+          hasTrimmedMean: !!stats.trimmedMean,
+          hasPercentiles: !!(stats.percentile25 && stats.percentile75),
+          avgLength: stats.avgLength,
+          medianLength: stats.medianLength,
+          trimmedMean: stats.trimmedMean
+        });
+        return {
+          avgLength: stats.avgLength,
+          medianLength: stats.medianLength || stats.avgLength, // Fallback for old data
+          trimmedMean: stats.trimmedMean || stats.avgLength,   // Fallback for old data
+          minLength: stats.minLength,
+          maxLength: stats.maxLength,
+          stdDeviation: stats.stdDeviation,
+          percentile25: stats.percentile25 || stats.minLength, // Fallback for old data
+          percentile75: stats.percentile75 || stats.maxLength, // Fallback for old data
+          distribution: stats.distribution,
+          examples: [] // Required by interface
+        };
+      }
+    } catch (error) {
+      console.error('Failed to load sentence stats:', error);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Store sentence statistics in the database
+   */
+  async storeSentenceStats(
+    userId: string,
+    relationship: string,
+    stats: SentencePatterns & { totalSentences?: number }
+  ): Promise<void> {
+    try {
+      // Update the profile_data JSONB field with sentence stats
+      const query = `
+        UPDATE tone_preferences
+        SET 
+          profile_data = jsonb_set(
+            COALESCE(profile_data, '{}'),
+            '{sentenceStats}',
+            $1::jsonb,
+            true
+          ),
+          updated_at = NOW()
+        WHERE user_id = $2 
+          AND preference_type = 'category'
+          AND target_identifier = $3
+      `;
+      
+      const statsWithMetadata = {
+        avgLength: stats.avgLength,
+        medianLength: stats.medianLength,
+        trimmedMean: stats.trimmedMean,
+        minLength: stats.minLength,
+        maxLength: stats.maxLength,
+        stdDeviation: stats.stdDeviation,
+        percentile25: stats.percentile25,
+        percentile75: stats.percentile75,
+        distribution: stats.distribution,
+        totalSentences: stats.totalSentences || 0,
+        lastCalculated: new Date().toISOString()
+      };
+      
+      await db.query(query, [
+        JSON.stringify(statsWithMetadata),
+        userId,
+        relationship
+      ]);
+      
+      console.log(`Stored sentence stats for ${userId}/${relationship} in database`);
+    } catch (error) {
+      console.error('Failed to store sentence stats:', error);
+      // Don't throw - this is a non-critical operation
+    }
+  }
+
+  /**
+   * Calculate sentence statistics directly from email texts
+   * This replaces the LLM-based calculation for accuracy
+   */
+  async calculateSentenceStats(
+    userId: string,
+    relationship: string
+  ): Promise<SentencePatterns> {
+    // Try to load from cache first
+    const cached = await this.loadSentenceStats(userId, relationship);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch emails for this relationship from vector store
+    const emails = await this.vectorStore.getByRelationship(userId, relationship, 1000);
+    
+    console.log(`[SentenceStats] Fetched ${emails.length} emails for ${relationship === 'aggregate' ? 'ALL relationships (aggregate)' : relationship}`);
+    
+    if (emails.length === 0) {
+      return {
+        avgLength: 0,
+        medianLength: 0,
+        trimmedMean: 0,
+        minLength: 0,
+        maxLength: 0,
+        stdDeviation: 0,
+        percentile25: 0,
+        percentile75: 0,
+        distribution: { short: 0, medium: 0, long: 0 },
+        examples: [] // Required by interface
+      };
+    }
+    
+    // Collect all sentences from userReply texts
+    const allSentences: string[] = [];
+    // Array where each element is the word count of a sentence
+    // e.g., [5, 10, 7] means 3 sentences with 5, 10, and 7 words respectively
+    const wordCountsPerSentence: number[] = [];
+    
+    emails.forEach(email => {
+      const userReply = email.metadata.userReply || '';
+      if (!userReply || userReply === '[ForwardedWithoutComment]') return;
+      
+      // Use compromise to split into sentences
+      const doc = nlp(userReply);
+      const sentences = doc.sentences();
+      
+      sentences.forEach((sentence: any) => {
+        const text = sentence.text().trim();
+        if (text.length > 0) {
+          allSentences.push(text);
+          // Use compromise's wordCount method
+          const wordCount = sentence.wordCount();
+          wordCountsPerSentence.push(wordCount);
+        }
+      });
+    });
+    
+    if (wordCountsPerSentence.length === 0) {
+      return {
+        avgLength: 0,
+        medianLength: 0,
+        trimmedMean: 0,
+        minLength: 0,
+        maxLength: 0,
+        stdDeviation: 0,
+        percentile25: 0,
+        percentile75: 0,
+        distribution: { short: 0, medium: 0, long: 0 },
+        examples: [] // Required by interface
+      };
+    }
+    
+    // Sort for median and percentile calculations
+    const sortedCounts = [...wordCountsPerSentence].sort((a, b) => a - b);
+    
+    // Calculate statistics using simple-statistics
+    const avgLength = ss.mean(wordCountsPerSentence);
+    const medianLength = ss.median(sortedCounts);
+    const minLength = ss.min(wordCountsPerSentence);
+    const maxLength = ss.max(wordCountsPerSentence);
+    const stdDeviation = ss.standardDeviation(wordCountsPerSentence);
+    const percentile25 = ss.quantile(sortedCounts, 0.25);
+    const percentile75 = ss.quantile(sortedCounts, 0.75);
+    
+    // Calculate trimmed mean (remove top and bottom 5%)
+    const trimAmount = Math.floor(sortedCounts.length * 0.05);
+    const trimmedData = trimAmount > 0 
+      ? sortedCounts.slice(trimAmount, sortedCounts.length - trimAmount)
+      : sortedCounts;
+    const trimmedMean = trimmedData.length > 0 ? ss.mean(trimmedData) : avgLength;
+    
+    // Calculate distribution
+    const shortCount = wordCountsPerSentence.filter(c => c < 10).length;
+    const mediumCount = wordCountsPerSentence.filter(c => c >= 10 && c <= 25).length;
+    const longCount = wordCountsPerSentence.filter(c => c > 25).length;
+    const totalSentenceCount = wordCountsPerSentence.length;
+    
+    const distribution = {
+      short: shortCount / totalSentenceCount,
+      medium: mediumCount / totalSentenceCount,
+      long: longCount / totalSentenceCount
+    };
+    
+    const result: SentencePatterns = {
+      avgLength: Math.round(avgLength * 100) / 100,
+      medianLength: Math.round(medianLength * 100) / 100,
+      trimmedMean: Math.round(trimmedMean * 100) / 100,
+      minLength,
+      maxLength,
+      stdDeviation: Math.round(stdDeviation * 100) / 100,
+      percentile25: Math.round(percentile25 * 100) / 100,
+      percentile75: Math.round(percentile75 * 100) / 100,
+      distribution,
+      examples: [] // Required by interface but not used
+    };
+    
+    // Debug logging
+    console.log(`[SentenceStats] Calculated for ${relationship}:`, {
+      totalSentences: wordCountsPerSentence.length,
+      avgLength: result.avgLength,
+      medianLength: result.medianLength,
+      trimmedMean: result.trimmedMean,
+      percentiles: `${result.percentile25} - ${result.percentile75}`,
+      range: `${result.minLength} - ${result.maxLength}`,
+      stdDev: result.stdDeviation
+    });
+    
+    // Store the stats in the database
+    await this.storeSentenceStats(userId, relationship, {
+      ...result,
+      totalSentences: totalSentenceCount  // Now it's clear this is the count of sentences
+    } as any);
+    
+    return result;
   }
 
   /**
@@ -126,8 +377,9 @@ export class WritingPatternAnalyzer {
    * Initialize with LLM configuration
    */
   async initialize(llmProviderId?: string): Promise<void> {
-    // Initialize template manager
+    // Initialize template manager and vector store
     await this.templateManager.initialize();
+    await this.vectorStore.initialize();
     // Get LLM provider configuration using raw SQL
     let query = `
       SELECT id, provider_name, provider_type, api_key_encrypted as api_key, api_endpoint, 
@@ -252,6 +504,17 @@ export class WritingPatternAnalyzer {
 
     // Aggregate patterns across all batches
     const aggregated = this.aggregatePatterns(batchAnalyses);
+    
+    // Calculate sentence statistics directly from emails for accuracy
+    // Always calculate, even for aggregate (when relationship is undefined)
+    const relationshipLabel = relationship || 'aggregate';
+    console.log(`Calculating sentence statistics directly for ${relationshipLabel}...`);
+    const directSentenceStats = await this.calculateSentenceStats(userId, relationship || 'aggregate');
+    
+    // Replace LLM-calculated sentence stats with direct calculation
+    aggregated.sentencePatterns = directSentenceStats;
+    
+    console.log(`Direct sentence stats for ${relationshipLabel}: avg=${directSentenceStats.avgLength}, median=${directSentenceStats.medianLength}, trimmed=${directSentenceStats.trimmedMean}, min=${directSentenceStats.minLength}, max=${directSentenceStats.maxLength}, std=${directSentenceStats.stdDeviation}`);
 
     // Round all numeric values to 2 decimal places
     const roundedPatterns = this.roundNumericValues(aggregated) as WritingPatterns;
@@ -433,10 +696,24 @@ export class WritingPatternAnalyzer {
     });
     
     // Aggregate sentence patterns with email count weighting
+    // NOTE: Median, percentiles, and trimmed mean CANNOT be calculated by averaging!
+    // These are overwritten later by calculateSentenceStats() which recalculates from raw data
     const sentencePatterns: SentencePatterns = {
       avgLength: this.weightedAverage(
         batchWeights.map(({ batch, weight }) => ({ 
           value: batch.sentencePatterns.avgLength, 
+          weight 
+        }))
+      ),
+      medianLength: this.weightedAverage(
+        batchWeights.map(({ batch, weight }) => ({ 
+          value: batch.sentencePatterns.medianLength || batch.sentencePatterns.avgLength, 
+          weight 
+        }))
+      ),
+      trimmedMean: this.weightedAverage(
+        batchWeights.map(({ batch, weight }) => ({ 
+          value: batch.sentencePatterns.trimmedMean || batch.sentencePatterns.avgLength, 
           weight 
         }))
       ),
@@ -445,6 +722,18 @@ export class WritingPatternAnalyzer {
       stdDeviation: this.weightedAverage(
         batchWeights.map(({ batch, weight }) => ({ 
           value: batch.sentencePatterns.stdDeviation, 
+          weight 
+        }))
+      ),
+      percentile25: this.weightedAverage(
+        batchWeights.map(({ batch, weight }) => ({ 
+          value: batch.sentencePatterns.percentile25 || batch.sentencePatterns.minLength, 
+          weight 
+        }))
+      ),
+      percentile75: this.weightedAverage(
+        batchWeights.map(({ batch, weight }) => ({ 
+          value: batch.sentencePatterns.percentile75 || batch.sentencePatterns.maxLength, 
           weight 
         }))
       ),
@@ -915,7 +1204,8 @@ export class WritingPatternAnalyzer {
     const query = `
       DELETE FROM tone_preferences 
       WHERE user_id = $1 
-        AND profile_data->>'writingPatterns' IS NOT NULL
+        AND (profile_data->>'writingPatterns' IS NOT NULL 
+             OR profile_data->>'sentenceStats' IS NOT NULL)
     `;
     
     await db.query(query, [userId]);

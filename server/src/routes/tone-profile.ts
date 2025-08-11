@@ -33,7 +33,15 @@ router.get('/', requireAuth, async (req, res) => {
         uniqueExpressions: writingPatterns.uniqueExpressions || [],
         
         // Metadata fields
-        meta: row.profile_data.meta || {},
+        meta: {
+          ...(row.profile_data.meta || {}),
+          // Include sentence stats metadata if available
+          sentenceStats: row.profile_data.sentenceStats ? {
+            lastCalculated: row.profile_data.sentenceStats.lastCalculated,
+            totalSentences: row.profile_data.sentenceStats.totalSentences,
+            calculationMethod: 'direct' // Indicate this was calculated directly, not by LLM
+          } : null
+        },
         emails_analyzed: row.emails_analyzed,
         last_updated: row.last_updated,
         preference_type: row.preference_type

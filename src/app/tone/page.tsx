@@ -14,14 +14,19 @@ import Link from 'next/link'
 interface WritingPatterns {
   sentencePatterns: {
     avgLength: number
-    range: { min: number; max: number }
-    complexity: string
+    medianLength: number
+    trimmedMean: number
+    minLength: number
+    maxLength: number
+    stdDeviation: number
+    percentile25: number
+    percentile75: number
     distribution?: {
       short: number
       medium: number
       long: number
     }
-    examples?: string[]
+    // Note: examples are no longer provided as they're not stored
   }
   paragraphPatterns: Array<{
     type?: string
@@ -68,6 +73,11 @@ interface ToneProfile extends Partial<WritingPatterns> {
   meta?: {
     modelUsed?: string
     corpusSize?: number
+    sentenceStats?: {
+      lastCalculated: string
+      totalSentences: number
+      calculationMethod: string
+    }
     [key: string]: unknown
   }
   emails_analyzed: number
@@ -79,6 +89,12 @@ interface ToneData {
   profiles: Record<string, ToneProfile>
   totalEmailsAnalyzed: number
   lastUpdated: string | null
+}
+
+// Helper function to safely format numbers with toFixed
+const formatNumber = (value: number | null | undefined, decimals: number = 1): string => {
+  if (value === null || value === undefined) return '0'
+  return value.toFixed(decimals)
 }
 
 export default function TonePage() {
@@ -223,28 +239,47 @@ export default function TonePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Sentence Structure</CardTitle>
-                <CardDescription>How you construct your sentences</CardDescription>
+                <CardDescription>Statistics calculated directly from your email history</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Average Length</p>
-                    <p className="text-2xl font-bold">{patterns?.sentencePatterns?.avgLength?.toFixed(1) || 0} words</p>
+                {/* Primary statistics row */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="border-l-4 border-indigo-500 pl-3">
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Median Length</p>
+                    <p className="text-2xl font-bold">{formatNumber(patterns?.sentencePatterns?.medianLength || patterns?.sentencePatterns?.avgLength)} words</p>
+                    <p className="text-xs text-zinc-500 mt-1">Most representative</p>
                   </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Trimmed Mean</p>
+                    <p className="text-xl font-semibold">{formatNumber(patterns?.sentencePatterns?.trimmedMean || patterns?.sentencePatterns?.avgLength)} words</p>
+                    <p className="text-xs text-zinc-500 mt-1">Excludes outliers</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Average (Mean)</p>
+                    <p className="text-xl">{formatNumber(patterns?.sentencePatterns?.avgLength)} words</p>
+                    <p className="text-xs text-zinc-500 mt-1">All sentences</p>
+                  </div>
+                </div>
+                
+                {/* Range statistics */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
                   <div>
                     <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Range</p>
-                    <p className="text-lg">
-                      {patterns?.sentencePatterns?.range?.min || 0} - {patterns?.sentencePatterns?.range?.max || 0} words
-                    </p>
+                    <p className="text-base">{patterns?.sentencePatterns?.minLength || 0} - {patterns?.sentencePatterns?.maxLength || 0} words</p>
                   </div>
-                  {patterns?.sentencePatterns?.complexity && (
-                    <div>
-                      <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Complexity</p>
-                      <Badge variant="outline" className="mt-1">
-                        {patterns.sentencePatterns.complexity}
-                      </Badge>
-                    </div>
-                  )}
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Middle 50%</p>
+                    <p className="text-base">{formatNumber(patterns?.sentencePatterns?.percentile25 || patterns?.sentencePatterns?.minLength, 0)} - {formatNumber(patterns?.sentencePatterns?.percentile75 || patterns?.sentencePatterns?.maxLength, 0)} words</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Std Deviation</p>
+                    <p className="text-base">{formatNumber(patterns?.sentencePatterns?.stdDeviation)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Variability</p>
+                    <p className="text-base">{patterns?.sentencePatterns?.stdDeviation && patterns?.sentencePatterns?.avgLength ? 
+                      formatNumber((patterns.sentencePatterns.stdDeviation / patterns.sentencePatterns.avgLength) * 100, 0) : '0'}%</p>
+                  </div>
                 </div>
                 
                 {patterns?.sentencePatterns?.distribution && (
@@ -282,18 +317,6 @@ export default function TonePage() {
                   </div>
                 )}
                 
-                {patterns?.sentencePatterns?.examples && patterns.sentencePatterns.examples.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">Example Sentences</p>
-                    <div className="space-y-2">
-                      {patterns.sentencePatterns.examples.slice(0, 3).map((example, idx) => (
-                        <p key={idx} className="text-sm italic text-zinc-600 dark:text-zinc-400 border-l-2 border-zinc-200 dark:border-zinc-700 pl-3">
-                          &quot;{example}&quot;
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -570,6 +593,26 @@ export default function TonePage() {
                       <p className="text-zinc-600 dark:text-zinc-400">Preference Type</p>
                       <p className="font-medium capitalize">{currentProfile.preference_type}</p>
                     </div>
+                  )}
+                  {currentProfile.meta?.sentenceStats && (
+                    <>
+                      <div>
+                        <p className="text-zinc-600 dark:text-zinc-400">Sentence Analysis Method</p>
+                        <p className="font-medium">Direct calculation from emails</p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-600 dark:text-zinc-400">Total Sentences Analyzed</p>
+                        <p className="font-medium">{currentProfile.meta.sentenceStats.totalSentences.toLocaleString()}</p>
+                      </div>
+                      {currentProfile.meta.sentenceStats.lastCalculated && (
+                        <div>
+                          <p className="text-zinc-600 dark:text-zinc-400">Sentence Stats Updated</p>
+                          <p className="font-medium">
+                            {new Date(currentProfile.meta.sentenceStats.lastCalculated).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>
