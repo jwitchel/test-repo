@@ -43,19 +43,36 @@ export class TypedNameRemover {
         };
       }
 
-      // Apply the removal regex
+      // Apply the removal regex - work from bottom up, remove only first match
       try {
-        const regex = new RegExp(removalRegex, 'gmi');
-        const matches = text.match(regex);
+        const regex = new RegExp(removalRegex, 'mi'); 
         
-        if (matches && matches.length > 0) {
-          const cleanedText = text.replace(regex, '').trim();
+        // Split text into lines
+        const lines = text.split('\n');
+        
+        // Work from bottom up
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i];
+          const match = line.match(regex);
           
-          return {
-            cleanedText,
-            removedText: matches.join(', '),
-            matchedPattern: removalRegex
-          };
+          if (match) {
+            // Remove the matched text from this line
+            lines[i] = line.replace(regex, '').trim();
+            
+            // Remove the line entirely if it's now empty
+            if (lines[i] === '') {
+              lines.splice(i, 1);
+            }
+            
+            // Join back together and clean up extra newlines at the end
+            const cleanedText = lines.join('\n').replace(/\n+$/, '\n').trim();
+            
+            return {
+              cleanedText,
+              removedText: match[0],
+              matchedPattern: removalRegex
+            };
+          }
         }
       } catch (regexError) {
         console.error(`Invalid regex pattern for user ${userId}: ${removalRegex}`, regexError);

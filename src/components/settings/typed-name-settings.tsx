@@ -119,6 +119,7 @@ export function TypedNameSettings() {
         />
         <p className="text-xs text-muted-foreground">
           Regular expression to match and remove your typed name from emails during training. 
+          Searches from bottom to top and removes only the first match found.
           Leave empty to disable removal.
         </p>
         <Button
@@ -149,7 +150,8 @@ export function TypedNameSettings() {
         <h4 className="text-sm font-medium mb-2">Example Usage:</h4>
         <div className="space-y-2 text-sm text-muted-foreground">
           <p><strong>Removal Pattern:</strong> <code>^[-\s]*(?:John|J)\s*$</code></p>
-          <p className="ml-4">Removes &quot;-John&quot;, &quot;-J&quot;, &quot;John&quot;, &quot; J&quot; etc. from the end of emails</p>
+          <p className="ml-4">Removes &quot;-John&quot;, &quot;-J&quot;, &quot;John&quot;, &quot; J&quot; etc. from emails</p>
+          <p className="ml-4 text-xs">Works bottom-up: only removes the last occurrence (e.g., signature) while preserving names in the email body</p>
           <p><strong>Append String:</strong> <code>-John</code></p>
           <p className="ml-4">Adds &quot;-John&quot; to the end of generated responses</p>
         </div>
