@@ -16,7 +16,7 @@ import { decodeHtmlEntitiesSafe } from '@/lib/html-entities'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
+import { ResizableSplit } from '@/components/ui/resizable-split'
 
 
 interface LLMProvider {
@@ -30,70 +30,6 @@ interface LLMProvider {
 
 // Demo account ID for testing without real email accounts
 const DEMO_ACCOUNT_ID = 'demo-account-001'
-
-// Example emails for quick testing
-const EXAMPLE_EMAILS = {
-  professional: {
-    recipient: 'sarah@company.com',
-    subject: 'Q3 Financial Report Review',
-    body: `Hi Sarah,
-
-I've reviewed the Q3 financial report you sent over. The revenue growth looks solid, particularly in the enterprise segment.
-
-A few questions:
-- Can we get more granular data on the subscription renewals?
-- What's driving the increase in operational costs?
-- Should we schedule a meeting to discuss the Q4 projections?
-
-Looking forward to your thoughts.
-
-Best regards,
-John`
-  },
-  casual: {
-    recipient: 'mike@gmail.com',
-    subject: 'Weekend plans',
-    body: `Hey Mike!
-
-Hope you're doing well! Are you still up for the hiking trip this weekend? The weather looks perfect and I found this amazing trail near Bear Mountain.
-
-Let me know if Saturday works for you. We could grab breakfast at that diner we like before heading out.
-
-Also, don't forget to bring your camera - the views are supposed to be incredible! 📸
-
-Cheers,
-John`
-  },
-  technical: {
-    recipient: 'dev-team@company.com',
-    subject: 'API Performance Issues',
-    body: `Team,
-
-We're seeing increased latency on the /api/users endpoint during peak hours. Response times are averaging 800ms when they should be under 200ms.
-
-Initial investigation suggests:
-1. Database queries aren't using proper indexes
-2. No caching layer for frequently accessed data
-3. Possible N+1 query problem in the user permissions check
-
-Can we prioritize this for the next sprint? Happy to pair with someone on the optimization.
-
-Thanks,
-John`
-  },
-  personal: {
-    recipient: 'lisa@example.com',
-    subject: 'Dinner tonight?',
-    body: `Hey honey,
-
-Just wanted to check if you're free for dinner tonight? I was thinking we could try that new Italian place downtown that opened last week. I heard their carbonara is amazing!
-
-I can make reservations for 7:30 if that works for you. Let me know! ❤️
-
-Love you,
-John`
-  }
-}
 
 export default function ImapLogsDemoPage() {
   const { user } = useAuth()
@@ -296,14 +232,6 @@ export default function ImapLogsDemoPage() {
     }
   }, []) // Empty dependency array - only run once on mount
 
-
-  const handleLoadExample = (exampleKey: keyof typeof EXAMPLE_EMAILS) => {
-    const example = EXAMPLE_EMAILS[exampleKey]
-    setEmailBody(example.body)
-    setRecipientEmail(example.recipient)
-    success(`Loaded ${exampleKey} example`)
-  }
-
   const handleAnalyzeEmail = async () => {
     if (!emailBody.trim()) {
       showError('Please enter an email to analyze')
@@ -414,7 +342,7 @@ export default function ImapLogsDemoPage() {
 
   return (
     <ProtectedRoute>
-      <div className="h-screen bg-zinc-50 dark:bg-zinc-900 flex flex-col overflow-hidden">
+      <div className="h-[calc(100vh-4rem)] bg-zinc-50 dark:bg-zinc-900 flex flex-col overflow-hidden">
         {/* Header with LLM Selection */}
         <div className="h-16 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Inspector</h1>
@@ -494,26 +422,28 @@ export default function ImapLogsDemoPage() {
 
           {/* Main Content */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Full width Analysis Pipeline */}
-            <div className="h-[500px] p-2">
-              <Card className="h-full flex flex-col overflow-hidden">
-                <CardContent className="flex-1 overflow-hidden px-4 py-2">
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                    <TabsList className="grid w-full grid-cols-7 h-8">
-                      <TabsTrigger value="email-input" className="text-xs">Email Input</TabsTrigger>
-                      <TabsTrigger value="prompt" className="text-xs">Prompt</TabsTrigger>
-                      <TabsTrigger value="llm-response" className="text-xs">LLM Response</TabsTrigger>
-                      <TabsTrigger value="nlp" className="text-xs">NLP</TabsTrigger>
-                      <TabsTrigger value="relationship" className="text-xs">Relationship</TabsTrigger>
-                      <TabsTrigger value="style" className="text-xs">Style</TabsTrigger>
-                      <TabsTrigger value="examples" className="text-xs">Examples</TabsTrigger>
-                    </TabsList>
+            <ResizableSplit
+              defaultTopHeight={70}
+              minTopHeight={200}
+              minBottomHeight={100}
+              className="flex-1"
+              topContent={
+                /* Full width Analysis Pipeline */
+                <div className="h-full p-2 overflow-hidden">
+                  <Card className="h-full flex flex-col overflow-hidden">
+                    <CardContent className="flex-1 overflow-hidden px-4 py-2">
+                      <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+                        <TabsList className="grid w-full grid-cols-3 h-8">
+                          <TabsTrigger value="email-input" className="text-xs">Email Input</TabsTrigger>
+                          <TabsTrigger value="prompt" className="text-xs">Prompt</TabsTrigger>
+                          <TabsTrigger value="llm-response" className="text-xs">LLM Response</TabsTrigger>
+                        </TabsList>
                     
-                    <div className="flex-1 overflow-auto mt-1">
+                    <div className="flex-1 mt-1 min-h-0">
                       {/* Email Input Tab */}
-                      <TabsContent value="email-input" className="h-full">
+                      <TabsContent value="email-input" className="h-full overflow-auto">
                         <div className="flex flex-col gap-2 p-3">
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
                             <div>
                               <Label className="text-xs">Recipient Email</Label>
                               <Input
@@ -537,20 +467,6 @@ export default function ImapLogsDemoPage() {
                                       {type.charAt(0).toUpperCase() + type.slice(1)}
                                     </SelectItem>
                                   ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Load Example</Label>
-                              <Select onValueChange={(value) => handleLoadExample(value as keyof typeof EXAMPLE_EMAILS)}>
-                                <SelectTrigger className="h-7 text-sm mt-1">
-                                  <SelectValue placeholder="Select..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="professional">Professional</SelectItem>
-                                  <SelectItem value="casual">Casual</SelectItem>
-                                  <SelectItem value="technical">Technical</SelectItem>
-                                  <SelectItem value="personal">Personal</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -592,204 +508,10 @@ export default function ImapLogsDemoPage() {
                         </div>
                       </TabsContent>
                       
-                      {/* NLP Features Tab */}
-                      <TabsContent value="nlp" className="h-full">
-                        {analysisResults?.nlpFeatures ? (
-                          <div className="space-y-4">
-                            {/* Sentiment Analysis */}
-                            <div>
-                              <h4 className="text-sm font-semibold mb-2">Sentiment Analysis</h4>
-                              <div className="flex items-center gap-4">
-                                <Badge variant={analysisResults.nlpFeatures.sentiment?.primary === 'positive' ? 'default' : 'secondary'}>
-                                  {analysisResults.nlpFeatures.sentiment?.primary || 'neutral'}
-                                </Badge>
-                                <span className="text-sm text-zinc-600">
-                                  Score: {analysisResults.nlpFeatures.sentiment?.score?.toFixed(2) || '0.00'}
-                                </span>
-                              </div>
-                            </div>
-                            
-                            {/* Tone Qualities */}
-                            <div>
-                              <h4 className="text-sm font-semibold mb-2">Tone Qualities</h4>
-                              <div className="space-y-2">
-                                <div>
-                                  <div className="flex justify-between text-sm mb-1">
-                                    <span>Warmth</span>
-                                    <span>{Math.round((analysisResults.nlpFeatures.tonalQualities?.warmth || 0) * 100)}%</span>
-                                  </div>
-                                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-indigo-500 transition-all duration-300"
-                                      style={{ width: `${(analysisResults.nlpFeatures.tonalQualities?.warmth || 0) * 100}%` }}
-                                    />
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="flex justify-between text-sm mb-1">
-                                    <span>Formality</span>
-                                    <span>{Math.round((analysisResults.nlpFeatures.tonalQualities?.formality || 0) * 100)}%</span>
-                                  </div>
-                                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-indigo-500 transition-all duration-300"
-                                      style={{ width: `${(analysisResults.nlpFeatures.tonalQualities?.formality || 0) * 100}%` }}
-                                    />
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="flex justify-between text-sm mb-1">
-                                    <span>Enthusiasm</span>
-                                    <span>{Math.round((analysisResults.nlpFeatures.tonalQualities?.enthusiasm || 0) * 100)}%</span>
-                                  </div>
-                                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-indigo-500 transition-all duration-300"
-                                      style={{ width: `${(analysisResults.nlpFeatures.tonalQualities?.enthusiasm || 0) * 100}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {/* Emotions */}
-                            {analysisResults.nlpFeatures.sentiment?.emotions && analysisResults.nlpFeatures.sentiment.emotions.length > 0 && (
-                              <div>
-                                <h4 className="text-sm font-semibold mb-2">Detected Emotions</h4>
-                                <div className="flex flex-wrap gap-2">
-                                  {analysisResults.nlpFeatures.sentiment.emotions.map((emotion, i) => (
-                                    <Badge key={i} variant="outline">
-                                      {emotion}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Statistics */}
-                            <div>
-                              <h4 className="text-sm font-semibold mb-2">Writing Statistics</h4>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div>Words: {analysisResults.nlpFeatures.stats?.wordCount || 0}</div>
-                                <div>Sentences: {analysisResults.nlpFeatures.stats?.sentenceCount || 0}</div>
-                                <div>Avg sentence length: {analysisResults.nlpFeatures.stats?.avgWordsPerSentence?.toFixed(1) || '0'}</div>
-                                <div>Questions: {analysisResults.nlpFeatures.questions?.length || 0}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-zinc-500">
-                            <p>Analyze an email to see NLP features</p>
-                          </div>
-                        )}
-                      </TabsContent>
-                      
-                      {/* Relationship Analysis Tab */}
-                      <TabsContent value="relationship" className="h-full">
-                        {analysisResults?.relationship ? (
-                          <div className="space-y-4">
-                            <div>
-                              <h4 className="text-sm font-semibold mb-2">Detected Relationship</h4>
-                              <div className="flex items-center gap-4">
-                                <Badge variant="outline" className="text-base">
-                                  {analysisResults.relationship.type}
-                                </Badge>
-                                <span className="text-sm text-zinc-600">
-                                  Confidence: {Math.round((analysisResults.relationship.confidence || 0) * 100)}%
-                                </span>
-                              </div>
-                            </div>
-                            
-                            {analysisResults.person && (
-                              <div>
-                                <h4 className="text-sm font-semibold mb-2">Person Information</h4>
-                                <div className="text-sm space-y-1">
-                                  <p>Name: {analysisResults.person.name}</p>
-                                  <p>Email: {analysisResults.person.email}</p>
-                                  <p>Previous interactions: {analysisResults.person.emailCount || 0}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-zinc-500">
-                            <p>Analyze an email to see relationship detection</p>
-                          </div>
-                        )}
-                      </TabsContent>
-                      
-                      {/* Style Learning Tab */}
-                      <TabsContent value="style" className="h-full">
-                        {analysisResults?.styleAggregation ? (
-                          <div className="space-y-4">
-                            <div>
-                              <h4 className="text-sm font-semibold mb-2">Learned Style Patterns</h4>
-                              <p className="text-sm text-zinc-600 mb-2">
-                                Based on {analysisResults.styleAggregation.emailCount} emails
-                              </p>
-                              
-                              {analysisResults.styleAggregation.greetings?.length > 0 && (
-                                <div>
-                                  <p className="text-sm font-medium">Common Greetings:</p>
-                                  <div className="flex flex-wrap gap-2 mt-1">
-                                    {analysisResults.styleAggregation.greetings.slice(0, 3).map((g, i) => (
-                                      <Badge key={i} variant="secondary">
-                                        {g.text} ({g.percentage}%)
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {analysisResults.styleAggregation.emojis?.length > 0 && (
-                                <div className="mt-3">
-                                  <p className="text-sm font-medium">Common Emojis:</p>
-                                  <div className="flex gap-2 mt-1">
-                                    {analysisResults.styleAggregation.emojis.slice(0, 5).map((e, i) => (
-                                      <span key={i} className="text-xl">{e.emoji}</span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-zinc-500">
-                            <p>Analyze an email to see style patterns</p>
-                          </div>
-                        )}
-                      </TabsContent>
-                      
-                      {/* Example Selection Tab */}
-                      <TabsContent value="examples" className="h-full">
-                        {analysisResults?.selectedExamples ? (
-                          <div className="space-y-3">
-                            <h4 className="text-sm font-semibold">Selected Examples ({analysisResults.selectedExamples.length})</h4>
-                            {analysisResults.selectedExamples.slice(0, 3).map((ex, i) => (
-                              <div key={i} className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-md">
-                                <div className="flex justify-between items-start mb-1">
-                                  <Badge variant="outline" className="text-xs">
-                                    {ex.relationship}
-                                  </Badge>
-                                  <span className="text-xs text-zinc-500">
-                                    Score: {ex.score?.toFixed(2)}
-                                  </span>
-                                </div>
-                                <p className="text-sm mt-2 line-clamp-3">{ex.text}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-zinc-500">
-                            <p>Analyze an email to see example selection</p>
-                          </div>
-                        )}
-                      </TabsContent>
-                      
                       {/* LLM Prompt Tab */}
-                      <TabsContent value="prompt" className="h-full">
+                      <TabsContent value="prompt" className="h-full flex flex-col p-3">
                         {analysisResults?.llmPrompt ? (
-                          <div className="h-full flex flex-col">
+                          <>
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-sm font-semibold">Generated Prompt</h4>
                               <div className="flex gap-2">
@@ -835,15 +557,15 @@ export default function ImapLogsDemoPage() {
                                 </Button>
                               </div>
                             </div>
-                            <div className="flex-1 overflow-auto">
+                            <div className="flex-1 min-h-0">
                               <textarea
-                                className="w-full h-full text-xs bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap font-mono resize-none border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-full h-full text-xs bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap font-mono resize-none border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 overflow-auto"
                                 value={editedPrompt}
                                 onChange={(e) => setEditedPrompt(e.target.value)}
                                 placeholder="Edit the prompt here..."
                               />
                             </div>
-                          </div>
+                          </>
                         ) : (
                           <div className="flex items-center justify-center h-full text-zinc-500">
                             <p>Analyze an email to see the LLM prompt</p>
@@ -852,43 +574,40 @@ export default function ImapLogsDemoPage() {
                       </TabsContent>
                       
                       {/* LLM Response Tab */}
-                      <TabsContent value="llm-response" className="h-full">
+                      <TabsContent value="llm-response" className="h-full flex flex-col p-3">
                         {generatedReply ? (
-                          <div className="space-y-4">
-                            <div>
-                              <h4 className="text-sm font-semibold mb-2">Generated Email Reply</h4>
-                              <div className="relative">
-                                <div className="p-3 bg-gray-50 dark:bg-zinc-800 rounded-lg whitespace-pre-wrap text-sm">
-                                  {generatedReply}
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="absolute top-2 right-2"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(generatedReply)
-                                    success('Reply copied to clipboard!')
-                                  }}
-                                >
-                                  Copy
-                                </Button>
-                              </div>
+                          <>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-sm font-semibold">Generated Email Reply</h4>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(generatedReply)
+                                  success('Reply copied to clipboard!')
+                                }}
+                              >
+                                Copy
+                              </Button>
+                            </div>
+                            <div className="flex-1 min-h-0">
+                              <textarea
+                                className="w-full h-full text-sm bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap resize-none border-0 focus:outline-none overflow-auto"
+                                value={generatedReply}
+                                readOnly
+                              />
                             </div>
                             
-                            {selectedProviderId && (
-                              <div>
-                                <h4 className="text-sm font-semibold mb-2">Generation Details</h4>
-                                <div className="space-y-1 text-sm text-zinc-600">
-                                  <div>Provider: {llmProviders.find(p => p.id === selectedProviderId)?.provider_name}</div>
-                                  <div>Model: {llmProviders.find(p => p.id === selectedProviderId)?.model_name}</div>
-                                  <div className="text-xs text-zinc-500 mt-2">
-                                    Note: Token usage and cost estimates will be available in a future update
-                                  </div>
+                            <div className="mt-2 space-y-2">
+                              {selectedProviderId && (
+                                <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded text-xs">
+                                  <span className="text-zinc-600">Provider: </span>
+                                  <span>{llmProviders.find(p => p.id === selectedProviderId)?.provider_name}</span>
+                                  <span className="text-zinc-600"> | Model: </span>
+                                  <span>{llmProviders.find(p => p.id === selectedProviderId)?.model_name}</span>
                                 </div>
-                              </div>
-                            )}
-                            
-                            <div className="mt-4">
+                              )}
+                              
                               <Button
                                 onClick={() => handleGenerateReply()}
                                 disabled={isGeneratingReply}
@@ -909,7 +628,7 @@ export default function ImapLogsDemoPage() {
                                 )}
                               </Button>
                             </div>
-                          </div>
+                          </>
                         ) : (
                           <div className="flex flex-col items-center justify-center h-full text-zinc-500">
                             <p className="mb-4">No reply generated yet</p>
@@ -945,15 +664,18 @@ export default function ImapLogsDemoPage() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* IMAP Logs Panel - Full Width */}
-            <div className="flex-1 px-2 pb-2 min-h-0">
+          }
+          bottomContent={
+            /* IMAP Logs Panel - Full Width */
+            <div className="h-full p-2 overflow-hidden">
               <ImapLogViewer 
                 emailAccountId={DEMO_ACCOUNT_ID} 
                 className="h-full"
               />
             </div>
-          </div>
+          }
+        />
+      </div>
         </div>
       </div>
     </ProtectedRoute>
