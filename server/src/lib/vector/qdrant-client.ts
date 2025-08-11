@@ -36,6 +36,7 @@ export interface VectorSearchParams {
   userId: string;
   queryVector: number[];
   relationship?: string;
+  recipientEmail?: string;  // Filter by specific recipient for direct correspondence
   limit?: number;
   scoreThreshold?: number;
   excludeIds?: string[];
@@ -192,6 +193,16 @@ export class VectorStore {
 
     const limit = params.limit || parseInt(process.env.VECTOR_SEARCH_LIMIT || '50');
     const scoreThreshold = params.scoreThreshold || parseFloat(process.env.VECTOR_SCORE_THRESHOLD || '0.3');
+    
+    console.log(`[VectorStore searchSimilar] Called with:`, {
+      userId: params.userId,
+      hasVector: params.queryVector ? 'yes' : 'no',
+      vectorLength: params.queryVector?.length,
+      relationship: params.relationship,
+      recipientEmail: params.recipientEmail,
+      limit,
+      scoreThreshold
+    });
 
     // Build filter conditions
     const must: any[] = [
@@ -203,6 +214,14 @@ export class VectorStore {
       must.push({
         key: 'relationship.type',
         match: { value: params.relationship }
+      });
+    }
+
+    // Filter by specific recipient email for direct correspondence
+    if (params.recipientEmail) {
+      must.push({
+        key: 'recipientEmail',
+        match: { value: params.recipientEmail }
       });
     }
 
@@ -239,6 +258,12 @@ export class VectorStore {
       }
 
       const results = await this.client.search(this.collectionName, searchParams);
+      
+      console.log(`[VectorStore searchSimilar] Results:`, {
+        count: results.length,
+        scores: results.map(r => r.score),
+        firstFewIds: results.slice(0, 3).map(r => (r.payload as any).emailId)
+      });
 
       return results.map(result => ({
         id: (result.payload as any).originalId || String(result.id),
@@ -295,6 +320,49 @@ export class VectorStore {
       }));
     } catch (error) {
       throw new Error(`Failed to get emails by relationship: ${error}`);
+    }
+  }
+
+  async debugUserEmails(userId: string, limit: number = 5): Promise<void> {
+    await this.initialize();
+    
+    try {
+      // Get a few emails for this user to debug
+      const results = await this.client.scroll(this.collectionName, {
+        filter: {
+          must: [
+            { key: 'userId', match: { value: userId } }
+          ]
+        },
+        limit,
+        with_payload: true,
+        with_vector: true
+      });
+      
+      console.log(`[VectorStore Debug] Found ${results.points.length} emails for userId: ${userId}`);
+      results.points.forEach((point, idx) => {
+        const payload = point.payload as any;
+        console.log(`[VectorStore Debug] Email ${idx + 1}:`, {
+          id: payload.emailId,
+          userId: payload.userId,
+          recipientEmail: payload.recipientEmail,
+          relationship: payload.relationship,
+          subject: payload.subject?.substring(0, 50) + '...',
+          hasVector: point.vector ? 'yes' : 'no',
+          vectorLength: point.vector ? (Array.isArray(point.vector) ? point.vector.length : 'object') : 0
+        });
+      });
+      
+      // Also check total count without userId filter
+      const allResults = await this.client.scroll(this.collectionName, {
+        limit: 1000,
+        with_payload: false,
+        with_vector: false
+      });
+      
+      console.log(`[VectorStore Debug] Total emails in collection: ${allResults.points.length}`);
+    } catch (error) {
+      console.error('[VectorStore Debug] Error:', error);
     }
   }
 

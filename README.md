@@ -166,6 +166,29 @@ npm run test:integration  # Run integration tests (requires all services)
 npm run system:reset   # Full reset: Docker, DB, and mail accounts
 ```
 
+## ⚙️ Configuration
+
+### Environment Variables
+
+The project uses environment variables for configuration. Key settings include:
+
+- **EXAMPLE_COUNT**: Number of email examples to use for tone learning (default: 25)
+- **DIRECT_EMAIL_MAX_PERCENTAGE**: Maximum portion of examples from direct correspondence (default: 0.6)
+- **PATTERN_ANALYSIS_CORPUS_SIZE**: Number of emails to analyze for writing patterns (default: 200)
+- **PIPELINE_BATCH_SIZE**: Batch size for email processing (default: 100)
+- **VECTOR_SEARCH_LIMIT**: Maximum results from vector search (default: 50)
+
+See `.env.example` for the complete list with descriptions.
+
+### Tone Learning Strategy
+
+The AI learns your writing style using a two-phase approach:
+
+1. **Direct correspondence**: Prioritizes past emails with the specific recipient (up to 60%)
+2. **Relationship category**: Fills remaining slots with emails to others in the same relationship type
+
+This ensures the AI captures both your personal communication style with individuals and your general tone for different relationship types.
+
 ## 🔑 Authentication
 
 The project uses [better-auth](https://www.better-auth.com/) for authentication with:

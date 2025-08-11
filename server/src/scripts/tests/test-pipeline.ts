@@ -126,7 +126,7 @@ async function testPipeline() {
     console.log(`   - Detected relationship: ${examples.relationship}`);
     console.log(`   - Total candidates: ${examples.stats.totalCandidates}`);
     console.log(`   - Relationship matches: ${examples.stats.relationshipMatch}`);
-    console.log(`   - Diversity score: ${examples.stats.diversityScore.toFixed(2)}`);
+    console.log(`   - Direct correspondence: ${examples.stats.directCorrespondence}`);
     console.log(`   - Selected ${examples.examples.length} examples:`);
     
     examples.examples.forEach((ex, i) => {

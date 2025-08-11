@@ -298,7 +298,7 @@ Email Details:
       metadata: {
         promptTemplate: templateName,
         exampleCount: exampleSelection.examples.length,
-        diversityScore: exampleSelection.stats.diversityScore,
+        directCorrespondence: exampleSelection.stats.directCorrespondence,
         timestamp: new Date().toISOString()
       },
       createdAt: new Date()

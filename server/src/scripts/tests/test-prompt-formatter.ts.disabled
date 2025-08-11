@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { PromptFormatter } from '../../lib/pipeline/prompt-formatter';
+import { PromptFormatterV2 } from '../../lib/pipeline/prompt-formatter-v2';
 import { SelectedExample } from '../../lib/pipeline/example-selector';
 import { RelationshipProfile } from '../../lib/pipeline/types';
 
@@ -86,13 +86,14 @@ const colleagueProfile: RelationshipProfile = {
 async function testPromptFormatter() {
   console.log('🎨 Testing Prompt Formatter\n');
   
-  const formatter = new PromptFormatter();
+  const formatter = new PromptFormatterV2();
+  await formatter.initialize();
   const examples = createSampleExamples();
 
   // Test 1: Basic prompt formatting with spouse examples
   console.log('1️⃣ Testing basic prompt formatting (spouse relationship)...\n');
   
-  const spousePrompt = formatter.formatWithExamples({
+  const spousePrompt = await formatter.formatWithExamples({
     incomingEmail: "When will you be home tonight?",
     recipientEmail: "sarah@gmail.com",
     relationship: "spouse",
@@ -166,7 +167,7 @@ async function testPromptFormatter() {
 
   // Test 7: No relationship profile
   console.log('7️⃣ Testing without relationship profile...\n');
-  const noProfilePrompt = formatter.formatWithExamples({
+  const noProfilePrompt = await formatter.formatWithExamples({
     incomingEmail: "What time is the meeting?",
     recipientEmail: "team@company.com",
     relationship: "colleagues",

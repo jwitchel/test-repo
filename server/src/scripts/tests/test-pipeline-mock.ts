@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { EmailIngestPipeline } from '../../lib/pipeline/email-ingest-pipeline';
 import { ExampleSelector } from '../../lib/pipeline/example-selector';
-import { PromptFormatter } from '../../lib/pipeline/prompt-formatter';
+import { PromptFormatterV2 } from '../../lib/pipeline/prompt-formatter-v2';
 import { extractEmailFeatures, ProcessedEmail } from '../../lib/pipeline/types';
 
 // Mock implementations for testing without dependencies
@@ -217,9 +217,10 @@ async function testPipelineWithMocks() {
 
     // Test 4: Prompt Formatting
     console.log('5️⃣ Testing prompt formatting...');
-    const promptFormatter = new PromptFormatter();
+    const promptFormatter = new PromptFormatterV2();
+    await promptFormatter.initialize();
     
-    const formattedPrompt = promptFormatter.formatWithExamplesStructured({
+    const formattedPrompt = await promptFormatter.formatWithExamplesStructured({
       incomingEmail: 'What time will you be home?',
       recipientEmail: 'spouse@gmail.com',
       relationship: selectionResult.relationship,

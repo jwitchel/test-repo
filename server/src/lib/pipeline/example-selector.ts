@@ -23,20 +23,18 @@ export interface ExampleSelectionResult {
   stats: {
     totalCandidates: number;
     relationshipMatch: number;
-    diversityScore: number;
+    directCorrespondence: number;  // Tracks emails to the specific recipient
   };
 }
 
 export class ExampleSelector {
-  private diversityWeight: number;
-  
   constructor(
     private vectorStore: VectorStore,
     private embeddingService: EmbeddingService,
     private relationshipService: RelationshipService,
     private relationshipDetector: RelationshipDetector
   ) {
-    this.diversityWeight = parseFloat(process.env.DIVERSITY_WEIGHT || '0.3');
+    // Two-phase selection ensures good results without diversity weighting
   }
   
   async selectExamples(params: {
@@ -51,6 +49,12 @@ export class ExampleSelector {
       recipientEmail: params.recipientEmail
     });
     
+    console.log(`[ExampleSelector] Detected relationship: ${relationship.relationship} (confidence: ${relationship.confidence})`);
+    console.log(`[ExampleSelector] UserId: ${params.userId}`);
+    
+    // Debug: Check what's in the vector store for this user
+    await this.vectorStore.debugUserEmails(params.userId, 5);
+    
     // Step 2: Get relationship profile (for future use)
     await this.relationshipService.getRelationshipProfile(
       params.userId,
@@ -62,236 +66,105 @@ export class ExampleSelector {
       () => this.embeddingService.embedText(params.incomingEmail)
     );
     
-    // Step 4: Search with relationship as PRIMARY filter (with retry)
-    let examples = await withRetry(
+    console.log(`[ExampleSelector] Generated embedding:`, {
+      hasVector: vector ? 'yes' : 'no',
+      vectorLength: vector?.length,
+      vectorSample: vector ? vector.slice(0, 5) : null
+    });
+    
+    // Step 4: Two-phase selection
+    const desiredCount = params.desiredCount || parseInt(process.env.EXAMPLE_COUNT || '25');
+    const maxDirectPercentage = parseFloat(process.env.DIRECT_EMAIL_MAX_PERCENTAGE || '0.6');
+    const maxDirectEmails = Math.floor(desiredCount * maxDirectPercentage);
+    
+    // Phase 1: Search for direct correspondence with this specific recipient
+    // These emails show how the writer specifically communicates with this person
+    console.log(`[ExampleSelector] Phase 1: Searching for direct emails to ${params.recipientEmail}`);
+    const directEmails = await withRetry(
       () => this.vectorStore.searchSimilar({
-      userId: params.userId,
-      queryVector: vector,
-      relationship: relationship.relationship,
-      limit: 100
-    })
+        userId: params.userId,
+        queryVector: vector,
+        recipientEmail: params.recipientEmail,  // Filter to this specific recipient
+        limit: 50,  // Get more than we need to allow for selection
+        scoreThreshold: 0  // Get all results, sorted by similarity
+      })
     );
     
-    // Step 5: If not enough examples, expand search
-    if (examples.length < 10) {
-      console.log(`Only ${examples.length} examples for ${relationship.relationship}, expanding search`);
-      
-      const adjacentRelationships = this.getAdjacentRelationships(relationship.relationship);
-      
-      for (const adjacent of adjacentRelationships) {
-        const moreExamples = await withRetry(
-          () => this.vectorStore.searchSimilar({
+    console.log(`[ExampleSelector] Found ${directEmails.length} direct emails with ${params.recipientEmail}`);
+    
+    // Calculate how many direct emails to use (up to the maximum percentage)
+    const directEmailsToUse = Math.min(directEmails.length, maxDirectEmails);
+    const remainingSlots = desiredCount - directEmailsToUse;
+    
+    console.log(`Using ${directEmailsToUse}/${directEmails.length} direct emails (max ${maxDirectEmails} allowed)`);
+    console.log(`Need ${remainingSlots} more examples from ${relationship.relationship} category`);
+    
+    // Phase 2: Search for same relationship category to fill remaining slots
+    // These show the writer's general pattern for this type of relationship
+    let categoryEmails: EmailVector[] = [];
+    if (remainingSlots > 0) {
+      console.log(`[ExampleSelector] Phase 2: Searching for ${relationship.relationship} relationship emails`);
+      categoryEmails = await withRetry(
+        () => this.vectorStore.searchSimilar({
           userId: params.userId,
           queryVector: vector,
-          relationship: adjacent,
-          limit: 50
+          relationship: relationship.relationship,  // Same relationship type
+          limit: 100,  // Get plenty for selection
+          scoreThreshold: 0  // Get all results, sorted by similarity
         })
-        );
-        
-        examples = [...examples, ...moreExamples];
-        
-        if (examples.length >= 10) break;
-      }
+      );
+      
+      console.log(`[ExampleSelector] Raw category search returned ${categoryEmails.length} emails`);
+      
+      // Filter out any emails we already have from direct correspondence
+      const directEmailIds = new Set(directEmails.map(e => e.id));
+      categoryEmails = categoryEmails.filter(e => !directEmailIds.has(e.id));
+      
+      console.log(`[ExampleSelector] After filtering duplicates: ${categoryEmails.length} additional ${relationship.relationship} emails`);
     }
     
-    // Step 6: Apply selection based on diversity weight
-    const desiredCount = params.desiredCount || parseInt(process.env.EXAMPLE_COUNT || '25');
-    const selected = this.diversityWeight > 0 
-      ? this.selectDiverseExamples(examples, desiredCount)
-      : this.selectBySimilarity(examples, desiredCount);
+    // Combine the two sets, preserving similarity order within each phase
+    const examples = [
+      ...directEmails.slice(0, directEmailsToUse),
+      ...categoryEmails.slice(0, remainingSlots)
+    ];
+    
+    // Step 5: Use similarity-based selection
+    // The two-phase approach already ensures we get relevant examples
+    const selected = this.selectBySimilarity(examples, desiredCount);
+    
+    console.log(`Final selection: ${selected.length} examples total`);
+    
+    // Debug relationship types
+    if (selected.length > 0) {
+      console.log(`[ExampleSelector] First selected example relationship:`, selected[0].metadata.relationship);
+      const uniqueRelationships = [...new Set(selected.map(e => e.metadata.relationship?.type))];
+      console.log(`[ExampleSelector] Unique relationship types in selection:`, uniqueRelationships);
+    }
     
     return {
       relationship: relationship.relationship,
       examples: selected,
       stats: {
-        totalCandidates: examples.length,
+        totalCandidates: directEmails.length + categoryEmails.length,
         relationshipMatch: selected.filter(e => 
-          e.metadata.relationship.type === relationship.relationship
+          e.metadata.relationship?.type === relationship.relationship
         ).length,
-        diversityScore: this.calculateDiversityScore(selected)
+        directCorrespondence: selected.filter(e => 
+          e.metadata.recipientEmail === params.recipientEmail
+        ).length
       }
     };
   }
   
-  private selectDiverseExamples(
-    candidates: EmailVector[], 
-    count: number
-  ): SelectedExample[] {
-    if (candidates.length <= count) {
-      return candidates.map(c => ({
-        id: c.id,
-        text: c.metadata.userReply,
-        metadata: c.metadata,
-        score: c.score || 0
-      }));
-    }
-    
-    const selected: SelectedExample[] = [];
-    const used = new Set<string>();
-    
-    // Group by different dimensions
-    const byFormality = this.groupByFormality(candidates);
-    const bySentiment = this.groupBySentiment(candidates);
-    const byLength = this.groupByLength(candidates);
-    const byUrgency = this.groupByUrgency(candidates);
-    
-    // Select from each group to ensure diversity
-    const groups = [byFormality, bySentiment, byLength, byUrgency];
-    let groupIndex = 0;
-    
-    while (selected.length < count) {
-      const currentGroups = groups[groupIndex % groups.length];
-      
-      for (const group of Object.values(currentGroups)) {
-        if (selected.length >= count) break;
-        
-        const unused = group.filter(e => !used.has(e.id));
-        if (unused.length > 0) {
-          const best = unused[0];
-          selected.push({
-            id: best.id,
-            text: best.metadata.userReply,
-            metadata: best.metadata,
-            score: best.score || 0
-          });
-          used.add(best.id);
-        }
-      }
-      
-      groupIndex++;
-      
-      if (groupIndex > groups.length * 2) break;
-    }
-    
-    return selected;
-  }
-  
   private selectBySimilarity(candidates: EmailVector[], count: number): SelectedExample[] {
-    // Simple selection by similarity score when diversity weight is 0
+    // Simple selection by similarity score
+    // The vector search already orders by semantic similarity
     return candidates.slice(0, count).map(c => ({
       id: c.id,
       text: c.metadata.userReply,
       metadata: c.metadata,
       score: c.score || 0
     }));
-  }
-  
-  private calculateDiversityScore(examples: SelectedExample[]): number {
-    if (examples.length < 2) return 0;
-    
-    const dimensions = {
-      formality: new Set(examples.map(e => 
-        Math.round(e.metadata.features.stats.formalityScore * 10)
-      )).size / 10,
-      
-      sentiment: new Set(examples.map(e => 
-        e.metadata.features.sentiment.dominant
-      )).size / 3,
-      
-      length: new Set(examples.map(e => 
-        Math.floor(e.metadata.wordCount / 50)
-      )).size / 5,
-      
-      urgency: new Set(examples.map(e => 
-        e.metadata.features.urgency.level
-      )).size / 3
-    };
-    
-    return Object.values(dimensions).reduce((a, b) => a + b) / 4;
-  }
-  
-  private getAdjacentRelationships(relationship: string): string[] {
-    const adjacencyMap: Record<string, string[]> = {
-      'spouse': ['friend', 'colleague'],
-      'friend': ['spouse', 'colleague'],
-      'colleague': ['friend', 'professional'],
-      'professional': ['colleague', 'friend']
-    };
-    
-    return adjacencyMap[relationship] || [];
-  }
-
-  private groupByFormality(candidates: EmailVector[]): Record<string, EmailVector[]> {
-    const groups: Record<string, EmailVector[]> = {
-      very_formal: [],
-      formal: [],
-      neutral: [],
-      casual: [],
-      very_casual: []
-    };
-
-    candidates.forEach(candidate => {
-      const formalityScore = candidate.metadata.features?.stats?.formalityScore || 0.5;
-      if (formalityScore >= 0.8) {
-        groups.very_formal.push(candidate);
-      } else if (formalityScore >= 0.6) {
-        groups.formal.push(candidate);
-      } else if (formalityScore >= 0.4) {
-        groups.neutral.push(candidate);
-      } else if (formalityScore >= 0.2) {
-        groups.casual.push(candidate);
-      } else {
-        groups.very_casual.push(candidate);
-      }
-    });
-
-    return groups;
-  }
-
-  private groupBySentiment(candidates: EmailVector[]): Record<string, EmailVector[]> {
-    const groups: Record<string, EmailVector[]> = {
-      positive: [],
-      neutral: [],
-      negative: []
-    };
-
-    candidates.forEach(candidate => {
-      const sentiment = candidate.metadata.features?.sentiment?.dominant || 'neutral';
-      groups[sentiment].push(candidate);
-    });
-
-    return groups;
-  }
-
-  private groupByLength(candidates: EmailVector[]): Record<string, EmailVector[]> {
-    const groups: Record<string, EmailVector[]> = {
-      very_short: [],
-      short: [],
-      medium: [],
-      long: [],
-      very_long: []
-    };
-
-    candidates.forEach(candidate => {
-      const wordCount = candidate.metadata.wordCount || 0;
-      if (wordCount < 25) {
-        groups.very_short.push(candidate);
-      } else if (wordCount < 50) {
-        groups.short.push(candidate);
-      } else if (wordCount < 150) {
-        groups.medium.push(candidate);
-      } else if (wordCount < 300) {
-        groups.long.push(candidate);
-      } else {
-        groups.very_long.push(candidate);
-      }
-    });
-
-    return groups;
-  }
-
-  private groupByUrgency(candidates: EmailVector[]): Record<string, EmailVector[]> {
-    const groups: Record<string, EmailVector[]> = {
-      high: [],
-      medium: [],
-      low: []
-    };
-
-    candidates.forEach(candidate => {
-      const urgency = candidate.metadata.features?.urgency?.level || 'low';
-      groups[urgency].push(candidate);
-    });
-
-    return groups;
   }
 }

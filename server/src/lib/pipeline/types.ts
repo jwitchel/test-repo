@@ -37,7 +37,7 @@ export interface GeneratedDraft {
   metadata: {
     promptTemplate: string;
     exampleCount: number;
-    diversityScore?: number;
+    directCorrespondence?: number;
     timestamp: string;
   };
   createdAt: Date;

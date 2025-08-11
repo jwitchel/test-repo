@@ -127,7 +127,7 @@ async function runE2ETest() {
         
         console.log(chalk.gray(`    Relationship: ${draft.relationship.type} (${(draft.relationship.confidence * 100).toFixed(0)}%)`));
         console.log(chalk.gray(`    Examples used: ${draft.examplesUsed.length}`));
-        console.log(chalk.gray(`    Diversity score: ${draft.metadata.diversityScore?.toFixed(2)}`));
+        console.log(chalk.gray(`    Direct correspondence: ${draft.metadata.directCorrespondence || 0}`));
       }
     }
     

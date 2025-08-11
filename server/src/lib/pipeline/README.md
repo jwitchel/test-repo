@@ -5,7 +5,13 @@ This directory contains the orchestration layer for the vector-based tone learni
 ## Components
 
 ### 1. Example Selector (`example-selector.ts`)
-Selects diverse examples from vector storage based on relationship and similarity.
+Implements two-phase selection to prioritize relevant examples:
+- **Phase 1**: Direct correspondence with the specific recipient (up to 60%)
+- **Phase 2**: Same relationship category emails to fill remaining slots
+
+Configuration (via environment variables):
+- `EXAMPLE_COUNT`: Total examples to select (default: 25)
+- `DIRECT_EMAIL_MAX_PERCENTAGE`: Max percentage from direct emails (default: 0.6)
 
 ### 2. Email Ingestion Pipeline (`email-ingest-pipeline.ts`)
 Processes historical emails and stores them in the vector database.

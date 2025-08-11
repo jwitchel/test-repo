@@ -250,6 +250,15 @@ export class TemplateManager {
       e.metadata.relationship?.type !== params.relationship
     );
     
+    // Debug logging
+    console.log(`[TemplateManager] Total examples: ${params.examples.length}`);
+    console.log(`[TemplateManager] Looking for relationship: ${params.relationship}`);
+    console.log(`[TemplateManager] Exact matches found: ${exactMatches.length}`);
+    console.log(`[TemplateManager] Other matches found: ${otherMatches.length}`);
+    if (params.examples.length > 0) {
+      console.log(`[TemplateManager] First example relationship:`, params.examples[0].metadata.relationship);
+    }
+    
     const avgWordCount = params.examples.length > 0
       ? Math.round(params.examples.reduce((sum, ex) => 
           sum + (ex.metadata.wordCount || ex.text.split(/\s+/).length), 0
@@ -270,7 +279,7 @@ export class TemplateManager {
         ? this.formatExamplesForTemplate(exactMatches) 
         : undefined,
       otherExamples: otherMatches.length > 0 
-        ? this.formatExamplesForTemplate(otherMatches.slice(0, 5))
+        ? this.formatExamplesForTemplate(otherMatches)
         : undefined,
       profile: params.relationshipProfile,
       nlpFeatures: params.nlpFeatures,
