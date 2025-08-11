@@ -97,7 +97,8 @@ async function runE2ETest() {
         subject: scenario.email.subject,
         textContent: scenario.email.text,
         htmlContent: null,
-        extractedText: scenario.email.text,
+        userReply: scenario.email.text,
+        respondedTo: '',
         relationship: {
           type: 'unknown',
           confidence: 0,
@@ -126,7 +127,7 @@ async function runE2ETest() {
         
         console.log(chalk.gray(`    Relationship: ${draft.relationship.type} (${(draft.relationship.confidence * 100).toFixed(0)}%)`));
         console.log(chalk.gray(`    Examples used: ${draft.examplesUsed.length}`));
-        console.log(chalk.gray(`    Diversity score: ${draft.metadata.diversityScore?.toFixed(2)}`));
+        console.log(chalk.gray(`    Direct correspondence: ${draft.metadata.directCorrespondence || 0}`));
       }
     }
     

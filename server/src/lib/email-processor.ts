@@ -1,16 +1,17 @@
 import { ParsedMail } from 'mailparser';
-import { emailTextExtractor, ExtractedText } from './email-text-extractor';
+import { emailContentParser, ParsedEmailContent } from './email-content-parser';
 import { replyExtractor } from './reply-extractor';
 import { imapLogger } from './imap-logger';
 import { Pool } from 'pg';
+import { RegexSignatureDetector } from './regex-signature-detector';
+import { TypedNameRemover } from './typed-name-remover';
 
-export interface ProcessedEmail extends ExtractedText {
+export interface ProcessedEmail extends ParsedEmailContent {
   userTextPlain: string;    // Override to ensure it's the extracted user text
   userTextRich?: string;    // Override to ensure it's the extracted user text
-  originalPlainLength: number;
-  originalRichLength?: number;
-  isReply: boolean;
-  hasQuotedContent: boolean;
+  // New fields for split content
+  userReply: string;        // Just what the user wrote (no signature, no quotes)
+  respondedTo: string;      // The quoted content the user was responding to
 }
 
 export interface ProcessingContext {
@@ -19,8 +20,12 @@ export interface ProcessingContext {
 }
 
 export class EmailProcessor {
-  constructor(_pool: Pool) {
-    // Pool is available if needed in the future
+  private signatureDetector: RegexSignatureDetector;
+  private typedNameRemover: TypedNameRemover;
+  
+  constructor(pool: Pool) {
+    this.signatureDetector = new RegexSignatureDetector(pool);
+    this.typedNameRemover = new TypedNameRemover(pool);
   }
 
   /**
@@ -48,47 +53,73 @@ export class EmailProcessor {
       });
     }
     
-    // First, extract the basic email content
-    const extracted = emailTextExtractor.extractFromParsed(parsedMail);
+    // First, parse the basic email content (userTextPlain, userTextRich)
+    const parsedContent = emailContentParser.parseFromMailparser(parsedMail);
     
-    // Store original lengths for comparison
-    const originalPlainLength = extracted.userTextPlain.length;
-    const originalRichLength = extracted.userTextRich?.length;
-
-    // Extract only the user's written text from plain text
-    let plainResult = replyExtractor.extractWithMetadata(extracted.userTextPlain);
+    // Extract the user's reply from the plain text
+    let plainResult = replyExtractor.extractWithMetadata(parsedContent.userTextPlain);
     
-    // IMPORTANT: Do NOT remove signatures during import
-    // Signatures should only be removed via the "Clean Emails" button
-    // This preserves the original email content in rawText
+    // Split the email into user reply and quoted content from the original text
+    const splitResult = replyExtractor.splitReply(parsedContent.userTextPlain);
+    
+    // Remove signature from userReply if it exists
+    let userReplyClean = splitResult.userReply;
+    if (splitResult.userReply && context?.userId) {
+      const signatureResult = await this.signatureDetector.removeSignature(splitResult.userReply, context.userId);
+      userReplyClean = signatureResult.cleanedText;
+      
+      if (signatureResult.signature) {
+        imapLogger.log(context.userId, {
+          userId: context.userId,
+          emailAccountId: context.emailAccountId,
+          level: 'info',
+          command: 'SIGNATURE_REMOVED',
+          data: {
+            parsed: {
+              messageId: parsedMail.messageId,
+              signaturePattern: signatureResult.matchedPattern,
+              signatureLength: signatureResult.signature.length
+            }
+          }
+        });
+      }
+      
+      // Remove typed name from userReply
+      const typedNameResult = await this.typedNameRemover.removeTypedName(userReplyClean, context.userId);
+      userReplyClean = typedNameResult.cleanedText;
+      
+      if (typedNameResult.removedText) {
+        imapLogger.log(context.userId, {
+          userId: context.userId,
+          emailAccountId: context.emailAccountId,
+          level: 'info',
+          command: 'TYPED_NAME_REMOVED',
+          data: {
+            parsed: {
+              messageId: parsedMail.messageId,
+              removedText: typedNameResult.removedText,
+              matchedPattern: typedNameResult.matchedPattern
+            }
+          }
+        });
+      }
+    }
     
     // Extract only the user's written text from HTML if available
     let processedRichText: string | undefined;
-    let richHasQuoted = false;
     
-    if (extracted.userTextRich) {
+    if (parsedContent.userTextRich) {
       // For HTML content, we need to extract the reply content
       // This is a bit more complex as we need to preserve HTML structure
-      processedRichText = replyExtractor.extractFromHtml(extracted.userTextRich);
-      
-      // IMPORTANT: Do NOT remove signatures during import
-      // Signatures should only be removed via the "Clean Emails" button
-      
-      // Check if the HTML version had quoted content
-      const richResult = replyExtractor.extractWithMetadata(
-        replyExtractor.extractFromHtml(extracted.userTextRich)
-      );
-      richHasQuoted = richResult.hasQuotedContent;
+      processedRichText = replyExtractor.extractFromHtml(parsedContent.userTextRich);      
     }
 
     const result: ProcessedEmail = {
-      ...extracted,
-      userTextPlain: plainResult.extractedText,
+      ...parsedContent,
+      userTextPlain: plainResult.userReply,
       userTextRich: processedRichText,
-      originalPlainLength,
-      originalRichLength,
-      isReply: plainResult.isReply,
-      hasQuotedContent: plainResult.hasQuotedContent || richHasQuoted
+      userReply: userReplyClean,  // User's reply with signature and typed name removed
+      respondedTo: splitResult.respondedTo
     };
 
     // Log the completion of processing
@@ -103,14 +134,7 @@ export class EmailProcessor {
           duration,
           parsed: {
             messageId: parsedMail.messageId,
-            originalLength: originalPlainLength,
-            extractedLength: result.userTextPlain.length,
-            extractedText: result.userTextPlain,
-            isReply: result.isReply,
-            hasQuotedContent: result.hasQuotedContent,
-            reductionPercentage: originalPlainLength > 0 
-              ? Math.round((1 - result.userTextPlain.length / originalPlainLength) * 100)
-              : 0
+            userReply: result.userTextPlain,
           }
         }
       });
@@ -123,9 +147,9 @@ export class EmailProcessor {
    * Process raw email data
    */
   async processRawEmail(rawEmail: string | Buffer, context?: ProcessingContext): Promise<ProcessedEmail> {
-    const parsed = await emailTextExtractor.extractFromRaw(rawEmail);
+    const parsed = await emailContentParser.parseFromRaw(rawEmail);
     
-    // Convert ExtractedText to ParsedMail-like structure for processing
+    // Convert ParsedEmailContent to ParsedMail-like structure for processing
     // This is a bit of a hack, but works for our use case
     const pseudoParsed = {
       messageId: parsed.messageId,

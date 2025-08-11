@@ -147,8 +147,6 @@ CEO, Acme Corp
       
       expect(result.messageId).toBe(parsedMail.messageId);
       expect(result.userTextPlain).toBe(testEmail.expectedExtraction);
-      expect(result.isReply).toBe(true);
-      expect(result.hasQuotedContent).toBe(true);
     });
 
     it('should preserve both plain and rich text', async () => {

@@ -11,17 +11,40 @@ router.get('/', requireAuth, async (req, res) => {
     const userId = (req as any).user.id;
     
     const result = await pool.query(
-      'SELECT preference_type, target_identifier, profile_data, emails_analyzed, last_updated FROM tone_preferences WHERE user_id = $1',
+      `SELECT preference_type, target_identifier, profile_data, emails_analyzed, last_updated 
+       FROM tone_preferences 
+       WHERE user_id = $1 
+         AND preference_type IN ('aggregate', 'category', 'individual')
+         AND profile_data ? 'writingPatterns'`,
       [userId]
     );
     
     // Transform rows into object with target identifiers as keys
     const profiles: any = {};
     result.rows.forEach(row => {
-      // Use target_identifier as key (e.g., 'aggregate', 'friend', 'manager')
+      // Always return a consistent structure with writingPatterns at the root
+      const writingPatterns = row.profile_data.writingPatterns || {};
+      
       profiles[row.target_identifier] = {
-        ...(row.profile_data.writingPatterns || row.profile_data), // Handle both old and new format
-        meta: row.profile_data.meta,
+        // Writing pattern fields at root level
+        sentencePatterns: writingPatterns.sentencePatterns || null,
+        paragraphPatterns: writingPatterns.paragraphPatterns || [],
+        openingPatterns: writingPatterns.openingPatterns || [],
+        valediction: writingPatterns.valediction || [],
+        negativePatterns: writingPatterns.negativePatterns || [],
+        responsePatterns: writingPatterns.responsePatterns || null,
+        uniqueExpressions: writingPatterns.uniqueExpressions || [],
+        
+        // Metadata fields
+        meta: {
+          ...(row.profile_data.meta || {}),
+          // Include sentence stats metadata if available
+          sentenceStats: row.profile_data.sentenceStats ? {
+            lastCalculated: row.profile_data.sentenceStats.lastCalculated,
+            totalSentences: row.profile_data.sentenceStats.totalSentences,
+            calculationMethod: 'direct' // Indicate this was calculated directly, not by LLM
+          } : null
+        },
         emails_analyzed: row.emails_analyzed,
         last_updated: row.last_updated,
         preference_type: row.preference_type

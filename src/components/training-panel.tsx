@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp, Brain, Sparkles } from 'lucide-react'
+import { Loader2, Upload, Trash2, AlertCircle, ChevronDown, ChevronUp, Brain, Mail } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -24,6 +24,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+interface EmailAccount {
+  id: string
+  email_address: string
+  is_active: boolean
+  oauth_provider?: string
+}
 
 interface TrainingPanelProps {
   emailAccountId: string
@@ -31,12 +45,11 @@ interface TrainingPanelProps {
   emailAddress?: string
 }
 
-export function TrainingPanel({ emailAccountId, userId, emailAddress }: TrainingPanelProps) {
+export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: TrainingPanelProps) {
   const [isOpen, setIsOpen] = useState(true)
   const [isWiping, setIsWiping] = useState(false)
   const [showWipeDialog, setShowWipeDialog] = useState(false)
   const [isAnalyzingPatterns, setIsAnalyzingPatterns] = useState(false)
-  const [isCleaningEmails, setIsCleaningEmails] = useState(false)
   const [emailCount, setEmailCount] = useState('100')
   // Default to tomorrow to include all emails up to today
   const tomorrow = new Date()
@@ -51,6 +64,40 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
     percentage: number
   } | null>(null)
   const { success, error } = useToast()
+  
+  // Email account selection state
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(defaultAccountId)
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true)
+  
+  // Fetch email accounts
+  useEffect(() => {
+    const fetchEmailAccounts = async () => {
+      try {
+        const response = await fetch('http://localhost:3002/api/email-accounts', {
+          credentials: 'include'
+        })
+        if (response.ok) {
+          const accounts = await response.json()
+          setEmailAccounts(accounts.filter((acc: EmailAccount) => acc.is_active))
+          setIsLoadingAccounts(false)
+        } else {
+          console.error('Failed to fetch email accounts')
+          setIsLoadingAccounts(false)
+        }
+      } catch (err) {
+        console.error('Error fetching email accounts:', err)
+        setIsLoadingAccounts(false)
+      }
+    }
+    
+    fetchEmailAccounts()
+  }, [])
+  
+  // Update selected account when default changes
+  useEffect(() => {
+    setSelectedAccountId(defaultAccountId)
+  }, [defaultAccountId])
 
   // Listen for WebSocket progress updates
   const connectWebSocket = () => {
@@ -92,7 +139,7 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
   }
 
   const handleLoadEmails = async () => {
-    if (emailAccountId === 'demo-account-001') {
+    if (selectedAccountId === 'demo-account-001') {
       error('Please select a real email account from the dropdown above to train from')
       return
     }
@@ -110,7 +157,7 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
         },
         credentials: 'include',
         body: JSON.stringify({
-          emailAccountId,
+          emailAccountId: selectedAccountId,
           limit: parseInt(emailCount),
           startDate: new Date(startDate).toISOString()
         })
@@ -182,34 +229,6 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
     }
   }
 
-  const handleCleanEmails = async () => {
-    setIsCleaningEmails(true)
-
-    try {
-      // Use the combined endpoint that does both signature cleaning and name redaction
-      const response = await fetch('http://localhost:3002/api/training/process-emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to process emails')
-      }
-
-      const result = await response.json()
-      
-      // Show combined results
-      success(`Email processing complete! Cleaned ${result.totalCleaned} signatures and redacted ${result.totalNamesFound} names + ${result.totalEmailsFound} emails from ${result.totalProcessed} emails.`)
-    } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to process emails')
-    } finally {
-      setIsCleaningEmails(false)
-    }
-  }
 
   return (
     <Card>
@@ -242,14 +261,40 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
           </AlertDescription>
         </Alert>
 
-        {emailAddress && emailAccountId !== 'demo-account-001' && (
-          <div className="bg-zinc-100 dark:bg-zinc-800 rounded-md px-3 py-2">
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Training from:</p>
-            <p className="text-sm font-semibold">{emailAddress}</p>
-          </div>
-        )}
+        {/* Email Account Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="email-account" className="text-xs flex items-center gap-1">
+            <Mail className="h-3 w-3" />
+            Email Account
+          </Label>
+          <Select 
+            value={selectedAccountId} 
+            onValueChange={setSelectedAccountId}
+            disabled={isLoadingAccounts || emailAccounts.length === 0}
+          >
+            <SelectTrigger id="email-account" className="h-8 text-sm">
+              <SelectValue placeholder={
+                isLoadingAccounts ? "Loading accounts..." : 
+                emailAccounts.length === 0 ? "No email accounts" : 
+                "Select an email account"
+              } />
+            </SelectTrigger>
+            <SelectContent>
+              {emailAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  <div className="flex items-center gap-2">
+                    <span>{account.email_address}</span>
+                    {account.oauth_provider && (
+                      <span className="text-xs text-muted-foreground">(OAuth)</span>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        {emailAccountId === 'demo-account-001' && (
+        {selectedAccountId === 'demo-account-001' && (
           <Alert className="py-2" variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
@@ -310,7 +355,7 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
           <div className="flex gap-2">
             <Button
               onClick={handleLoadEmails}
-              disabled={emailAccountId === 'demo-account-001'}
+              disabled={selectedAccountId === 'demo-account-001' || emailAccounts.length === 0}
               size="sm"
               className="flex-1"
             >
@@ -353,26 +398,6 @@ export function TrainingPanel({ emailAccountId, userId, emailAddress }: Training
             </Button>
           </div>
 
-          <Button
-            onClick={handleCleanEmails}
-            disabled={isCleaningEmails}
-            size="sm"
-            variant="secondary"
-            className="w-full"
-            title="Remove signatures and redact names from loaded emails"
-          >
-            {isCleaningEmails ? (
-              <>
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-3 w-3 mr-1" />
-                Clean & Redact
-              </>
-            )}
-          </Button>
         </div>
 
         <AlertDialog open={showWipeDialog} onOpenChange={setShowWipeDialog}>

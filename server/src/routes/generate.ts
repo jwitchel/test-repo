@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth';
 import { pool } from '../server';
 
 import { decryptPassword } from '../lib/crypto';
+import { TypedNameRemover } from '../lib/typed-name-remover';
 import { 
   LLMGenerateRequest,
   LLMGenerateFromPipelineRequest,
@@ -91,7 +92,29 @@ router.post('/email-reply', requireAuth, async (req, res): Promise<void> => {
     };
     
     // Generate reply using pipeline context
-    const reply = await client.generateFromPipeline(pipelineOutput);
+    let reply = await client.generateFromPipeline(pipelineOutput);
+    
+    // Post-process: Add typed name if configured
+    const typedNameRemover = new TypedNameRemover(pool);
+    const appendString = await typedNameRemover.getTypedNameAppend(userId);
+    
+    if (appendString) {
+      // Add the typed name to the end of the reply
+      reply = reply.trim();
+      
+      // Check if reply ends with a newline, if not add one
+      if (!reply.endsWith('\n')) {
+        reply += '\n';
+      }
+      
+      // Add another newline if the reply doesn't already have double newline at the end
+      if (!reply.endsWith('\n\n')) {
+        reply += '\n';
+      }
+      
+      // Append the typed name
+      reply += appendString;
+    }
     
     // Get model info for response
     const modelInfo = client.getModelInfo();

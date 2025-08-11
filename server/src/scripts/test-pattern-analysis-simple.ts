@@ -47,7 +47,6 @@ async function testPatternAnalysis() {
       console.log(chalk.gray(`  - Sentence avg length: ${patterns.sentencePatterns.avgLength.toFixed(1)} words`));
       console.log(chalk.gray(`  - Opening patterns: ${patterns.openingPatterns.length}`));
       console.log(chalk.gray(`  - Valedictions: ${patterns.valediction.length}`));
-      console.log(chalk.gray(`  - Typed names: ${patterns.typedName.length}`));
       console.log(chalk.gray(`  - Unique expressions: ${patterns.uniqueExpressions.length}`));
       console.log(chalk.gray(`  - Negative patterns: ${patterns.negativePatterns.length}`));
       
@@ -57,9 +56,6 @@ async function testPatternAnalysis() {
       }
       if (patterns.valediction.length > 0) {
         console.log(chalk.gray('  Valediction: ' + patterns.valediction[0].phrase));
-      }
-      if (patterns.typedName.length > 0) {
-        console.log(chalk.gray('  Typed name: ' + patterns.typedName[0].phrase));
       }
     } else {
       console.log(chalk.yellow('\n⚠ No writing patterns found in response'));

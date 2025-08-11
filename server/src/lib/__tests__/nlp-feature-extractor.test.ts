@@ -7,11 +7,7 @@ describe('NLP Feature Extractor', () => {
       const email = sampleEmails.colleagues[0];
       const features = extractEmailFeatures(email);
       
-      expect(features).toHaveProperty('phrases');
-      expect(features).toHaveProperty('contractions');
       expect(features).toHaveProperty('questions');
-      expect(features).toHaveProperty('sentenceStarters');
-      expect(features).toHaveProperty('closings');
       expect(features).toHaveProperty('sentiment');
       expect(features).toHaveProperty('tonalQualities');
       expect(features).toHaveProperty('linguisticStyle');
@@ -22,22 +18,7 @@ describe('NLP Feature Extractor', () => {
     });
   });
 
-  describe('Contractions Extraction', () => {
-    it('should extract contractions correctly', () => {
-      const text = "I'll be there. Won't be late. I've got it covered.";
-      const features = extractEmailFeatures(text);
-      
-      expect(features.contractions).toHaveLength(3);
-      expect(features.contractions).toContainEqual(expect.objectContaining({
-        contraction: "i'll",
-        expanded: "I will"
-      }));
-      expect(features.contractions).toContainEqual(expect.objectContaining({
-        contraction: "won't",
-        expanded: "will not"
-      }));
-    });
-  });
+  // Contractions extraction has been removed from the feature extractor
 
   describe('Questions Extraction', () => {
     it('should extract questions from emails', () => {
@@ -50,37 +31,9 @@ describe('NLP Feature Extractor', () => {
     });
   });
 
-  describe('Sentence Starters', () => {
-    it('should identify common sentence starters', () => {
-      const text = "Just wanted to check in. Just wanted to see how you're doing. I hope this finds you well. I hope all is good.";
-      const features = extractEmailFeatures(text);
-      
-      const starterTexts = features.sentenceStarters.map(s => s.text);
-      expect(starterTexts).toContain("just wanted");
-      expect(starterTexts).toContain("i hope");
-      
-      const justWanted = features.sentenceStarters.find(s => s.text === "just wanted");
-      expect(justWanted?.count).toBe(2);
-    });
-  });
+  // Sentence starters extraction has been removed from the feature extractor
 
-  describe('Closings Detection', () => {
-    it('should detect email closings', () => {
-      const text = "Let me know what you think. Best regards, John";
-      const features = extractEmailFeatures(text);
-      
-      const closingTexts = features.closings.map(c => c.text);
-      expect(closingTexts).toContain("best regards");
-    });
-
-    it('should detect multiple closing types', () => {
-      const text = "Talk to you soon. Thanks!";
-      const features = extractEmailFeatures(text);
-      
-      const closingTexts = features.closings.map(c => c.text);
-      expect(closingTexts).toContain("thanks");
-    });
-  });
+  // Closings detection has been removed from the feature extractor
 
   describe('Enhanced Sentiment Analysis', () => {
     it('should detect enthusiastic sentiment', () => {
@@ -364,39 +317,14 @@ describe('NLP Feature Extractor', () => {
     });
   });
 
-  describe('Common Phrases Extraction', () => {
-    it('should extract frequently used phrases', () => {
-      const text = "Per our discussion, I wanted to follow up. Per our discussion yesterday, the project is on track. Let me know if you need anything. Let me know your thoughts.";
-      const features = extractEmailFeatures(text);
-      
-      const phraseTexts = features.phrases.map(p => p.text);
-      expect(phraseTexts).toContain("per our discussion");
-      expect(phraseTexts).toContain("let me know");
-      
-      const perOur = features.phrases.find(p => p.text === "per our discussion");
-      expect(perOur?.frequency).toBe(2);
-      expect(perOur?.context).toBe('request');
-    });
-
-    it('should categorize phrases by context', () => {
-      const text = "Thank you for your help. Thank you again. Please let me know. Please let me know when ready.";
-      const features = extractEmailFeatures(text);
-      
-      const thankYou = features.phrases.find(p => p.text.includes("thank you"));
-      const please = features.phrases.find(p => p.text.includes("please"));
-      
-      expect(thankYou?.context).toBe('gratitude');
-      expect(please?.context).toBe('request');
-    });
-  });
+  // Common phrases extraction has been removed from the feature extractor
 
   describe('Edge Cases', () => {
     it('should handle empty text', () => {
       const features = extractEmailFeatures("");
       
-      expect(features.phrases).toEqual([]);
+      expect(features.stats.sentenceCount).toBe(0);
       expect(features.questions).toEqual([]);
-      expect(features.sentenceStarters).toEqual([]);
       expect(features.stats.wordCount).toBe(0);
     });
 
@@ -411,7 +339,7 @@ describe('NLP Feature Extractor', () => {
       const features = extractEmailFeatures("Hi!");
       
       expect(features.stats.wordCount).toBe(1);
-      expect(features.sentenceStarters).toEqual([]);
+      expect(features.questions).toEqual([]);
     });
   });
 });

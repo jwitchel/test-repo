@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import useSWR from 'swr'
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { authClient } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -90,12 +89,6 @@ export default function EmailAccountsPage() {
   return (
     <ProtectedRoute>
       <div className="container max-w-4xl py-8 px-8">
-        <div className="mb-4">
-          <a href="/settings" className="text-sm text-muted-foreground hover:text-primary">
-            ← Back to Settings
-          </a>
-        </div>
-        
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Email Accounts</h1>
           <p className="text-muted-foreground">
@@ -420,17 +413,27 @@ function AddAccountForm({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
               className="w-full max-w-sm"
               onClick={async () => {
                 try {
-                  // Use the signIn.social method with error handling
-                  await authClient.signIn.social({
-                    provider: 'google',
-                    callbackURL: 'http://localhost:3001/settings/email-accounts/oauth-callback',
-                    errorCallbackURL: 'http://localhost:3001/settings/email-accounts'
+                  // Request OAuth URL from our dedicated email OAuth endpoint
+                  const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ provider: 'google' })
                   });
+
+                  if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.error || 'Failed to start OAuth flow');
+                    return;
+                  }
+
+                  const { authUrl } = await response.json();
+                  
+                  // Redirect to Google OAuth
+                  window.location.href = authUrl;
                 } catch (error) {
                   console.error('OAuth error:', error);
-                  // If the method fails, try manual redirect
-                  window.location.href = 'http://localhost:3002/api/auth/signin/google?callbackURL=' + 
-                    encodeURIComponent('http://localhost:3001/settings/email-accounts/oauth-callback');
+                  showError('Failed to connect with Google. Please try again.');
                 }
               }}
             >

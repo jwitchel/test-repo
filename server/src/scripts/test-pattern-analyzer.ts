@@ -27,14 +27,15 @@ Quick question - can we get more details on the subscription renewals?
 Thanks,
 John`,
     htmlContent: null,
-    extractedText: `Hi Sarah,
+    userReply: `Hi Sarah,
 
 I've reviewed the Q3 report. The numbers look good overall.
 
 Quick question - can we get more details on the subscription renewals?
 
 Thanks,
-John`
+John`,
+    respondedTo: ''
   },
   {
     uid: '2',
@@ -53,12 +54,13 @@ Still up for hiking this weekend? Weather looks perfect.
 Let me know!
 John`,
     htmlContent: null,
-    extractedText: `Hey Mike!
+    userReply: `Hey Mike!
 
 Still up for hiking this weekend? Weather looks perfect.
 
 Let me know!
-John`
+John`,
+    respondedTo: ''
   },
   {
     uid: '3',
@@ -75,10 +77,11 @@ John`
 Best,
 John`,
     htmlContent: null,
-    extractedText: `Thanks for the update. I'll review and get back to you by EOD tomorrow.
+    userReply: `Thanks for the update. I'll review and get back to you by EOD tomorrow.
 
 Best,
-John`
+John`,
+    respondedTo: ''
   }
 ];
 

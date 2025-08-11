@@ -8,20 +8,25 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ArrowLeft, RefreshCw, Loader2 } from 'lucide-react'
+import { RefreshCw, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface WritingPatterns {
   sentencePatterns: {
     avgLength: number
-    range: { min: number; max: number }
-    complexity: string
+    medianLength: number
+    trimmedMean: number
+    minLength: number
+    maxLength: number
+    stdDeviation: number
+    percentile25: number
+    percentile75: number
     distribution?: {
       short: number
       medium: number
       long: number
     }
-    examples?: string[]
+    // Note: examples are no longer provided as they're not stored
   }
   paragraphPatterns: Array<{
     type?: string
@@ -32,16 +37,11 @@ interface WritingPatterns {
   openingPatterns: Array<{
     pattern?: string
     text?: string
-    percentage: number
-    frequency?: number
+    percentage: number  // Now normalized 0-1, displayed as %
+    frequency?: number  // Legacy field for backward compatibility
   }>
   valediction: Array<{
     phrase: string
-    percentage: number
-  }>
-  typedName: Array<{
-    style?: string
-    phrase?: string
     percentage: number
   }>
   negativePatterns: Array<{
@@ -59,15 +59,20 @@ interface WritingPatterns {
   uniqueExpressions: Array<{
     phrase: string
     context: string
-    frequency: number
+    frequency?: number  // Legacy field
+    occurrenceRate?: number  // New field name
   }>
 }
 
-interface ToneProfile {
-  writingPatterns?: WritingPatterns
+interface ToneProfile extends Partial<WritingPatterns> {
   meta?: {
     modelUsed?: string
     corpusSize?: number
+    sentenceStats?: {
+      lastCalculated: string
+      totalSentences: number
+      calculationMethod: string
+    }
     [key: string]: unknown
   }
   emails_analyzed: number
@@ -79,6 +84,12 @@ interface ToneData {
   profiles: Record<string, ToneProfile>
   totalEmailsAnalyzed: number
   lastUpdated: string | null
+}
+
+// Helper function to safely format numbers with toFixed
+const formatNumber = (value: number | null | undefined, decimals: number = 1): string => {
+  if (value === null || value === undefined) return '0'
+  return value.toFixed(decimals)
 }
 
 export default function TonePage() {
@@ -173,66 +184,38 @@ export default function TonePage() {
 
   const currentProfile = toneData.profiles[selectedRelationship]
   
-  // The patterns might be directly on currentProfile if writingPatterns was spread
-  let patterns = currentProfile
-  
-  // Check if patterns are nested under writingPatterns
-  if (currentProfile?.writingPatterns) {
-    patterns = currentProfile.writingPatterns
-  }
-  
-  // Debug logging
-  if (patterns) {
-    console.log('=== Tone Data Debug ===')
-    console.log('Selected Relationship:', selectedRelationship)
-    console.log('Current Profile:', currentProfile)
-    console.log('Patterns object:', patterns)
-    console.log('Pattern keys:', Object.keys(patterns))
-    console.log('TypedName data:', patterns.typedName)
-    console.log('Valediction data:', patterns.valediction)
-    console.log('Opening patterns:', patterns.openingPatterns)
-  }
+  // The API now returns a consistent structure with pattern fields at the root level
+  const patterns: WritingPatterns | undefined = currentProfile as WritingPatterns
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
-        <div className="max-w-7xl mx-auto px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                  Your Writing Tone Analysis
-                </h1>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                  Based on {toneData.totalEmailsAnalyzed} analyzed emails
-                </p>
-              </div>
-            </div>
-            <Button 
-              onClick={handleRefresh} 
-              disabled={refreshing}
-              variant="outline"
-              size="sm"
-            >
-              {refreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8">
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+              Your Writing Tone Analysis
+            </h1>
+            <p className="text-zinc-600 dark:text-zinc-400 mt-2">
+              Based on {toneData.totalEmailsAnalyzed} analyzed emails
+            </p>
+          </div>
+          <Button 
+            onClick={handleRefresh} 
+            disabled={refreshing}
+            variant="outline"
+            size="sm"
+          >
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </>
+            )}
+          </Button>
+        </div>
         {/* Relationship Tabs */}
         <Tabs value={selectedRelationship} onValueChange={setSelectedRelationship} className="space-y-6">
           <TabsList className="grid w-full grid-cols-auto gap-2" style={{ gridTemplateColumns: `repeat(${Object.keys(toneData.profiles).length}, minmax(0, 1fr))` }}>
@@ -251,28 +234,47 @@ export default function TonePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Sentence Structure</CardTitle>
-                <CardDescription>How you construct your sentences</CardDescription>
+                <CardDescription>Statistics calculated directly from your email history</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Average Length</p>
-                    <p className="text-2xl font-bold">{patterns?.sentencePatterns?.avgLength?.toFixed(1) || 0} words</p>
+                {/* Primary statistics row */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="border-l-4 border-indigo-500 pl-3">
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Median Length</p>
+                    <p className="text-2xl font-bold">{formatNumber(patterns?.sentencePatterns?.medianLength || patterns?.sentencePatterns?.avgLength)} words</p>
+                    <p className="text-xs text-zinc-500 mt-1">Most representative</p>
                   </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Trimmed Mean</p>
+                    <p className="text-xl font-semibold">{formatNumber(patterns?.sentencePatterns?.trimmedMean || patterns?.sentencePatterns?.avgLength)} words</p>
+                    <p className="text-xs text-zinc-500 mt-1">Excludes outliers</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Average (Mean)</p>
+                    <p className="text-xl">{formatNumber(patterns?.sentencePatterns?.avgLength)} words</p>
+                    <p className="text-xs text-zinc-500 mt-1">All sentences</p>
+                  </div>
+                </div>
+                
+                {/* Range statistics */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
                   <div>
                     <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Range</p>
-                    <p className="text-lg">
-                      {patterns?.sentencePatterns?.range?.min || 0} - {patterns?.sentencePatterns?.range?.max || 0} words
-                    </p>
+                    <p className="text-base">{patterns?.sentencePatterns?.minLength || 0} - {patterns?.sentencePatterns?.maxLength || 0} words</p>
                   </div>
-                  {patterns?.sentencePatterns?.complexity && (
-                    <div>
-                      <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Complexity</p>
-                      <Badge variant="outline" className="mt-1">
-                        {patterns.sentencePatterns.complexity}
-                      </Badge>
-                    </div>
-                  )}
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Middle 50%</p>
+                    <p className="text-base">{formatNumber(patterns?.sentencePatterns?.percentile25 || patterns?.sentencePatterns?.minLength, 0)} - {formatNumber(patterns?.sentencePatterns?.percentile75 || patterns?.sentencePatterns?.maxLength, 0)} words</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Std Deviation</p>
+                    <p className="text-base">{formatNumber(patterns?.sentencePatterns?.stdDeviation)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Variability</p>
+                    <p className="text-base">{patterns?.sentencePatterns?.stdDeviation && patterns?.sentencePatterns?.avgLength ? 
+                      formatNumber((patterns.sentencePatterns.stdDeviation / patterns.sentencePatterns.avgLength) * 100, 0) : '0'}%</p>
+                  </div>
                 </div>
                 
                 {patterns?.sentencePatterns?.distribution && (
@@ -282,27 +284,27 @@ export default function TonePage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Short sentences</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={patterns.sentencePatterns.distribution.short} className="w-24 h-2" />
+                          <Progress value={patterns.sentencePatterns.distribution.short * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {patterns.sentencePatterns.distribution.short}%
+                            {Math.round(patterns.sentencePatterns.distribution.short * 100)}%
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Medium sentences</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={patterns.sentencePatterns.distribution.medium} className="w-24 h-2" />
+                          <Progress value={patterns.sentencePatterns.distribution.medium * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {patterns.sentencePatterns.distribution.medium}%
+                            {Math.round(patterns.sentencePatterns.distribution.medium * 100)}%
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Long sentences</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={patterns.sentencePatterns.distribution.long} className="w-24 h-2" />
+                          <Progress value={patterns.sentencePatterns.distribution.long * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {patterns.sentencePatterns.distribution.long}%
+                            {Math.round(patterns.sentencePatterns.distribution.long * 100)}%
                           </span>
                         </div>
                       </div>
@@ -310,18 +312,6 @@ export default function TonePage() {
                   </div>
                 )}
                 
-                {patterns?.sentencePatterns?.examples && patterns.sentencePatterns.examples.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">Example Sentences</p>
-                    <div className="space-y-2">
-                      {patterns.sentencePatterns.examples.slice(0, 3).map((example, idx) => (
-                        <p key={idx} className="text-sm italic text-zinc-600 dark:text-zinc-400 border-l-2 border-zinc-200 dark:border-zinc-700 pl-3">
-                          &quot;{example}&quot;
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -338,9 +328,9 @@ export default function TonePage() {
                       <div key={idx} className="flex items-center justify-between">
                         <span className="text-sm font-medium">{pattern.text || pattern.pattern || 'Unknown'}</span>
                         <div className="flex items-center gap-2">
-                          <Progress value={pattern.percentage || 0} className="w-24 h-2" />
+                          <Progress value={(pattern.percentage || pattern.frequency || 0) * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {pattern.percentage || 0}%
+                            {Math.round((pattern.percentage || pattern.frequency || 0) * 100)}%
                           </span>
                         </div>
                       </div>
@@ -370,9 +360,9 @@ export default function TonePage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Progress value={pattern.percentage || 0} className="w-24 h-2" />
+                          <Progress value={pattern.percentage > 1 ? pattern.percentage : (pattern.percentage || 0) * 100} className="w-24 h-2" />
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                            {pattern.percentage || 0}%
+                            {pattern.percentage > 1 ? pattern.percentage : Math.round((pattern.percentage || 0) * 100)}%
                           </span>
                         </div>
                       </div>
@@ -395,15 +385,15 @@ export default function TonePage() {
                       <div>
                         <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Immediate responses</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Progress value={patterns.responsePatterns.immediate || 0} className="flex-1 h-2" />
-                          <span className="text-sm font-medium">{patterns.responsePatterns.immediate || 0}%</span>
+                          <Progress value={(patterns.responsePatterns.immediate || 0) * 100} className="flex-1 h-2" />
+                          <span className="text-sm font-medium">{Math.round((patterns.responsePatterns.immediate || 0) * 100)}%</span>
                         </div>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Contemplative responses</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Progress value={patterns.responsePatterns.contemplative || 0} className="flex-1 h-2" />
-                          <span className="text-sm font-medium">{patterns.responsePatterns.contemplative || 0}%</span>
+                          <Progress value={(patterns.responsePatterns.contemplative || 0) * 100} className="flex-1 h-2" />
+                          <span className="text-sm font-medium">{Math.round((patterns.responsePatterns.contemplative || 0) * 100)}%</span>
                         </div>
                       </div>
                     </div>
@@ -433,9 +423,9 @@ export default function TonePage() {
                         <div key={idx} className="flex items-center justify-between">
                           <span className="text-sm font-medium">{pattern.phrase}</span>
                           <div className="flex items-center gap-2">
-                            <Progress value={pattern.percentage} className="w-20 h-2" />
+                            <Progress value={pattern.percentage > 1 ? pattern.percentage : pattern.percentage * 100} className="w-20 h-2" />
                             <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                              {pattern.percentage}%
+                              {pattern.percentage > 1 ? pattern.percentage : Math.round(pattern.percentage * 100)}%
                             </span>
                           </div>
                         </div>
@@ -447,31 +437,16 @@ export default function TonePage() {
                 </CardContent>
               </Card>
 
-              {/* Typed Names */}
+              {/* Typed Name Settings */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Name Signatures</CardTitle>
-                  <CardDescription>How you type your name</CardDescription>
+                  <CardTitle>Name Signature</CardTitle>
+                  <CardDescription>Configure how your name appears in email responses</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {(patterns?.typedName || patterns?.TypedName || patterns?.typed_name) && 
-                     (patterns.typedName || patterns.TypedName || patterns.typed_name).length > 0 ? (
-                      (patterns.typedName || patterns.TypedName || patterns.typed_name).map((pattern, idx) => (
-                        <div key={idx} className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{pattern.style || pattern.phrase || 'Unknown'}</span>
-                          <div className="flex items-center gap-2">
-                            <Progress value={pattern.percentage} className="w-20 h-2" />
-                            <span className="text-sm text-zinc-600 dark:text-zinc-400 w-12 text-right">
-                              {pattern.percentage}%
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-zinc-500">No name signature patterns found</p>
-                    )}
-                  </div>
+                  <Link href="/settings">
+                    <Button variant="outline" size="sm">Configure Name Settings</Button>
+                  </Link>
                 </CardContent>
               </Card>
             </div>
@@ -493,7 +468,7 @@ export default function TonePage() {
                             <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">{expr.context}</p>
                           </div>
                           <Badge variant="secondary" className="ml-2">
-                            {expr.frequency}x
+                            {Math.round((expr.occurrenceRate || expr.frequency || 0) * 100)}%
                           </Badge>
                         </div>
                       </div>
@@ -562,25 +537,25 @@ export default function TonePage() {
                       {new Date(currentProfile.last_updated).toLocaleDateString()}
                     </p>
                   </div>
-                  {currentProfile.meta?.modelUsed && (
+                  {(typeof currentProfile.meta?.modelUsed === 'string') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">AI Model</p>
                       <p className="font-medium">{currentProfile.meta.modelUsed}</p>
                     </div>
                   )}
-                  {currentProfile.meta?.corpusSize && (
+                  {(typeof currentProfile.meta?.corpusSize === 'number') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Sample Size</p>
                       <p className="font-medium">{currentProfile.meta.corpusSize} emails</p>
                     </div>
                   )}
-                  {currentProfile.meta?.confidence && (
+                  {(typeof currentProfile.meta?.confidence === 'number') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Confidence Level</p>
                       <p className="font-medium">{Math.round(currentProfile.meta.confidence * 100)}%</p>
                     </div>
                   )}
-                  {currentProfile.meta?.lastAnalyzed && (
+                  {(typeof currentProfile.meta?.lastAnalyzed === 'string') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Analysis Date</p>
                       <p className="font-medium">
@@ -588,7 +563,7 @@ export default function TonePage() {
                       </p>
                     </div>
                   )}
-                  {currentProfile.meta?.emailCount && (
+                  {(typeof currentProfile.meta?.emailCount === 'number') && (
                     <div>
                       <p className="text-zinc-600 dark:text-zinc-400">Email Count (Meta)</p>
                       <p className="font-medium">{currentProfile.meta.emailCount}</p>
@@ -599,6 +574,26 @@ export default function TonePage() {
                       <p className="text-zinc-600 dark:text-zinc-400">Preference Type</p>
                       <p className="font-medium capitalize">{currentProfile.preference_type}</p>
                     </div>
+                  )}
+                  {currentProfile.meta?.sentenceStats && (
+                    <>
+                      <div>
+                        <p className="text-zinc-600 dark:text-zinc-400">Sentence Analysis Method</p>
+                        <p className="font-medium">Direct calculation from emails</p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-600 dark:text-zinc-400">Total Sentences Analyzed</p>
+                        <p className="font-medium">{currentProfile.meta.sentenceStats.totalSentences.toLocaleString()}</p>
+                      </div>
+                      {currentProfile.meta.sentenceStats.lastCalculated && (
+                        <div>
+                          <p className="text-zinc-600 dark:text-zinc-400">Sentence Stats Updated</p>
+                          <p className="font-medium">
+                            {new Date(currentProfile.meta.sentenceStats.lastCalculated).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>

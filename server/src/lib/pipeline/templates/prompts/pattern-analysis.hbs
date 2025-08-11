@@ -21,9 +21,13 @@ Extract the following patterns with specific examples and frequencies:
    - Include 3-5 example sentences showing variety
 
 2. PARAGRAPH STRUCTURE
-   - Identify patterns: single-line responses vs multi-paragraph
-   - Calculate percentage of each type
-   - Describe how they structure longer emails
+   - Categorize emails into EXACTLY these types:
+     * "single-line response": Very brief emails, 1-2 sentences total, no line breaks
+     * "brief-multi-line": Short emails with 2-4 lines, each line is a distinct point
+     * "multi-paragraph": Structured emails with greeting, multiple paragraphs, and closing
+     * "mixed": Varies between the above patterns
+   - Calculate percentage of each type (must sum to 100%)
+   - Provide a description for each pattern found
 
 3. OPENINGS (exact text with frequencies)
    - List each unique opening with percentage used
@@ -37,11 +41,7 @@ Extract the following patterns with specific examples and frequencies:
    - Calculate percentage of emails using each valediction
    - IMPORTANT: Percentages must add up to exactly 100%
    
-5. TYPED NAME PATTERNS
-   - Analyze how the sender types their name (e.g., "-John", "-j", "John", full name)
-   - Include "[None]" if no typed name is used in some emails
-   - Calculate percentage of emails using each format
-   - IMPORTANT: Percentages must add up to exactly 100%
+   5. RESERVED
 
 6. WHAT THEY NEVER DO (important!)
    - Analyze what is consistently absent from their writing style
@@ -62,7 +62,7 @@ Extract the following patterns with specific examples and frequencies:
    - Include context and approximate frequency
 
 Return ONLY a JSON object matching this exact structure.
-IMPORTANT: For both "valediction" and "typedName" arrays, the percentages across all entries MUST sum to exactly 100%:
+IMPORTANT: For "valediction" array, the percentages across all entries MUST sum to exactly 100%:
 {
   "sentencePatterns": {
     "avgLength": <number>,
@@ -86,19 +86,13 @@ IMPORTANT: For both "valediction" and "typedName" arrays, the percentages across
   "openingPatterns": [
     {
       "pattern": "<exact text>",
-      "frequency": <decimal 0-1>,
+      "percentage": <decimal 0-1>,
       "notes": "<optional notes about usage>"
     }
   ],
   "valediction": [
     {
       "phrase": "<exact valediction phrase or '[None]'>",
-      "percentage": <number 0-100>
-    }
-  ],
-  "typedName": [
-    {
-      "phrase": "<exact typed name format or '[None]'>",
       "percentage": <number 0-100>
     }
   ],
@@ -119,7 +113,7 @@ IMPORTANT: For both "valediction" and "typedName" arrays, the percentages across
     {
       "phrase": "<exact phrase>",
       "context": "<when/how used>",
-      "frequency": <decimal 0-1>
+      "occurrenceRate": <decimal 0-1>
     }
   ]
 }

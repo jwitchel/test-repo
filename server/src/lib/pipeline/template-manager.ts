@@ -39,7 +39,6 @@ export interface EnhancedRelationshipProfile extends RelationshipProfile {
     greetings: Array<{ text: string; frequency: number; percentage: number }>;
     closings: Array<{ text: string; frequency: number; percentage: number }>;
     emojis: Array<{ emoji: string; frequency: number; contexts: string[] }>;
-    contractions: { uses: boolean; frequency: number; examples: string[] };
     sentimentProfile: { 
       primaryTone: string; 
       averageWarmth: number; 
@@ -105,6 +104,11 @@ export class TemplateManager {
     // Uppercase helper
     Handlebars.registerHelper('uppercase', (text: string) => {
       return text ? text.toUpperCase() : '';
+    });
+    
+    // Equality helper
+    Handlebars.registerHelper('eq', (a: any, b: any) => {
+      return a === b;
     });
     
     // Percentage helper
@@ -188,7 +192,7 @@ export class TemplateManager {
 
   formatExamplesForTemplate(examples: SelectedExample[]): FormattedExample[] {
     return examples.map(ex => ({
-      text: ex.text,
+      text: this.transformExampleText(ex.text),
       relationship: ex.metadata.relationship?.type || 'unknown',
       score: ex.score,
       subject: ex.metadata.subject,
@@ -198,6 +202,14 @@ export class TemplateManager {
       urgency: ex.metadata.features?.urgency?.level,
       keyPhrases: this.extractKeyPhrases(ex)
     }));
+  }
+  
+  private transformExampleText(text: string): string {
+    // Transform special placeholders in example text
+    if (text === '[ForwardedWithoutComment]') {
+      return '(This email was forwarded without adding any personal message)';
+    }
+    return text;
   }
 
   private extractKeyPhrases(example: SelectedExample): string[] {
@@ -238,6 +250,15 @@ export class TemplateManager {
       e.metadata.relationship?.type !== params.relationship
     );
     
+    // Debug logging
+    console.log(`[TemplateManager] Total examples: ${params.examples.length}`);
+    console.log(`[TemplateManager] Looking for relationship: ${params.relationship}`);
+    console.log(`[TemplateManager] Exact matches found: ${exactMatches.length}`);
+    console.log(`[TemplateManager] Other matches found: ${otherMatches.length}`);
+    if (params.examples.length > 0) {
+      console.log(`[TemplateManager] First example relationship:`, params.examples[0].metadata.relationship);
+    }
+    
     const avgWordCount = params.examples.length > 0
       ? Math.round(params.examples.reduce((sum, ex) => 
           sum + (ex.metadata.wordCount || ex.text.split(/\s+/).length), 0
@@ -258,11 +279,11 @@ export class TemplateManager {
         ? this.formatExamplesForTemplate(exactMatches) 
         : undefined,
       otherExamples: otherMatches.length > 0 
-        ? this.formatExamplesForTemplate(otherMatches.slice(0, 5))
+        ? this.formatExamplesForTemplate(otherMatches)
         : undefined,
       profile: params.relationshipProfile,
       nlpFeatures: params.nlpFeatures,
-      patterns: params.writingPatterns || undefined,
+      patterns: params.writingPatterns ? this.transformPatternsForTemplate(params.writingPatterns) : undefined,
       meta: {
         exampleCount: params.examples.length,
         relationshipMatchCount: exactMatches.length,
@@ -272,6 +293,50 @@ export class TemplateManager {
     };
   }
 
+  private transformPatternsForTemplate(patterns: WritingPatterns): any {
+    // Transform special placeholders into clear instructions
+    return {
+      ...patterns,
+      openingPatterns: patterns.openingPatterns.map(pattern => ({
+        ...pattern,
+        pattern: this.transformPatternText(pattern.pattern),
+        isInstruction: this.isInstructionPattern(pattern.pattern)
+      })),
+      valediction: patterns.valediction.map(pattern => ({
+        ...pattern,
+        phrase: pattern.phrase === '[None]'
+          ? 'skip closing phrase entirely'
+          : pattern.phrase,
+        isInstruction: pattern.phrase === '[None]'
+      })),
+    };
+  }
+
+  private transformPatternText(pattern: string): string {
+    // Transform placeholder patterns into clear instructions
+    if (pattern === '[right to the point]') {
+      return 'start directly with the main point (no greeting)';
+    }
+    if (pattern === '[None]') {
+      return 'skip opening entirely';
+    }
+    if (pattern === '[firstname]') {
+      return 'sse recipient\'s first name only';
+    }
+    // For actual greeting patterns, return as-is
+    return pattern;
+  }
+
+  private isInstructionPattern(pattern: string): boolean {
+    // Determine if this is an instruction pattern (not a literal greeting)
+    const instructionPatterns = [
+      '[right to the point]',
+      '[None]',
+      '[firstname]'
+    ];
+    return instructionPatterns.includes(pattern);
+  }
+
   private describeFormalityLevel(score: number): string {
     if (score >= 0.8) return 'very formal';
     if (score >= 0.6) return 'formal';
@@ -279,9 +344,4 @@ export class TemplateManager {
     if (score >= 0.2) return 'casual';
     return 'very casual';
   }
-
-  // TODO: Implement A/B testing functionality
-  // - Add variant selection based on weights
-  // - Track template performance metrics
-  // - Integrate with draft feedback processor
 }

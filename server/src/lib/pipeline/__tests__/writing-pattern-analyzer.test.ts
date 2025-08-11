@@ -89,9 +89,13 @@ describe('WritingPatternAnalyzer', () => {
     const testPatterns = {
       sentencePatterns: {
         avgLength: 15.5,
+        medianLength: 15,
+        trimmedMean: 15.2,
         minLength: 5,
         maxLength: 25,
         stdDeviation: 4.2,
+        percentile25: 12,
+        percentile75: 18,
         distribution: { short: 20, medium: 60, long: 20 },
         examples: ['Test sentence.']
       },
@@ -104,9 +108,6 @@ describe('WritingPatternAnalyzer', () => {
       valediction: [
         { phrase: 'Best regards', percentage: 90 },
         { phrase: '[None]', percentage: 10 }
-      ],
-      typedName: [
-        { phrase: 'John', percentage: 100 }
       ],
       negativePatterns: [],
       responsePatterns: {

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { auth } from '../lib/auth';
 import { personService } from '../lib/relationships/person-service';
 import { userRelationshipService } from '../lib/relationships/user-relationship-service';
+import { pool } from '../server';
 
 const router = Router();
 
@@ -32,6 +33,29 @@ router.get('/relationships', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching relationships:', error);
     return res.status(500).json({ error: 'Failed to fetch relationships' });
+  }
+});
+
+// Get distinct relationship types for the user
+router.get('/relationships/types', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    
+    // Get distinct relationship types from user_relationships table
+    const result = await pool.query(
+      `SELECT DISTINCT relationship_type 
+       FROM user_relationships 
+       WHERE user_id = $1 
+       ORDER BY relationship_type`,
+      [userId]
+    );
+    
+    const types = result.rows.map(row => row.relationship_type);
+    
+    return res.json(types);
+  } catch (error) {
+    console.error('Error fetching relationship types:', error);
+    return res.status(500).json({ error: 'Failed to fetch relationship types' });
   }
 });
 

@@ -288,12 +288,7 @@ export class RelationshipService {
       parts.push('Avoid using emojis.');
     }
     
-    // Contractions
-    if (aggregated.contractions.uses) {
-      parts.push(`Use contractions naturally (examples: ${aggregated.contractions.examples.slice(0, 3).join(', ')}).`);
-    } else {
-      parts.push('Avoid contractions for a more formal tone.');
-    }
+    // Contractions section removed - no longer analyzed
     
     // Sentence complexity
     parts.push(`Average sentence length is ${Math.round(aggregated.structuralPatterns.averageSentenceLength)} words.`);
@@ -358,7 +353,7 @@ export class RelationshipService {
       common_phrases: commonPhrases.length > 0 ? commonPhrases : defaults.common_phrases,
       avoid_phrases: defaults.avoid_phrases, // Keep defaults as we don't track these
       common_emojis: commonEmojis,
-      common_contractions: aggregated.contractions.examples.slice(0, 10)
+      common_contractions: [] // No longer analyzed
     };
   }
 }

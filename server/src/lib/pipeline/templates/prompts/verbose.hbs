@@ -13,9 +13,6 @@ YOUR EMAILS TO {{uppercase relationship}} (Full Details):
 
 Example {{inc @index}}:
 {{#if this.subject}}- Original subject: {{this.subject}}{{/if}}
-{{#if this.formalityScore}}- Formality score: {{round this.formalityScore 2}}{{/if}}
-{{#if this.sentiment}}- Sentiment: {{this.sentiment}}{{/if}}
-{{#if this.wordCount}}- Word count: {{this.wordCount}}{{/if}}
 {{#if this.urgency}}- Urgency: {{this.urgency}}{{/if}}
 {{#if this.keyPhrases}}- Key phrases: {{join this.keyPhrases ", "}}{{/if}}
 - Full text:

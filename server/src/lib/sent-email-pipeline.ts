@@ -152,14 +152,9 @@ export class SentEmailPipeline {
   private calculateAverageReduction(batch: ProcessedEmail[]): number {
     if (batch.length === 0) return 0;
     
-    const totalReduction = batch.reduce((sum, email) => {
-      const reduction = email.originalPlainLength > 0
-        ? (1 - email.userTextPlain.length / email.originalPlainLength) * 100
-        : 0;
-      return sum + reduction;
-    }, 0);
-    
-    return Math.round(totalReduction / batch.length);
+    // Since we no longer track originalPlainLength, return 0
+    // This metric is no longer meaningful without the original length
+    return 0;
   }
 
   /**

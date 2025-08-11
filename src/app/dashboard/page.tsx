@@ -5,12 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { useToast } from '@/hooks/use-toast'
 
 export default function DashboardPage() {
-  const { user, loading, signOut } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
-  const { success } = useToast()
 
   useEffect(() => {
     if (!loading && !user) {
@@ -18,11 +16,6 @@ export default function DashboardPage() {
     }
   }, [user, loading, router])
 
-  const handleSignOut = async () => {
-    await signOut()
-    success('Signed out successfully')
-    router.push('/signin')
-  }
 
   if (loading) {
     return (
@@ -37,18 +30,11 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <div className="flex gap-4">
-            <Button asChild variant="ghost">
-              <a href="/settings">Settings</a>
-            </Button>
-            <Button onClick={handleSignOut} variant="outline">
-              Sign Out
-            </Button>
-          </div>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Dashboard</h1>
+          <p className="text-zinc-600 dark:text-zinc-400 mt-2">Welcome back, {user.email}</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -76,23 +62,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Webmail Client</CardTitle>
-              <CardDescription>Access your email inbox</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Open Roundcube webmail to read and send emails</p>
-              <div className="mt-2 p-2 bg-muted rounded-md">
-                <p className="text-xs font-medium">Test Accounts:</p>
-                <p className="text-xs text-muted-foreground">Username: user1</p>
-                <p className="text-xs text-muted-foreground">Password: testpass123</p>
-              </div>
-              <Button className="mt-4" size="sm" asChild>
-                <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">Open Webmail</a>
-              </Button>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>
@@ -166,23 +135,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Vector Database</CardTitle>
-              <CardDescription>Browse Qdrant collections</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">View and manage email vectors, embeddings, and metadata</p>
-              <div className="mt-2 p-2 bg-muted rounded-md">
-                <p className="text-xs font-medium">Collections:</p>
-                <p className="text-xs text-muted-foreground">• emails - Stored email embeddings</p>
-                <p className="text-xs text-muted-foreground">• Features: redacted names, relationships</p>
-              </div>
-              <Button className="mt-4" size="sm" asChild>
-                <a href="http://localhost:6333/dashboard" target="_blank" rel="noopener noreferrer">Open Qdrant Dashboard</a>
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

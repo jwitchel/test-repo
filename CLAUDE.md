@@ -267,6 +267,24 @@ The project includes a Docker test email server for IMAP development:
 - IMAP ports: 1143 (non-SSL), 1993 (SSL)
 - Real IMAP implementation with connection pooling and logging
 
+## Database Access
+
+**IMPORTANT**: When using psql to access the database directly, always use:
+```bash
+source ~/.zshrc && PGPASSWORD=aiemailpass psql -U aiemailuser -h localhost -p 5434 -d aiemaildb
+```
+
+The `source ~/.zshrc` is required because psql is installed via Homebrew at `/opt/homebrew/opt/libpq/bin/psql` and needs the PATH to be set up correctly.
+
+Example queries:
+```bash
+# Check database version
+source ~/.zshrc && PGPASSWORD=aiemailpass psql -U aiemailuser -h localhost -p 5434 -d aiemaildb -c "SELECT version();"
+
+# View tone preferences
+source ~/.zshrc && PGPASSWORD=aiemailpass psql -U aiemailuser -h localhost -p 5434 -d aiemaildb -c "SELECT target_identifier, jsonb_pretty(profile_data) FROM tone_preferences LIMIT 1;"
+```
+
 ## Common Issues and Solutions
 
 ### Authentication Issues

@@ -2,9 +2,12 @@ import EmailReplyParser from 'email-reply-parser';
 import { convert as htmlToText } from 'html-to-text';
 
 export interface ReplyExtractionResult {
-  extractedText: string;
-  isReply: boolean;
-  hasQuotedContent: boolean;
+  userReply: string;
+}
+
+export interface SplitReplyResult {
+  userReply: string;
+  respondedTo: string;
 }
 
 export class ReplyExtractor {
@@ -64,9 +67,7 @@ export class ReplyExtractor {
   extractWithMetadata(emailBody: string): ReplyExtractionResult {
     if (!emailBody || emailBody.trim() === '') {
       return {
-        extractedText: '',
-        isReply: false,
-        hasQuotedContent: false
+        userReply: ''
       };
     }
 
@@ -90,22 +91,13 @@ export class ReplyExtractor {
         .join('\n')
         .trim();
       
-      // Check if this appears to be a reply
-      const hasQuotedContent = fragments.some(f => f.isQuoted()) || 
-                              fragments.some(f => f.isHidden() && this.isQuotePattern(f.getContent()));
-      const isReply = hasQuotedContent || this.hasReplyIndicators(emailBody);
-
       return {
-        extractedText: visibleFragments,
-        isReply,
-        hasQuotedContent
+        userReply: visibleFragments
       };
     } catch (error) {
       console.error('Failed to parse email for reply extraction:', error);
       return {
-        extractedText: emailBody.trim(),
-        isReply: false,
-        hasQuotedContent: false
+        userReply: emailBody.trim()
       };
     }
   }
@@ -259,21 +251,84 @@ export class ReplyExtractor {
     return quotePatterns.some(pattern => pattern.test(content.trim()));
   }
 
-  /**
-   * Check for common reply indicators
-   */
-  private hasReplyIndicators(text: string): boolean {
-    const replyPatterns = [
-      /^>\s/m,                                    // Lines starting with >
-      /On .+ wrote:/i,                            // "On [date], [name] wrote:"
-      /From:\s*.+\nSent:\s*.+\nTo:\s*.+/i,      // Outlook style headers
-      /-----\s*Original Message\s*-----/i,       // Original message separator
-      /_{10,}/,                                   // Long underscores
-      /-{10,}/,                                   // Long dashes
-      /\n\s*From:\s+.+\s+<.+@.+>/,              // Email headers
-    ];
 
-    return replyPatterns.some(pattern => pattern.test(text));
+  /**
+   * Split email into user's reply and quoted content
+   */
+  splitReply(emailBody: string): SplitReplyResult {
+    if (!emailBody || emailBody.trim() === '') {
+      return {
+        userReply: '',
+        respondedTo: ''
+      };
+    }
+
+    try {
+      // Pre-process to handle special quote patterns
+      const preprocessed = this.preprocessQuotePatterns(emailBody);
+      
+      // Parse the email body
+      const parsed = this.parser.read(preprocessed);
+      
+      // Post-process fragments to handle code continuation issues
+      const fragments = this.mergeCodeContinuations(parsed.getFragments());
+      
+      // Separate user reply from quoted content
+      const userFragments: string[] = [];
+      const quotedFragments: string[] = [];
+      
+      fragments.forEach(fragment => {
+        const content = fragment.getContent();
+        
+        if (fragment.isQuoted()) {
+          quotedFragments.push(content);
+        } else if (fragment.isHidden() && this.isQuotePattern(content)) {
+          quotedFragments.push(content);
+        } else if (!fragment.isHidden()) {
+          userFragments.push(content);
+        }
+      });
+      
+      return {
+        userReply: userFragments.join('\n').trim(),
+        respondedTo: quotedFragments.join('\n').trim()
+      };
+    } catch (error) {
+      console.error('Failed to split email:', error);
+      // Fallback: try to split on common patterns
+      return this.fallbackSplit(emailBody);
+    }
+  }
+
+  /**
+   * Fallback method to split email on common patterns
+   */
+  private fallbackSplit(emailBody: string): SplitReplyResult {
+    // Look for common reply markers
+    const replyMarkers = [
+      /\nOn .+ wrote:\s*\n/i,
+      /\n-----\s*Original Message\s*-----\s*\n/i,
+      /\n_{10,}\s*\n/,
+      /\n-{10,}\s*\n/,
+      /\nFrom:\s*.+\nSent:\s*.+\nTo:\s*.+\nSubject:.+\n/i
+    ];
+    
+    for (const marker of replyMarkers) {
+      const match = emailBody.match(marker);
+      if (match && match.index !== undefined) {
+        const splitPoint = match.index;
+        return {
+          userReply: emailBody.substring(0, splitPoint).trim(),
+          respondedTo: emailBody.substring(splitPoint).trim()
+        };
+      }
+    }
+    
+    // No reply marker found - entire email is user's content
+    return {
+      userReply: '',
+      respondedTo: ''
+    };
   }
 
 

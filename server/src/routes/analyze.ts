@@ -4,9 +4,6 @@ import { extractEmailFeatures } from '../lib/nlp-feature-extractor';
 import { relationshipService } from '../lib/relationships/relationship-service';
 import { personService } from '../lib/relationships/person-service';
 import { ToneLearningOrchestrator } from '../lib/pipeline/tone-learning-orchestrator';
-import { VectorStore } from '../lib/vector/qdrant-client';
-import { EmbeddingService } from '../lib/vector/embedding-service';
-import { SelectedExample } from '../lib/pipeline/example-selector';
 import { imapLogger } from '../lib/imap-logger';
 import { replyExtractor } from '../lib/reply-extractor';
 
@@ -22,24 +19,12 @@ const router = Router();
 
 // Initialize services
 let orchestrator: ToneLearningOrchestrator | null = null;
-let vectorStore: VectorStore | null = null;
-let embeddingService: EmbeddingService | null = null;
 
 // Initialize services on first use
 async function ensureServicesInitialized() {
   if (!orchestrator) {
     orchestrator = new ToneLearningOrchestrator();
     await orchestrator.initialize();
-  }
-  
-  if (!vectorStore) {
-    vectorStore = new VectorStore();
-    await vectorStore.initialize();
-  }
-  
-  if (!embeddingService) {
-    embeddingService = new EmbeddingService();
-    await embeddingService.initialize();
   }
 }
 
@@ -293,35 +278,36 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
     // Step 5: Get enhanced profile with aggregated style
     const enhancedProfile = await relationshipService.getEnhancedProfile(userId, recipientEmail);
     
-    // Step 6: Search for similar emails
+    // Step 6: Use example selector to find relevant emails
     imapLogger.log(userId, {
       userId,
       emailAccountId: 'demo-account-001',
       level: 'info',
-      command: 'vector.searching',
+      command: 'examples.selecting',
       data: {
-        raw: `Searching for similar emails to ${detectedRelationship.relationship}...`
+        raw: `Selecting examples for ${recipientEmail} (${detectedRelationship.relationship})...`
       }
     });
     
-    const { vector } = await embeddingService!.embedText(cleanedContent);
-    const searchResults = await vectorStore!.searchSimilar({
+    // Use the orchestrator's example selector which implements the two-phase selection
+    const exampleSelection = await orchestrator!['exampleSelector'].selectExamples({
       userId,
-      queryVector: vector,
-      relationship: detectedRelationship.relationship,
-      limit: 5,
-      scoreThreshold: 0.3
+      incomingEmail: cleanedContent,
+      recipientEmail,
+      desiredCount: parseInt(process.env.EXAMPLE_COUNT || '25')
     });
     
     imapLogger.log(userId, {
       userId,
       emailAccountId: 'demo-account-001',
       level: 'info',
-      command: 'vector.found',
+      command: 'examples.selected',
       data: {
         parsed: {
-          count: searchResults.length,
-          topScore: searchResults[0]?.score || 0
+          totalSelected: exampleSelection.examples.length,
+          directCorrespondence: exampleSelection.stats.directCorrespondence,
+          relationshipMatch: exampleSelection.stats.relationshipMatch,
+          totalCandidates: exampleSelection.stats.totalCandidates
         }
       }
     });
@@ -342,13 +328,8 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       });
     }
     
-    // Step 7: Format examples for the prompt
-    const selectedExamples: SelectedExample[] = searchResults.map(result => ({
-      id: result.id,
-      text: result.metadata.extractedText,
-      score: result.score || 0,
-      metadata: result.metadata
-    }));
+    // Step 7: Examples are already formatted by the example selector
+    const selectedExamples = exampleSelection.examples;
     
     // Step 8: Analyze writing patterns
     imapLogger.log(userId, {
@@ -374,8 +355,44 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
     let writingPatterns = null;
     
     try {
-      // Try to load existing patterns
-      writingPatterns = await patternAnalyzer.loadPatterns(userId, detectedRelationship.relationship);
+      // First try to load aggregate patterns (overall tone profile)
+      writingPatterns = await patternAnalyzer.loadPatterns(userId);
+      
+      if (writingPatterns) {
+        imapLogger.log(userId, {
+          userId,
+          emailAccountId: 'demo-account-001',
+          level: 'info',
+          command: 'patterns.loaded',
+          data: {
+            raw: 'Loaded aggregate writing patterns from tone profile',
+            parsed: {
+              type: 'aggregate',
+              hasPatterns: true
+            }
+          }
+        });
+      } else {
+        // If no aggregate patterns, try relationship-specific patterns
+        writingPatterns = await patternAnalyzer.loadPatterns(userId, detectedRelationship.relationship);
+        
+        if (writingPatterns) {
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'demo-account-001',
+            level: 'info',
+            command: 'patterns.loaded',
+            data: {
+              raw: `Loaded relationship-specific patterns for ${detectedRelationship.relationship}`,
+              parsed: {
+                type: 'relationship',
+                relationship: detectedRelationship.relationship,
+                hasPatterns: true
+              }
+            }
+          });
+        }
+      }
       
       // If no patterns exist, analyze from a larger corpus
       if (!writingPatterns && patternAnalyzer['llmClient']) {
@@ -391,7 +408,7 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
         
         // Fetch more emails for pattern analysis
         const corpusSize = parseInt(process.env.PATTERN_ANALYSIS_CORPUS_SIZE || '200');
-        const patternCorpus = await vectorStore!.getByRelationship(
+        const patternCorpus = await orchestrator!['vectorStore'].getByRelationship(
           userId,
           detectedRelationship.relationship,
           corpusSize
@@ -422,9 +439,10 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
             cc: [],
             bcc: [],
             subject: result.metadata.subject || '',
-            textContent: result.metadata.extractedText,
+            textContent: result.metadata.userReply || '',
             htmlContent: null,
-            extractedText: result.metadata.extractedText
+            userReply: result.metadata.userReply || '',
+            respondedTo: ''
           }));
           
           writingPatterns = await patternAnalyzer.analyzeWritingPatterns(
@@ -509,12 +527,10 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
       person: person ? {
         name: person.name,
         email: person.emails[0]?.email_address,
-        emailCount: searchResults.filter(r => 
-          r.metadata.recipientEmail === recipientEmail
-        ).length
+        emailCount: exampleSelection.stats.directCorrespondence
       } : null,
       styleAggregation: enhancedProfile?.aggregatedStyle || null,
-      selectedExamples: selectedExamples.slice(0, 5).map(ex => ({
+      selectedExamples: selectedExamples.map(ex => ({
         text: ex.text,
         relationship: ex.metadata.relationship?.type || 'unknown',
         score: ex.score,

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context'
 import Link from 'next/link'
 import { Separator } from '@/components/ui/separator'
 import { SignaturePatterns } from '@/components/settings/signature-patterns'
+import { TypedNameSettings } from '@/components/settings/typed-name-settings'
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -17,12 +18,6 @@ export default function SettingsPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-background p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-primary">
-              ← Back to Dashboard
-            </Link>
-          </div>
-
           <h1 className="text-3xl font-bold mb-8">Settings</h1>
 
           <div className="space-y-6">
@@ -65,6 +60,17 @@ export default function SettingsPage() {
                 </div>
                 
                 <SignaturePatterns />
+                
+                <Separator className="my-6" />
+                
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium">Typed Name Settings</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure how your name appears in generated email responses.
+                  </p>
+                </div>
+                
+                <TypedNameSettings />
               </CardContent>
             </Card>
 

@@ -50,8 +50,8 @@ async function cleanSignaturesFromVectorStore(userId?: string) {
         console.log(`Found ${emails.length} emails`);
         
         for (const email of emails) {
-          // Use rawText if available, otherwise use extractedText
-          const originalText = email.metadata.rawText || email.metadata.extractedText || '';
+          // Use rawText if available, otherwise use userReply
+          const originalText = email.metadata.rawText || email.metadata.userReply || '';
           
           // Remove signature
           const result = await regexSignatureDetector.removeSignature(originalText, user.id);

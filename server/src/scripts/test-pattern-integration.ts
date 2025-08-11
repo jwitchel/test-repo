@@ -40,7 +40,8 @@ async function testPatternIntegration() {
       subject: 'Project Update',
       textContent: 'Hi! Quick question - do you have the latest metrics dashboard ready? The team is asking for an update.',
       htmlContent: null,
-      extractedText: 'Hi! Quick question - do you have the latest metrics dashboard ready? The team is asking for an update.'
+      userReply: 'Hi! Quick question - do you have the latest metrics dashboard ready? The team is asking for an update.',
+      respondedTo: ''
     };
     
     // Generate draft with pattern analysis

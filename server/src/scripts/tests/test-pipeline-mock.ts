@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { EmailIngestPipeline } from '../../lib/pipeline/email-ingest-pipeline';
 import { ExampleSelector } from '../../lib/pipeline/example-selector';
-import { PromptFormatter } from '../../lib/pipeline/prompt-formatter';
+import { PromptFormatterV2 } from '../../lib/pipeline/prompt-formatter-v2';
 import { extractEmailFeatures, ProcessedEmail } from '../../lib/pipeline/types';
 
 // Mock implementations for testing without dependencies
@@ -24,7 +24,7 @@ class MockVectorStore {
         id: 'mock-1',
         score: 0.95,
         metadata: {
-          extractedText: "I'll be home by 7pm tonight!",
+          userReply: "I'll be home by 7pm tonight!",
           relationship: { type: params.relationship },
           features: {
             stats: { formalityScore: 0.2 },
@@ -38,7 +38,7 @@ class MockVectorStore {
         id: 'mock-2',
         score: 0.85,
         metadata: {
-          extractedText: "Running late, be there around 8",
+          userReply: "Running late, be there around 8",
           relationship: { type: params.relationship },
           features: {
             stats: { formalityScore: 0.1 },
@@ -137,7 +137,8 @@ async function testPipelineWithMocks() {
       subject: 'Re: Lunch tomorrow?',
       textContent: "Sounds great! Let's meet at noon at our usual spot.",
       htmlContent: null,
-      extractedText: "Sounds great! Let's meet at noon at our usual spot."
+      userReply: "Sounds great! Let's meet at noon at our usual spot.",
+      respondedTo: ''
     };
 
     // Process single email
@@ -145,7 +146,7 @@ async function testPipelineWithMocks() {
     console.log('✅ Email processed:', result);
 
     // Test feature extraction
-    const features = extractEmailFeatures(testEmail.extractedText);
+    const features = extractEmailFeatures(testEmail.userReply);
     console.log('   Features extracted:', {
       wordCount: features.stats.wordCount,
       formality: features.stats.formalityScore,
@@ -168,7 +169,8 @@ async function testPipelineWithMocks() {
         subject: 'Re: Groceries',
         textContent: "I'll pick up milk on my way home. Love you!",
         htmlContent: null,
-        extractedText: "I'll pick up milk on my way home. Love you!"
+        userReply: "I'll pick up milk on my way home. Love you!",
+        respondedTo: ''
       },
       {
         uid: 'batch-uid-2',
@@ -182,7 +184,8 @@ async function testPipelineWithMocks() {
         subject: 'Re: Q3 Report',
         textContent: "I've completed the analysis. The report is attached for your review.",
         htmlContent: null,
-        extractedText: "I've completed the analysis. The report is attached for your review."
+        userReply: "I've completed the analysis. The report is attached for your review.",
+        respondedTo: ''
       }
     ];
 
@@ -214,9 +217,10 @@ async function testPipelineWithMocks() {
 
     // Test 4: Prompt Formatting
     console.log('5️⃣ Testing prompt formatting...');
-    const promptFormatter = new PromptFormatter();
+    const promptFormatter = new PromptFormatterV2();
+    await promptFormatter.initialize();
     
-    const formattedPrompt = promptFormatter.formatWithExamplesStructured({
+    const formattedPrompt = await promptFormatter.formatWithExamplesStructured({
       incomingEmail: 'What time will you be home?',
       recipientEmail: 'spouse@gmail.com',
       relationship: selectionResult.relationship,

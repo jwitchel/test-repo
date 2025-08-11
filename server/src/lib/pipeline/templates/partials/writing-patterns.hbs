@@ -1,34 +1,52 @@
-=== WRITING PATTERN INSTRUCTIONS ===
+=== WRITING PATTERNS FOR THIS RESPONSE ===
+Favor any convention you identify in the thread you're replying to.  Otherwise, the following in an NLP analysis of the writer's email history. It is not a list of instructions. It is a list of patterns that the writer uses. Consider these patterns when writing your response.
 
-MIRROR THESE EXACT PATTERNS:
-
-SENTENCE STRUCTURE:
-- Average length: {{round patterns.sentencePatterns.avgLength 1}} words
-- Short sentences (<10 words): {{percent patterns.sentencePatterns.distribution.short}}%
-- Medium sentences (10-25 words): {{percent patterns.sentencePatterns.distribution.medium}}%
-- Long sentences (>25 words): {{percent patterns.sentencePatterns.distribution.long}}%
+CRITICAL: For this response, use {{uppercase patterns.paragraphPatterns.[0].type}} FORMAT (your {{patterns.paragraphPatterns.[0].percentage}}% pattern).
+{{~#each rows~}}
+{{#if (eq patterns.paragraphPatterns.[0].type "single-line response")}}The ENTIRE response should be 1-2 sentences maximum, no line breaks.{{/if}}
+{{#if (eq patterns.paragraphPatterns.[0].type "brief-multi-line")}}Keep response brief (2-4 short lines) with line breaks between distinct points.{{/if}}
+{{#if (eq patterns.paragraphPatterns.[0].type "multi-paragraph")}}Use multiple paragraphs with proper line breaks between thoughts.{{/if}}
+{{#if (eq patterns.paragraphPatterns.[0].type "mixed")}}Match the response format to the context - brief for simple matters, detailed for complex topics.{{/if}}
+{{~/each~}}
+Aim for {{#if (eq patterns.paragraphPatterns.[0].type "single-line response")}}1-2 sentences total{{else}}{{#if (eq patterns.paragraphPatterns.[0].type "brief-multi-line")}}2-4 short lines{{else}}your typical response length{{/if}}{{/if}}.
 
 PARAGRAPH STRUCTURE:
 {{#each patterns.paragraphPatterns}}
-- {{this.type}}: {{this.percentage}}% - {{this.description}}
+- {{this.type}}: {{this.percentage}}%
 {{/each}}
 
-OPENINGS (use exactly as shown):
+SENTENCE LENGTH PATTERNS:
+- Typical length (median): {{#if patterns.sentencePatterns.medianLength}}{{round patterns.sentencePatterns.medianLength 0}}{{else}}{{round patterns.sentencePatterns.avgLength 0}}{{/if}} words
+- Most sentences fall between: {{#if patterns.sentencePatterns.percentile25}}{{round patterns.sentencePatterns.percentile25 0}}-{{round patterns.sentencePatterns.percentile75 0}}{{else}}{{patterns.sentencePatterns.minLength}}-{{patterns.sentencePatterns.maxLength}}{{/if}} words
+- Distribution:
+  * Short sentences (<10 words): {{percent patterns.sentencePatterns.distribution.short}}%
+  * Medium sentences (10-25 words): {{percent patterns.sentencePatterns.distribution.medium}}%
+  * Long sentences (>25 words): {{percent patterns.sentencePatterns.distribution.long}}%
+IMPORTANT: Aim for the typical (median) length. Most sentences should be in the {{#if patterns.sentencePatterns.percentile25}}{{round patterns.sentencePatterns.percentile25 0}}-{{round patterns.sentencePatterns.percentile75 0}}{{else}}typical{{/if}} word range.
+
+OPENINGS:
+Favor the convention used in the thread you're replying to, otherwise:
 {{#each patterns.openingPatterns}}
-- "{{{this.pattern}}}" ({{percent this.frequency}}%){{#if this.notes}} - {{{this.notes}}}{{/if}}
+{{#if this.isInstruction}}
+- {{this.pattern}} ({{percent this.percentage}}%){{#if this.notes}} - {{{this.notes}}}{{/if}}
+{{else}}
+- "{{{this.pattern}}}" ({{percent this.percentage}}%){{#if this.notes}} - {{{this.notes}}}{{/if}}
+{{/if}}
 {{/each}}
 
-VALEDICTIONS (closing phrases):
+VALEDICTIONS (closing phrases before the typed name):
+Favor the convention used in the thread you're replying to, otherwise:
 {{#each patterns.valediction}}
-- {{{this.phrase}}} ({{this.percentage}}%)
+{{#if this.isInstruction}}
+- {{this.phrase}} ({{percent this.percentage}}%)
+{{else}}
+- "{{{this.phrase}}}" ({{percent this.percentage}}%)
+{{/if}}
 {{/each}}
 
-TYPED NAME FORMATS:
-{{#each patterns.typedName}}
-- {{{this.phrase}}} ({{this.percentage}}%)
-{{/each}}
 
-NEVER DO THESE THINGS:
+NOTABLE NEGATIVE PATTERNS TO CONSIDER:
+Favor the convention used in the thread you're replying to and note:
 {{#if patterns.negativePatterns.length}}
 {{#each patterns.negativePatterns}}
 - {{{this.description}}}{{#if this.examples}} ({{#each this.examples}}{{#if @index}}, {{/if}}"{{{this}}}"{{/each}}){{/if}}
@@ -44,5 +62,5 @@ RESPONSE STYLE:
 
 UNIQUE PHRASES TO USE:
 {{#each patterns.uniqueExpressions}}
-- "{{{this.phrase}}}" - use {{{this.context}}} ({{percent this.frequency}}%)
+- "{{{this.phrase}}}" - {{{this.context}}} ({{percent this.occurrenceRate}}%)
 {{/each}}

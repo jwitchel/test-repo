@@ -117,7 +117,8 @@ async function testTemplateIntegration() {
       subject: 'Quick question about the API changes',
       textContent: 'Hey! Just wanted to check if you had a chance to review the API changes I proposed yesterday. Let me know your thoughts when you get a chance. Thanks!',
       htmlContent: null,
-      extractedText: 'Hey! Just wanted to check if you had a chance to review the API changes I proposed yesterday. Let me know your thoughts when you get a chance. Thanks!',
+      userReply: 'Hey! Just wanted to check if you had a chance to review the API changes I proposed yesterday. Let me know your thoughts when you get a chance. Thanks!',
+      respondedTo: '',
       relationship: {
         type: testRelationshipType,
         confidence: 0.95,

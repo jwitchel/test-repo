@@ -8,8 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, MailOpen, Send, Loader2, Zap, Home, Settings } from 'lucide-react'
-import Link from 'next/link'
+import { ChevronLeft, ChevronRight, Send, Loader2, Zap } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -19,12 +18,6 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 
-interface EmailAccount {
-  id: string
-  email_address: string
-  imap_host: string
-  imap_port: number
-}
 
 interface LLMProvider {
   id: string
@@ -105,9 +98,7 @@ John`
 export default function ImapLogsDemoPage() {
   const { user } = useAuth()
   const { success, error: showError } = useToast()
-  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(DEMO_ACCOUNT_ID)
-  const [, setIsLoading] = useState(true)
+  const [] = useState<string>(DEMO_ACCOUNT_ID)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   
   // LLM Provider state
@@ -122,6 +113,9 @@ export default function ImapLogsDemoPage() {
   const [recipientEmail, setRecipientEmail] = useState('')
   const [relationshipType, setRelationshipType] = useState('auto-detect')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  
+  // Relationship types state
+  const [relationshipTypes, setRelationshipTypes] = useState<string[]>([])
   
   // Analysis results state
   interface NLPFeatures {
@@ -244,44 +238,12 @@ export default function ImapLogsDemoPage() {
   }
   
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null)
+  const [editedPrompt, setEditedPrompt] = useState<string>('')
   const [activeTab, setActiveTab] = useState('email-input')
 
-  // Fetch user's email accounts and LLM providers on mount
+  // Fetch LLM providers and relationship types on mount
   useEffect(() => {
     let mounted = true;
-    
-    const loadAccounts = async () => {
-      try {
-        const response = await fetch('http://localhost:3002/api/email-accounts', {
-          credentials: 'include'
-        })
-        
-        if (!mounted) return;
-        
-        if (response.ok) {
-          const accounts: EmailAccount[] = await response.json()
-          setEmailAccounts(accounts)
-          
-          // If user has accounts, prefer user1@testmail.local or select the first one
-          if (accounts.length > 0) {
-            const testAccount = accounts.find(acc => acc.email_address === 'user1@testmail.local');
-            if (testAccount) {
-              setSelectedAccountId(testAccount.id)
-            } else {
-              setSelectedAccountId(accounts[0].id)
-            }
-          }
-        } else if (response.status !== 404) {
-          console.error('Failed to fetch email accounts')
-        }
-      } catch (err) {
-        console.error('Error fetching email accounts:', err)
-      } finally {
-        if (mounted) {
-          setIsLoading(false)
-        }
-      }
-    }
     
     const loadProviders = async () => {
       try {
@@ -309,18 +271,31 @@ export default function ImapLogsDemoPage() {
       }
     }
     
-    loadAccounts()
+    const loadRelationshipTypes = async () => {
+      try {
+        const response = await fetch('http://localhost:3002/api/relationships/types', {
+          credentials: 'include'
+        })
+        
+        if (!mounted) return;
+        
+        if (response.ok) {
+          const types = await response.json()
+          setRelationshipTypes(types)
+        }
+      } catch (err) {
+        console.error('Error fetching relationship types:', err)
+      }
+    }
+    
     loadProviders()
+    loadRelationshipTypes()
     
     return () => {
       mounted = false;
     }
   }, []) // Empty dependency array - only run once on mount
 
-
-  const handleAccountChange = (accountId: string) => {
-    setSelectedAccountId(accountId)
-  }
 
   const handleLoadExample = (exampleKey: keyof typeof EXAMPLE_EMAILS) => {
     const example = EXAMPLE_EMAILS[exampleKey]
@@ -368,6 +343,7 @@ export default function ImapLogsDemoPage() {
       console.log('Analysis results:', results)
       console.log('Selected examples:', results.selectedExamples)
       setAnalysisResults(results)
+      setEditedPrompt(decodeHtmlEntitiesSafe(results.llmPrompt))
       
       // Switch to prompt tab after analysis
       setActiveTab('prompt')
@@ -409,7 +385,7 @@ export default function ImapLogsDemoPage() {
         },
         credentials: 'include',
         body: JSON.stringify({
-          llm_prompt: decodeHtmlEntitiesSafe(analysisData.llmPrompt),
+          llm_prompt: editedPrompt || decodeHtmlEntitiesSafe(analysisData.llmPrompt),
           nlp_features: analysisData.nlpFeatures,
           relationship: analysisData.relationship,
           enhanced_profile: analysisData.enhancedProfile,
@@ -439,52 +415,11 @@ export default function ImapLogsDemoPage() {
   return (
     <ProtectedRoute>
       <div className="h-screen bg-zinc-50 dark:bg-zinc-900 flex flex-col overflow-hidden">
-        {/* Compact Header Bar */}
-        <div className="h-16 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <MailOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Email AI Pipeline Demo
-            </h1>
-          </div>
+        {/* Header with LLM Selection */}
+        <div className="h-16 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Inspector</h1>
           
-          {/* Navigation Links */}
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Button>
-            </Link>
-            <Link href="/settings">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Settings className="h-4 w-4" />
-                Settings
-              </Button>
-            </Link>
-          </div>
-          
-          {/* Account and LLM Selection in Header */}
-          <div className="flex items-center gap-4 ml-auto">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="header-account-select" className="text-sm">Account:</Label>
-              <Select value={selectedAccountId} onValueChange={handleAccountChange}>
-                <SelectTrigger id="header-account-select" className="w-[200px]">
-                  <SelectValue placeholder="Select an account" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={DEMO_ACCOUNT_ID}>
-                    Demo Account
-                  </SelectItem>
-                  {emailAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.email_address}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Label htmlFor="header-llm-select" className="text-sm">LLM:</Label>
               <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
@@ -550,13 +485,8 @@ export default function ImapLogsDemoPage() {
             {!isSidebarCollapsed && (
               <div className="p-2 overflow-y-auto flex flex-col gap-2">
                 <TrainingPanel 
-                  emailAccountId={selectedAccountId}
+                  emailAccountId={DEMO_ACCOUNT_ID}
                   userId={user?.id || ''}
-                  emailAddress={
-                    selectedAccountId === DEMO_ACCOUNT_ID 
-                      ? undefined 
-                      : emailAccounts.find(acc => acc.id === selectedAccountId)?.email_address
-                  }
                 />
               </div>
             )}
@@ -602,12 +532,11 @@ export default function ImapLogsDemoPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="auto-detect">Auto-detect</SelectItem>
-                                  <SelectItem value="colleague">Colleague</SelectItem>
-                                  <SelectItem value="friend">Friend</SelectItem>
-                                  <SelectItem value="family">Family</SelectItem>
-                                  <SelectItem value="manager">Manager</SelectItem>
-                                  <SelectItem value="client">Client</SelectItem>
-                                  <SelectItem value="spouse">Spouse</SelectItem>
+                                  {relationshipTypes.map((type) => (
+                                    <SelectItem key={type} value={type}>
+                                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>
@@ -868,11 +797,22 @@ export default function ImapLogsDemoPage() {
                                   size="sm" 
                                   variant="outline"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(decodeHtmlEntitiesSafe(analysisResults.llmPrompt))
+                                    navigator.clipboard.writeText(editedPrompt)
                                     success('Prompt copied to clipboard')
                                   }}
                                 >
                                   Copy
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditedPrompt(decodeHtmlEntitiesSafe(analysisResults.llmPrompt))
+                                    success('Prompt reset to original')
+                                  }}
+                                  disabled={editedPrompt === decodeHtmlEntitiesSafe(analysisResults.llmPrompt)}
+                                >
+                                  Reset
                                 </Button>
                                 <Button
                                   onClick={() => handleGenerateReply()}
@@ -896,9 +836,12 @@ export default function ImapLogsDemoPage() {
                               </div>
                             </div>
                             <div className="flex-1 overflow-auto">
-                              <pre className="text-xs bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap">
-                                {decodeHtmlEntitiesSafe(analysisResults.llmPrompt)}
-                              </pre>
+                              <textarea
+                                className="w-full h-full text-xs bg-zinc-50 dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap font-mono resize-none border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                value={editedPrompt}
+                                onChange={(e) => setEditedPrompt(e.target.value)}
+                                placeholder="Edit the prompt here..."
+                              />
                             </div>
                           </div>
                         ) : (
@@ -1006,7 +949,7 @@ export default function ImapLogsDemoPage() {
             {/* IMAP Logs Panel - Full Width */}
             <div className="flex-1 px-2 pb-2 min-h-0">
               <ImapLogViewer 
-                emailAccountId={selectedAccountId} 
+                emailAccountId={DEMO_ACCOUNT_ID} 
                 className="h-full"
               />
             </div>
