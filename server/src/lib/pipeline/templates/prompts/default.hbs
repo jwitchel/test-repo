@@ -5,7 +5,7 @@ IMPORTANT: Treat bracketed patterns as instructions or placeholders (e.g. [first
 IMPORTANT: Follow these specific writing patterns based on the writer's established patterns:
 All email signature blocks have been stripped from the input and will be added after your response.
 1. Use their typical opening: {{#each patterns.openingPatterns}}{{#if @first}}{{this.pattern}} ({{percent this.percentage}}% usage){{/if}}{{/each}}
-2. Keep sentences around {{#if patterns.sentencePatterns.medianLength}}{{round patterns.sentencePatterns.medianLength 0}}{{else}}{{round patterns.sentencePatterns.avgLength 0}}{{/if}} words (typical length)
+2. Keep sentences around {{#if patterns.sentencePatterns.medianLength}}{{round patterns.sentencePatterns.medianLength 0}}{{else}}{{round patterns.sentencePatterns.avgLength 0}}{{/if}} words (their typical median length)
 3. Use their typical closing: Favor any convention you identify in the thread you're replying to.  Otherwise {{#each patterns.valediction}}{{#if @first}}{{this.phrase}} ({{percent this.percentage}}% usage){{/if}}{{/each}}
 4. Use their typical closing: Favor any convention you identify in the thread you're replying to.  Otherwise {{#each patterns.typedName}}{{#if @first}}{{this.phrase}} ({{percent this.percentage}}% usage){{/if}}{{/each}}
 

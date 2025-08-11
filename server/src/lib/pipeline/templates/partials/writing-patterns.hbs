@@ -15,11 +15,14 @@ PARAGRAPH STRUCTURE:
 - {{this.type}}: {{this.percentage}}%
 {{/each}}
 
-FOR MULTIPLE SENTENCE REPLIES THE WRITER USES THE FOLLOWING SENTENCE LENGTHS:
-- Average length: {{patterns.sentencePatterns.avgLength}} words
-- Short sentences (<10 words): {{percent patterns.sentencePatterns.distribution.short}}%
-- Medium sentences (10-25 words): {{percent patterns.sentencePatterns.distribution.medium}}%
-- Long sentences (>25 words): {{percent patterns.sentencePatterns.distribution.long}}%
+SENTENCE LENGTH PATTERNS:
+- Typical length (median): {{#if patterns.sentencePatterns.medianLength}}{{round patterns.sentencePatterns.medianLength 0}}{{else}}{{round patterns.sentencePatterns.avgLength 0}}{{/if}} words
+- Most sentences fall between: {{#if patterns.sentencePatterns.percentile25}}{{round patterns.sentencePatterns.percentile25 0}}-{{round patterns.sentencePatterns.percentile75 0}}{{else}}{{patterns.sentencePatterns.minLength}}-{{patterns.sentencePatterns.maxLength}}{{/if}} words
+- Distribution:
+  * Short sentences (<10 words): {{percent patterns.sentencePatterns.distribution.short}}%
+  * Medium sentences (10-25 words): {{percent patterns.sentencePatterns.distribution.medium}}%
+  * Long sentences (>25 words): {{percent patterns.sentencePatterns.distribution.long}}%
+IMPORTANT: Aim for the typical (median) length. Most sentences should be in the {{#if patterns.sentencePatterns.percentile25}}{{round patterns.sentencePatterns.percentile25 0}}-{{round patterns.sentencePatterns.percentile75 0}}{{else}}typical{{/if}} word range.
 
 OPENINGS:
 Favor the convention used in the thread you're replying to, otherwise:
@@ -51,7 +54,8 @@ Favor the convention used in the thread you're replying to, otherwise:
 {{/if}}
 {{/each}}
 
-NEVER DO THESE THINGS:
+NOTABLE NEGATIVE PATTERNS TO CONSIDER:
+Favor the convention used in the thread you're replying to and note:
 {{#if patterns.negativePatterns.length}}
 {{#each patterns.negativePatterns}}
 - {{{this.description}}}{{#if this.examples}} ({{#each this.examples}}{{#if @index}}, {{/if}}"{{{this}}}"{{/each}}){{/if}}
