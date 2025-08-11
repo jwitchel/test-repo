@@ -22,8 +22,7 @@ import {
   Sparkles,
   Settings,
   LogOut,
-  User,
-  Bot
+  User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,7 +36,6 @@ export function Navbar() {
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/generate', label: 'Generate', icon: Bot },
     { href: '/inspector', label: 'Inspector', icon: FileSearch },
     { href: '/tone', label: 'Tone Analysis', icon: Sparkles },
   ]
