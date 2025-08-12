@@ -36,6 +36,7 @@ export function Navbar() {
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
+    { href: '/inbox', label: 'Inbox', icon: Mail },
     { href: '/inspector', label: 'Inspector', icon: FileSearch },
     { href: '/tone', label: 'Tone Analysis', icon: Sparkles },
   ]

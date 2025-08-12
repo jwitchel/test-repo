@@ -99,6 +99,7 @@ import accountsRoutes from './routes/accounts';
 import signaturePatternsRoutes from './routes/signature-patterns';
 import settingsRoutes from './routes/settings';
 import imapDraftRoutes from './routes/imap-draft';
+import inboxRoutes from './routes/inbox';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -116,6 +117,7 @@ app.use('/api', accountsRoutes);
 app.use('/api/signature-patterns', signaturePatternsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/imap-draft', imapDraftRoutes);
+app.use('/api/inbox', inboxRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
