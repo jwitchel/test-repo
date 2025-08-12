@@ -23,6 +23,7 @@ export interface EmailMetadata {
   frequencyScore: number;
   wordCount: number;
   responseTimeMinutes?: number;
+  eml_file?: string;          // Raw RFC 5322 message format
 }
 
 export interface EmailVector {

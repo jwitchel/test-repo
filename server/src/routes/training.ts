@@ -116,7 +116,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
         // Fetch full message with body content
         const fullMessage = await imapOps.getMessage(folderUsed, message.uid);
         
-        if (fullMessage.parsed) {
+        if (fullMessage.parsed && fullMessage.rawMessage) {
           // Get the ORIGINAL text from the parsed email (before any processing)
           const originalText = fullMessage.parsed.text || '';
           const originalHtml = fullMessage.parsed.html || null;
@@ -148,7 +148,8 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
             textContent: originalText,  // ORIGINAL text (with quotes, signatures, etc)
             htmlContent: originalHtml,   // ORIGINAL HTML
             userReply: processedContent.userReply,  // Just what the user wrote (no signatures, no quotes)
-            respondedTo: processedContent.respondedTo  // The quoted content the user was responding to
+            respondedTo: processedContent.respondedTo,  // The quoted content the user was responding to
+            rawMessage: fullMessage.rawMessage  // Raw RFC 5322 message
           };
 
           // Process ONE email at a time through the orchestrator - sequential method
@@ -182,6 +183,21 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
           
           // Small delay to prevent overwhelming the system
           await new Promise(resolve => setTimeout(resolve, 10));
+        } else {
+          // Log error if raw message is missing
+          errors++;
+          const errorMsg = !fullMessage.parsed ? 'Failed to parse email' : 'Missing raw RFC 5322 message';
+          console.error(`Error processing email ${message.uid}: ${errorMsg}`);
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId,
+            level: 'error',
+            command: 'TRAINING_EMAIL_ERROR',
+            data: { 
+              error: errorMsg,
+              parsed: { uid: message.uid, index: i }
+            }
+          });
         }
       } catch (err) {
         errors++;

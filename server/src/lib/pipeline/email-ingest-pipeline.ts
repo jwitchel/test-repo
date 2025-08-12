@@ -118,15 +118,20 @@ export class EmailIngestPipeline {
   }
   
   async processEmail(userId: string, email: ProcessedEmail) {
+    // Validate that we have the raw message
+    if (!email.rawMessage || email.rawMessage.trim() === '') {
+      throw new Error(`[Email Ingestion] Missing raw RFC 5322 message for email ${email.messageId}. This is required for proper email storage.`);
+    }
+    
     // Handle emails without userReply - set placeholder for forwarded emails
     let userReplyToProcess = email.userReply;
     if (!userReplyToProcess) {
-      console.log(`[Email Ingestion] Forwarded email without comment - using placeholder
-Email Details:
-- Message ID: ${email.messageId}
-- From: ${email.from.map(f => f.address).join(', ')}
-- To: ${email.to.map(t => t.address).join(', ')}
-- Subject: ${email.subject}`);
+      // console.log(`[Email Ingestion] Forwarded email without comment - using placeholder
+// Email Details:
+// - Message ID: ${email.messageId}
+// - From: ${email.from.map(f => f.address).join(', ')}
+// - To: ${email.to.map(t => t.address).join(', ')}
+// - Subject: ${email.subject}`);
       
       userReplyToProcess = '[ForwardedWithoutComment]';
     }
@@ -136,9 +141,9 @@ Email Details:
     const redactedUserReply = redactionResult.text;
     
     // Log redaction if names were found
-    if (redactionResult.namesFound.length > 0) {
-      console.log(`[Email Ingestion] Redacted ${redactionResult.namesFound.length} names from email ${email.messageId}`);
-    }
+    // if (redactionResult.namesFound.length > 0) {
+    //   console.log(`[Email Ingestion] Redacted ${redactionResult.namesFound.length} names from email ${email.messageId}`);
+    // }
     
     // Extract NLP features from the redacted user reply ONLY
     // We ONLY analyze what the user actually wrote, not quoted content
@@ -222,7 +227,8 @@ Email Details:
           detectionMethod: relationship.method
         },
         frequencyScore: 1,
-        wordCount: features.stats.wordCount
+        wordCount: features.stats.wordCount,
+        eml_file: email.rawMessage || '' // Store raw RFC 5322 message
       }
     }),
       {

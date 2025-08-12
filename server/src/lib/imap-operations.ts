@@ -420,14 +420,15 @@ export class ImapOperations {
     }
   }
 
-  async getMessage(folderName: string, uid: number): Promise<EmailMessage & { body?: string; parsed?: any }> {
+  async getMessage(folderName: string, uid: number): Promise<EmailMessage & { body?: string; parsed?: any; rawMessage?: string }> {
     const conn = await this.getConnection();
     
     try {
       await conn.selectFolder(folderName);
       
+      // Fetch the complete message including all headers and body
       const messages = await conn.fetch(uid.toString(), {
-        bodies: '',
+        bodies: '', // Empty string fetches the entire RFC 5322 message
         envelope: true,
         size: true,
         flags: true
@@ -439,11 +440,13 @@ export class ImapOperations {
 
       const msg = messages[0];
       
-      // Parse the message if we have a body
-      let parsed = null;
-      if (msg.body) {
-        parsed = await simpleParser(msg.body);
+      // Validate we have the body
+      if (!msg.body) {
+        throw new ImapConnectionError('Message body not retrieved', 'BODY_NOT_FOUND');
       }
+      
+      // Parse the message
+      const parsed = await simpleParser(msg.body);
       
       return {
         uid: msg.uid,
@@ -455,7 +458,8 @@ export class ImapOperations {
         flags: msg.flags,
         size: msg.size,
         body: msg.body,
-        parsed
+        parsed,
+        rawMessage: msg.body  // This is the complete RFC 5322 message with headers and body
       };
     } finally {
       this.release();

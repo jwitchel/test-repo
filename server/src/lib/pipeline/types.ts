@@ -19,6 +19,7 @@ export interface ProcessedEmail {
     confidence: number;
     detectionMethod: string;
   };
+  rawMessage?: string;      // Raw RFC 5322 message format
 }
 
 export interface GeneratedDraft {
