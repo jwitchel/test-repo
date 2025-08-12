@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Send, Loader2, Zap } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Send, Loader2, Zap, Upload } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -28,6 +28,13 @@ interface LLMProvider {
   is_default: boolean
 }
 
+interface EmailAccount {
+  id: string
+  email_address: string
+  imap_host: string
+  is_active: boolean
+}
+
 // Demo account ID for testing without real email accounts
 const DEMO_ACCOUNT_ID = 'demo-account-001'
 
@@ -43,6 +50,11 @@ export default function ImapLogsDemoPage() {
   const [liveAiResponses, setLiveAiResponses] = useState(false)
   const [isGeneratingReply, setIsGeneratingReply] = useState(false)
   const [generatedReply, setGeneratedReply] = useState<string>('')
+  
+  // Email account state
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
+  const [selectedEmailAccountId, setSelectedEmailAccountId] = useState<string>('')
+  const [isUploadingDraft, setIsUploadingDraft] = useState(false)
   
   // Email input state
   const [emailBody, setEmailBody] = useState('')
@@ -224,8 +236,32 @@ export default function ImapLogsDemoPage() {
       }
     }
     
+    const loadEmailAccounts = async () => {
+      try {
+        const response = await fetch('http://localhost:3002/api/email-accounts', {
+          credentials: 'include'
+        })
+        
+        if (!mounted) return;
+        
+        if (response.ok) {
+          const accounts = await response.json()
+          setEmailAccounts(accounts)
+          
+          // Select first active account
+          const firstActive = accounts.find((a: EmailAccount) => a.is_active)
+          if (firstActive) {
+            setSelectedEmailAccountId(firstActive.id)
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching email accounts:', err)
+      }
+    }
+    
     loadProviders()
     loadRelationshipTypes()
+    loadEmailAccounts()
     
     return () => {
       mounted = false;
@@ -337,6 +373,58 @@ export default function ImapLogsDemoPage() {
       showError(error instanceof Error ? error.message : 'Failed to generate reply')
     } finally {
       setIsGeneratingReply(false)
+    }
+  }
+  
+  const handleUploadToDraft = async () => {
+    if (!generatedReply) {
+      showError('No reply to upload')
+      return
+    }
+    
+    if (!selectedEmailAccountId) {
+      showError('Please select an email account')
+      return
+    }
+    
+    if (!recipientEmail) {
+      showError('Please enter recipient email')
+      return
+    }
+    
+    setIsUploadingDraft(true)
+    
+    try {
+      // Extract subject from original email body if available
+      const subjectMatch = emailBody.match(/Subject:\s*(.+?)(?:\n|$)/i)
+      const originalSubject = subjectMatch ? subjectMatch[1].trim() : 'Email Reply'
+      const subject = originalSubject.startsWith('Re:') ? originalSubject : `Re: ${originalSubject}`
+      
+      const response = await fetch('http://localhost:3002/api/imap-draft/upload-draft', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          emailAccountId: selectedEmailAccountId,
+          to: recipientEmail,
+          subject: subject,
+          body: generatedReply
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Upload failed')
+      }
+      
+      const result = await response.json()
+      success(`Draft uploaded to ${result.folder}`)
+    } catch (error) {
+      showError(error instanceof Error ? error.message : 'Failed to upload draft')
+    } finally {
+      setIsUploadingDraft(false)
     }
   }
 
@@ -579,16 +667,55 @@ export default function ImapLogsDemoPage() {
                           <>
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-sm font-semibold">Generated Email Reply</h4>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(generatedReply)
-                                  success('Reply copied to clipboard!')
-                                }}
-                              >
-                                Copy
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Select value={selectedEmailAccountId} onValueChange={setSelectedEmailAccountId}>
+                                  <SelectTrigger className="w-[200px] h-7 text-xs">
+                                    <SelectValue placeholder="Select email account" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {emailAccounts.length === 0 ? (
+                                      <div className="py-2 px-3 text-sm text-muted-foreground">
+                                        No email accounts configured
+                                      </div>
+                                    ) : (
+                                      emailAccounts.map((account) => (
+                                        <SelectItem key={account.id} value={account.id}>
+                                          {account.email_address}
+                                        </SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(generatedReply)
+                                    success('Reply copied to clipboard!')
+                                  }}
+                                >
+                                  Copy
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={handleUploadToDraft}
+                                  disabled={isUploadingDraft || !selectedEmailAccountId || !recipientEmail}
+                                  title={!selectedEmailAccountId ? "Select an email account first" : !recipientEmail ? "Enter recipient email first" : "Push to draft folder"}
+                                >
+                                  {isUploadingDraft ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                      Uploading...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="mr-2 h-3 w-3" />
+                                      Push to Draft
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                             <div className="flex-1 min-h-0">
                               <textarea

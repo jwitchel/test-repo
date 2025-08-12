@@ -443,6 +443,36 @@ export class ImapConnection extends EventEmitter {
     }
   }
 
+  async append(messageData: string | Buffer, options: { mailbox: string; flags?: string[] }): Promise<void> {
+    if (!this.connected) {
+      throw new ImapConnectionError('Not connected', 'NOT_CONNECTED');
+    }
+
+    const startTime = Date.now();
+    this.logOperation('APPEND', {
+      raw: `APPEND ${options.mailbox}`,
+      parsed: { mailbox: options.mailbox, flags: options.flags, size: messageData.length }
+    }, 'debug');
+
+    return new Promise((resolve, reject) => {
+      this.imap.append(messageData, options, (err: Error) => {
+        if (err) {
+          this.logOperation('APPEND', {
+            error: err.message,
+            duration: Date.now() - startTime
+          }, 'error');
+          reject(new ImapConnectionError(`Append failed: ${err.message}`, 'APPEND_FAILED'));
+        } else {
+          this.logOperation('APPEND', {
+            response: 'Message appended successfully',
+            duration: Date.now() - startTime
+          }, 'debug');
+          resolve();
+        }
+      });
+    });
+  }
+
   isConnected(): boolean {
     return this.connected;
   }

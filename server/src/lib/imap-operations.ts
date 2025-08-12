@@ -192,27 +192,43 @@ export class ImapOperations {
       const imapFolders = await conn.listFolders();
       const folders: EmailFolder[] = [];
 
-      // Get message counts for each folder
-      for (const imapFolder of imapFolders) {
-        try {
-          const box = await conn.selectFolder(imapFolder.name);
+      // Recursive function to flatten nested folders
+      const flattenFolders = (folderList: any[]) => {
+        for (const imapFolder of folderList) {
+          const folderPath = imapFolder.name;
           
+          // Add the current folder
           folders.push({
             name: imapFolder.name,
-            path: imapFolder.name,
-            delimiter: imapFolder.delimiter,
-            flags: imapFolder.flags,
-            messageCount: box.messages.total,
-            unseenCount: box.messages.unseen
-          });
-        } catch (err) {
-          // If we can't select the folder, add it without counts
-          folders.push({
-            name: imapFolder.name,
-            path: imapFolder.name,
+            path: folderPath,
             delimiter: imapFolder.delimiter,
             flags: imapFolder.flags
           });
+          
+          // If it has children, recursively add them
+          if (imapFolder.children && imapFolder.children.length > 0) {
+            flattenFolders(imapFolder.children);
+          }
+        }
+      };
+
+      // Start flattening from root folders
+      flattenFolders(imapFolders);
+
+      // For folders we can select, get message counts
+      for (const folder of folders) {
+        // Skip folders with \Noselect flag
+        if (folder.flags && folder.flags.includes('\\Noselect')) {
+          continue;
+        }
+        
+        try {
+          const box = await conn.selectFolder(folder.path);
+          folder.messageCount = box.messages.total;
+          folder.unseenCount = box.messages.unseen;
+        } catch (err) {
+          // Silently skip folders we can't select
+          console.debug(`Cannot select folder ${folder.path}:`, err);
         }
       }
 
@@ -546,5 +562,97 @@ export class ImapOperations {
       'UPDATE email_accounts SET last_sync = CURRENT_TIMESTAMP WHERE id = $1',
       [this.account.id]
     );
+  }
+
+  async findDraftFolder(): Promise<string> {
+    const folders = await this.getFolders();
+    
+    // Log all folders for debugging
+    console.log('Available folders:', folders.map(f => ({
+      name: f.name,
+      path: f.path,
+      flags: f.flags
+    })));
+    
+    // Common draft folder names - check exact matches first
+    const draftFolderNames = ['[Gmail]/Drafts', 'Drafts', 'Draft', 'INBOX.Drafts', 'INBOX/Drafts'];
+    
+    for (const folderName of draftFolderNames) {
+      const folder = folders.find(f => 
+        f.name === folderName ||
+        f.path === folderName
+      );
+      if (folder) {
+        console.log(`Found draft folder by exact match: ${folder.path}`);
+        return folder.path;
+      }
+    }
+    
+    // Try case-insensitive match
+    for (const folderName of draftFolderNames) {
+      const folder = folders.find(f => 
+        f.name.toLowerCase() === folderName.toLowerCase() ||
+        f.path.toLowerCase() === folderName.toLowerCase()
+      );
+      if (folder) {
+        console.log(`Found draft folder by case-insensitive match: ${folder.path}`);
+        return folder.path;
+      }
+    }
+    
+    // If no standard draft folder found, look for any folder with 'draft' in the name
+    const draftFolder = folders.find(f => 
+      f.name.toLowerCase().includes('draft') ||
+      f.path.toLowerCase().includes('draft')
+    );
+    
+    if (draftFolder) {
+      console.log(`Found draft folder by partial match: ${draftFolder.path}`);
+      return draftFolder.path;
+    }
+    
+    // Also check if any folder has the \Drafts flag
+    const flaggedDraftFolder = folders.find(f => 
+      f.flags && f.flags.some(flag => flag.toLowerCase() === '\\drafts')
+    );
+    
+    if (flaggedDraftFolder) {
+      console.log(`Found draft folder by \\Drafts flag: ${flaggedDraftFolder.path}`);
+      return flaggedDraftFolder.path;
+    }
+    
+    console.error('No draft folder found among:', folders.map(f => f.path));
+    throw new ImapConnectionError('Draft folder not found', 'DRAFT_FOLDER_NOT_FOUND');
+  }
+
+  async appendMessage(
+    folderName: string, 
+    messageContent: string,
+    flags?: string[]
+  ): Promise<void> {
+    const conn = await this.getConnection();
+    
+    try {
+      console.log(`Appending message to folder: ${folderName}`);
+      
+      // Ensure the message has proper line endings (CRLF)
+      const normalizedMessage = messageContent.replace(/\r?\n/g, '\r\n');
+      
+      // node-imap expects a buffer or string
+      await conn.append(normalizedMessage, {
+        mailbox: folderName,
+        flags: flags || ['\\Draft']
+      });
+      
+      console.log('Message successfully appended to draft folder');
+    } catch (error) {
+      console.error('Error appending message:', error);
+      throw new ImapConnectionError(
+        `Failed to append message: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'APPEND_FAILED'
+      );
+    } finally {
+      this.release();
+    }
   }
 }
