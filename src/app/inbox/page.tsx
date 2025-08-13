@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText, Send, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PostalMime from 'postal-mime';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 
 interface EmailAccount {
   id: string;
@@ -45,6 +46,25 @@ interface ParsedEmail {
   }>;
 }
 
+interface GeneratedDraft {
+  id: string;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  bodyHtml?: string;
+  inReplyTo: string;
+  references: string;
+  relationship: {
+    type: string;
+    confidence: number;
+  };
+  metadata: {
+    originalSubject: string;
+    originalFrom: string;
+  };
+}
+
 export default function InboxPage() {
   const { error, success } = useToast();
   
@@ -55,10 +75,17 @@ export default function InboxPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [totalMessages, setTotalMessages] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('message');
+  const [generatedDraft, setGeneratedDraft] = useState<GeneratedDraft | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploadingDraft, setIsUploadingDraft] = useState(false);
+  const [providers, setProviders] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   
   // Fetch email accounts on mount
   useEffect(() => {
     fetchAccounts();
+    fetchProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
@@ -173,9 +200,90 @@ export default function InboxPage() {
     }
   };
   
-  const handleGenerateDraft = () => {
-    // TODO: Implement draft generation
-    success('Draft generation will be implemented soon');
+  const fetchProviders = async () => {
+    try {
+      const providers = await apiGet<Array<{ 
+        id: string; 
+        provider_name: string; 
+        provider_type: string;
+        model_name: string;
+        is_active: boolean;
+        is_default: boolean;
+      }>>('/api/llm-providers');
+      
+      const activeProviders = providers
+        .filter(p => p.is_active)
+        .map(p => ({ id: p.id, name: p.provider_name }));
+        
+      setProviders(activeProviders);
+      
+      // Select default provider or first active one
+      const defaultProvider = providers.find(p => p.is_default && p.is_active);
+      if (defaultProvider) {
+        setSelectedProviderId(defaultProvider.id);
+      } else if (activeProviders.length > 0) {
+        setSelectedProviderId(activeProviders[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to fetch providers:', err);
+    }
+  };
+  
+  const handleGenerateDraft = async () => {
+    if (!currentMessage || !selectedAccount || !selectedProviderId) {
+      error('Missing required information for draft generation');
+      return;
+    }
+    
+    setIsGenerating(true);
+    setGeneratedDraft(null);
+    
+    try {
+      const data = await apiPost<{ success: boolean; draft: GeneratedDraft }>('/api/inbox-draft/generate-draft', {
+        rawMessage: currentMessage.rawMessage,
+        emailAccountId: selectedAccount,
+        providerId: selectedProviderId
+      });
+      
+      if (data.success && data.draft) {
+        setGeneratedDraft(data.draft);
+        setActiveTab('response');
+        success('Draft generated successfully!');
+      }
+    } catch (err) {
+      error('Failed to generate draft');
+      console.error(err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  
+  const handleSendToDraft = async () => {
+    if (!generatedDraft || !selectedAccount) {
+      error('No draft to send');
+      return;
+    }
+    
+    setIsUploadingDraft(true);
+    
+    try {
+      await apiPost('/api/imap-draft/upload-draft', {
+        emailAccountId: selectedAccount,
+        to: generatedDraft.to,
+        subject: generatedDraft.subject,
+        body: generatedDraft.body,
+        bodyHtml: generatedDraft.bodyHtml,
+        inReplyTo: generatedDraft.inReplyTo,
+        references: generatedDraft.references
+      });
+      
+      success('Draft uploaded successfully!');
+    } catch (err) {
+      error('Failed to upload draft');
+      console.error(err);
+    } finally {
+      setIsUploadingDraft(false);
+    }
   };
   
   const formatFileSize = (bytes: number) => {
@@ -235,19 +343,28 @@ export default function InboxPage() {
         </div>
       </div>
       
-      {/* Email display */}
-      {loading ? (
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-3/4" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-4 w-full mb-2" />
-            <Skeleton className="h-4 w-full mb-2" />
-            <Skeleton className="h-32 w-full" />
-          </CardContent>
-        </Card>
-      ) : currentMessage && parsedMessage ? (
+      {/* Email display with tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="message">Message</TabsTrigger>
+          <TabsTrigger value="response" disabled={!generatedDraft}>
+            Response {generatedDraft && <span className="ml-1 text-xs">(Ready)</span>}
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="message">
+          {loading ? (
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-6 w-3/4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-full mb-2" />
+                <Skeleton className="h-4 w-full mb-2" />
+                <Skeleton className="h-32 w-full" />
+              </CardContent>
+            </Card>
+          ) : currentMessage && parsedMessage ? (
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
@@ -258,10 +375,38 @@ export default function InboxPage() {
                   <div>Date: {new Date(parsedMessage.date).toLocaleString()}</div>
                 </div>
               </div>
-              <Button onClick={handleGenerateDraft}>
-                <Mail className="mr-2 h-4 w-4" />
-                Generate Draft
-              </Button>
+              <div className="flex items-center gap-2">
+                {providers.length > 0 && (
+                  <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providers.map(provider => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Button 
+                  onClick={handleGenerateDraft}
+                  disabled={isGenerating || !selectedProviderId}
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Generate Draft
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           
@@ -322,16 +467,64 @@ export default function InboxPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            {accounts.length === 0 ? (
-              <p>No email accounts configured. Please add an email account first.</p>
-            ) : (
-              <p>Select an email account to view messages</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                {accounts.length === 0 ? (
+                  <p>No email accounts configured. Please add an email account first.</p>
+                ) : (
+                  <p>Select an email account to view messages</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="response">
+          {generatedDraft ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Draft Reply</CardTitle>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      <div>To: {generatedDraft.to}</div>
+                      <div>Subject: {generatedDraft.subject}</div>
+                      <div>Relationship: {generatedDraft.relationship.type} ({Math.round(generatedDraft.relationship.confidence * 100)}% confidence)</div>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={handleSendToDraft}
+                    disabled={isUploadingDraft}
+                  >
+                    {isUploadingDraft ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Send to Draft Folder
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-muted p-4 rounded-md">
+                  <pre className="whitespace-pre-wrap font-sans text-sm">{generatedDraft.body}</pre>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <p>Generate a draft to see the response here</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
       
       {/* Add some basic email content styling */}
       <style jsx>{`

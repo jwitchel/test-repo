@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth';
 import { pool } from '../server';
 import { ImapOperations } from '../lib/imap-operations';
 import { v4 as uuidv4 } from 'uuid';
+import * as nodemailer from 'nodemailer';
 
 const router = express.Router();
 
@@ -11,43 +12,55 @@ interface UploadDraftRequest {
   to: string;
   subject: string;
   body: string;
+  bodyHtml?: string;
   inReplyTo?: string;
   references?: string;
 }
 
-// Helper function to create RFC2822 formatted email
-function createEmailMessage(
+// Helper function to create RFC2822 formatted email using nodemailer
+async function createEmailMessage(
   from: string,
   to: string,
   subject: string,
   body: string,
+  bodyHtml?: string,
   inReplyTo?: string,
   references?: string
-): string {
+): Promise<string> {
+  // Create a transport that doesn't actually send but builds the message
+  const transporter = nodemailer.createTransport({
+    streamTransport: true,
+    buffer: true
+  });
+  
   const messageId = `<${uuidv4()}@ai-email-assistant>`;
-  const date = new Date().toUTCString();
   
-  let headers = [
-    `From: ${from}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    `Date: ${date}`,
-    `Message-ID: ${messageId}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: quoted-printable'
-  ];
+  const mailOptions: nodemailer.SendMailOptions = {
+    from,
+    to,
+    subject,
+    messageId,
+    date: new Date(),
+    text: body
+  };
   
+  // Add HTML if provided
+  if (bodyHtml) {
+    mailOptions.html = bodyHtml;
+  }
+  
+  // Add reply headers if provided
   if (inReplyTo) {
-    headers.push(`In-Reply-To: ${inReplyTo}`);
+    mailOptions.inReplyTo = inReplyTo;
   }
   
   if (references) {
-    headers.push(`References: ${references}`);
+    mailOptions.references = references;
   }
   
-  // Join headers with CRLF and add body
-  const message = headers.join('\r\n') + '\r\n\r\n' + body;
+  // Build the message
+  const info = await transporter.sendMail(mailOptions);
+  const message = info.message.toString();
   
   return message;
 }
@@ -123,11 +136,12 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
     }
     
     // Create email message
-    const emailMessage = createEmailMessage(
+    const emailMessage = await createEmailMessage(
       fromEmail,
       to,
       subject,
       body,
+      req.body.bodyHtml,
       inReplyTo,
       references
     );
