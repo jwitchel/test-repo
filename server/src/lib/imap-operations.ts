@@ -640,6 +640,26 @@ export class ImapOperations {
     throw new ImapConnectionError('Draft folder not found', 'DRAFT_FOLDER_NOT_FOUND');
   }
 
+  async createFolder(folderPath: string): Promise<void> {
+    const conn = await this.getConnection();
+    
+    try {
+      await new Promise<void>((resolve, reject) => {
+        (conn as any).imap.addBox(folderPath, (err: Error) => {
+          if (err) {
+            console.error(`Failed to create folder ${folderPath}:`, err);
+            reject(err);
+          } else {
+            console.log(`Successfully created folder: ${folderPath}`);
+            resolve();
+          }
+        });
+      });
+    } finally {
+      this.release();
+    }
+  }
+
   async appendMessage(
     folderName: string, 
     messageContent: string,

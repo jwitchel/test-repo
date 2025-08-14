@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText, Send, Loader2, Brain, AlertCircle, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText, Send, Loader2, Brain, AlertCircle, Users, FolderOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PostalMime from 'postal-mime';
 import { apiGet, apiPost } from '@/lib/api';
@@ -99,11 +99,66 @@ export default function InboxPage() {
   const [isUploadingDraft, setIsUploadingDraft] = useState(false);
   const [providers, setProviders] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  const [userFolderPrefs, setUserFolderPrefs] = useState<{
+    rootFolder?: string;
+    draftsFolder?: string;
+    noActionFolder?: string;
+    spamFolder?: string;
+  } | null>(null);
+  
+  // Helper function to get destination folder based on recommended action
+  const getDestinationFolder = (recommendedAction?: string) => {
+    const defaultPrefs = {
+      rootFolder: 'Prescreen',
+      draftsFolder: 'Drafts',
+      noActionFolder: 'No Action',
+      spamFolder: 'Spam'
+    };
+    
+    const prefs = userFolderPrefs || defaultPrefs;
+    const rootPath = prefs.rootFolder ? `${prefs.rootFolder}/` : '';
+    
+    switch (recommendedAction) {
+      case 'reply':
+      case 'reply-all':
+      case 'forward':
+      case 'forward-with-comment':
+        return {
+          folder: `${rootPath}${prefs.draftsFolder}`,
+          displayName: prefs.draftsFolder,
+          buttonLabel: 'Send to Drafts'
+        };
+      
+      case 'ignore-fyi-only':
+      case 'ignore-large-list':
+      case 'ignore-unsubscribe':
+        return {
+          folder: `${rootPath}${prefs.noActionFolder}`,
+          displayName: prefs.noActionFolder,
+          buttonLabel: 'File as No Action'
+        };
+      
+      case 'ignore-spam':
+        return {
+          folder: `${rootPath}${prefs.spamFolder}`,
+          displayName: prefs.spamFolder,
+          buttonLabel: 'Move to Spam'
+        };
+      
+      default:
+        return {
+          folder: `${rootPath}${prefs.draftsFolder}`,
+          displayName: prefs.draftsFolder,
+          buttonLabel: 'Send to Drafts'
+        };
+    }
+  };
   
   // Fetch email accounts on mount
   useEffect(() => {
     fetchAccounts();
     fetchProviders();
+    fetchUserPreferences();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
@@ -226,6 +281,22 @@ export default function InboxPage() {
     }
   };
   
+  const fetchUserPreferences = async () => {
+    try {
+      const data = await apiGet<{ preferences: { folderPreferences?: {
+        rootFolder?: string;
+        draftsFolder?: string;
+        noActionFolder?: string;
+        spamFolder?: string;
+      } } }>('/api/settings/profile');
+      if (data.preferences?.folderPreferences) {
+        setUserFolderPrefs(data.preferences.folderPreferences);
+      }
+    } catch (err) {
+      console.error('Failed to load folder preferences:', err);
+    }
+  };
+  
   const fetchProviders = async () => {
     try {
       const providers = await apiGet<Array<{ 
@@ -285,7 +356,7 @@ export default function InboxPage() {
   };
   
   const handleSendToDraft = async () => {
-    if (!generatedDraft || !selectedAccount) {
+    if (!generatedDraft || !selectedAccount || !currentMessage) {
       error('No draft to send');
       return;
     }
@@ -293,19 +364,34 @@ export default function InboxPage() {
     setIsUploadingDraft(true);
     
     try {
-      await apiPost('/api/imap-draft/upload-draft', {
-        emailAccountId: selectedAccount,
-        to: generatedDraft.to,
-        subject: generatedDraft.subject,
-        body: generatedDraft.body,
-        bodyHtml: generatedDraft.bodyHtml,
-        inReplyTo: generatedDraft.inReplyTo,
-        references: generatedDraft.references
-      });
+      const recommendedAction = generatedDraft.meta?.recommendedAction;
+      const ignoreActions = ['ignore-fyi-only', 'ignore-large-list', 'ignore-unsubscribe', 'ignore-spam'];
       
-      success('Draft uploaded successfully!');
+      if (ignoreActions.includes(recommendedAction || '')) {
+        // For ignore actions, move the original email
+        await apiPost('/api/imap-draft/move-email', {
+          emailAccountId: selectedAccount,
+          rawMessage: currentMessage.rawMessage,
+          recommendedAction: recommendedAction
+        });
+      } else {
+        // For other actions, create a draft reply
+        await apiPost('/api/imap-draft/upload-draft', {
+          emailAccountId: selectedAccount,
+          to: generatedDraft.to,
+          subject: generatedDraft.subject,
+          body: generatedDraft.body,
+          bodyHtml: generatedDraft.bodyHtml,
+          inReplyTo: generatedDraft.inReplyTo,
+          references: generatedDraft.references,
+          recommendedAction: recommendedAction
+        });
+      }
+      
+      const destination = getDestinationFolder(recommendedAction);
+      success(`Email sent to ${destination.folder}!`);
     } catch (err) {
-      error('Failed to upload draft');
+      error('Failed to process email');
       console.error(err);
     } finally {
       setIsUploadingDraft(false);
@@ -532,16 +618,22 @@ export default function InboxPage() {
                     ) : (
                       <>
                         <Send className="mr-2 h-4 w-4" />
-                        Send to Draft Folder
+                        {getDestinationFolder(generatedDraft.meta?.recommendedAction).buttonLabel}
                       </>
                     )}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="bg-muted p-4 rounded-md">
-                  <pre className="whitespace-pre-wrap font-sans text-sm">{generatedDraft.body}</pre>
-                </div>
+                {generatedDraft.body ? (
+                  <div className="bg-muted p-4 rounded-md">
+                    <pre className="whitespace-pre-wrap font-sans text-sm">{generatedDraft.body}</pre>
+                  </div>
+                ) : (
+                  <div className="bg-muted p-4 rounded-md text-center text-muted-foreground">
+                    <p className="text-sm">No response needed - this email will be filed to {getDestinationFolder(generatedDraft.meta?.recommendedAction).folder}</p>
+                  </div>
+                )}
                 
                 {/* AI Analysis Metadata */}
                 {generatedDraft.meta && (
@@ -600,6 +692,13 @@ export default function InboxPage() {
                           </Badge>
                         </div>
                         
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground mb-1">Destination Folder</div>
+                          <Badge variant="default">
+                            <FolderOpen className="mr-1 h-3 w-3" />
+                            {getDestinationFolder(generatedDraft.meta.recommendedAction).folder}
+                          </Badge>
+                        </div>
                         
                         <div>
                           <div className="text-sm font-medium text-muted-foreground mb-1">Context Flags</div>

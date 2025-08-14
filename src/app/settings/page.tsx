@@ -21,8 +21,20 @@ export default function SettingsPage() {
   const [name, setName] = useState('')
   const [nicknames, setNicknames] = useState('')
   const [signatureBlock, setSignatureBlock] = useState('')
+  const [folderPreferences, setFolderPreferences] = useState({
+    rootFolder: 'Prescreen',
+    draftsFolder: 'Drafts',
+    noActionFolder: 'No Action',
+    spamFolder: 'Spam'
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isTestingFolders, setIsTestingFolders] = useState(false)
+  const [folderTestResult, setFolderTestResult] = useState<{
+    requiredFolders?: string[];
+    existing?: string[];
+    missing?: string[];
+  } | null>(null)
 
   // Load user preferences on mount
   useEffect(() => {
@@ -31,11 +43,22 @@ export default function SettingsPage() {
       
       setIsLoading(true)
       try {
-        const data = await apiGet<{ preferences: { name?: string; nicknames?: string; signatureBlock?: string } }>('/api/settings/profile')
+        const data = await apiGet<{ preferences: { name?: string; nicknames?: string; signatureBlock?: string; folderPreferences?: {
+          rootFolder?: string;
+          draftsFolder?: string;
+          noActionFolder?: string;
+          spamFolder?: string;
+        } } }>('/api/settings/profile')
         if (data.preferences) {
           setName(data.preferences.name || user.name || '')
           setNicknames(data.preferences.nicknames || '')
           setSignatureBlock(data.preferences.signatureBlock || '')
+          if (data.preferences.folderPreferences) {
+            setFolderPreferences(prev => ({
+              ...prev,
+              ...data.preferences.folderPreferences
+            }))
+          }
         } else {
           setName(user.name || '')
         }
@@ -55,7 +78,8 @@ export default function SettingsPage() {
       await apiPost('/api/settings/profile', {
         name,
         nicknames,
-        signatureBlock
+        signatureBlock,
+        folderPreferences
       })
       success('Profile updated successfully')
     } catch (err) {
@@ -63,6 +87,76 @@ export default function SettingsPage() {
       console.error(err)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleTestFolders = async () => {
+    setIsTestingFolders(true)
+    setFolderTestResult(null)
+    
+    try {
+      // Get the first email account
+      const accounts = await apiGet<{ accounts: Array<{ id: string }> }>('/api/inbox/accounts')
+      if (accounts.accounts.length === 0) {
+        error('No email accounts configured')
+        return
+      }
+      
+      const result = await apiPost<{
+        success: boolean;
+        requiredFolders: string[];
+        existing: string[];
+        missing: string[];
+      }>('/api/settings/test-folders', {
+        emailAccountId: accounts.accounts[0].id
+      })
+      
+      setFolderTestResult(result)
+      
+      if (result.missing?.length === 0) {
+        success('All required folders exist!')
+      }
+    } catch (err) {
+      error('Failed to test folders')
+      console.error(err)
+    } finally {
+      setIsTestingFolders(false)
+    }
+  }
+
+  const handleCreateFolders = async () => {
+    setIsTestingFolders(true)
+    
+    try {
+      // Get the first email account
+      const accounts = await apiGet<{ accounts: Array<{ id: string }> }>('/api/inbox/accounts')
+      if (accounts.accounts.length === 0) {
+        error('No email accounts configured')
+        return
+      }
+      
+      const result = await apiPost<{
+        success: boolean;
+        created: string[];
+        failed: Array<{ folder: string; error: string }>;
+      }>('/api/settings/create-folders', {
+        emailAccountId: accounts.accounts[0].id
+      })
+      
+      if (result.created?.length > 0) {
+        success(`Created ${result.created.length} folders successfully!`)
+        // Re-test to update the display
+        await handleTestFolders()
+      }
+      
+      if (result.failed?.length > 0) {
+        error(`Failed to create ${result.failed.length} folders`)
+      }
+    } catch (err) {
+      error('Failed to create folders')
+      console.error(err)
+    } finally {
+      setIsTestingFolders(false)
     }
   }
 
@@ -170,6 +264,134 @@ export default function SettingsPage() {
                 <Button onClick={handleSave} disabled={isSaving || isLoading}>
                   {isSaving ? 'Saving...' : 'Save Signature'}
                 </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Email Folder Preferences</CardTitle>
+                <CardDescription>
+                  Configure folders for organizing emails based on AI recommendations
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rootFolder">Root Folder</Label>
+                  <Input
+                    id="rootFolder"
+                    value={folderPreferences.rootFolder}
+                    onChange={(e) => setFolderPreferences({ ...folderPreferences, rootFolder: e.target.value })}
+                    placeholder="Prescreen"
+                    disabled={isLoading}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Leave empty to create folders at the root level
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="draftsFolder">Drafts Folder</Label>
+                  <Input
+                    id="draftsFolder"
+                    value={folderPreferences.draftsFolder}
+                    onChange={(e) => setFolderPreferences({ ...folderPreferences, draftsFolder: e.target.value })}
+                    placeholder="Drafts"
+                    disabled={isLoading}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    For: reply, reply-all, forward actions
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="noActionFolder">No Action Folder</Label>
+                  <Input
+                    id="noActionFolder"
+                    value={folderPreferences.noActionFolder}
+                    onChange={(e) => setFolderPreferences({ ...folderPreferences, noActionFolder: e.target.value })}
+                    placeholder="No Action"
+                    disabled={isLoading}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    For: FYI only, large lists, unsubscribe candidates
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="spamFolder">Spam Folder</Label>
+                  <Input
+                    id="spamFolder"
+                    value={folderPreferences.spamFolder}
+                    onChange={(e) => setFolderPreferences({ ...folderPreferences, spamFolder: e.target.value })}
+                    placeholder="Spam"
+                    disabled={isLoading}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    For: emails identified as spam
+                  </p>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button onClick={handleSave} disabled={isSaving || isLoading}>
+                    {isSaving ? 'Saving...' : 'Save Folder Preferences'}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={handleTestFolders}
+                    disabled={isTestingFolders || isLoading}
+                  >
+                    {isTestingFolders ? 'Testing...' : 'Test Folders'}
+                  </Button>
+                </div>
+                
+                {folderTestResult && (
+                  <div className="mt-4 p-4 bg-muted rounded-md">
+                    <h4 className="font-medium mb-2">Folder Test Results</h4>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-medium">Required Folders:</span>
+                        <ul className="list-disc list-inside mt-1">
+                          {folderTestResult.requiredFolders?.map((folder: string) => (
+                            <li key={folder}>{folder}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      {folderTestResult.missing?.length > 0 && (
+                        <div>
+                          <span className="font-medium text-orange-600">Missing Folders:</span>
+                          <ul className="list-disc list-inside mt-1">
+                            {folderTestResult.missing.map((folder: string) => (
+                              <li key={folder} className="text-orange-600">{folder}</li>
+                            ))}
+                          </ul>
+                          
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="mt-2"
+                            onClick={handleCreateFolders}
+                            disabled={isTestingFolders}
+                          >
+                            Create Missing Folders
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {folderTestResult.existing?.length > 0 && (
+                        <div>
+                          <span className="font-medium text-green-600">Existing Folders:</span>
+                          <ul className="list-disc list-inside mt-1">
+                            {folderTestResult.existing.map((folder: string) => (
+                              <li key={folder} className="text-green-600">{folder}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

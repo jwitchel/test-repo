@@ -395,39 +395,49 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       throw new Error('Failed to generate draft after retries');
     }
     
-    // Get typed name signature and signature block from user result we already fetched
-    let typedNameSignature = '';
-    let signatureBlock = '';
-    if (userResult.rows.length > 0) {
-      const preferences = userResult.rows[0].preferences || {};
-      
-      // Get typed name signature
-      if (preferences.typedName?.appendString) {
-        typedNameSignature = preferences.typedName.appendString;
+    // Check if this is an ignore action
+    const ignoreActions = ['ignore-fyi-only', 'ignore-large-list', 'ignore-unsubscribe', 'ignore-spam'];
+    const isIgnoreAction = draft.meta && ignoreActions.includes(draft.meta.recommendedAction);
+    
+    let formattedReply: { text: string; html?: string } = { text: '', html: undefined };
+    let replySubject = subject;
+    
+    if (!isIgnoreAction) {
+      // Only format as reply for non-ignore actions
+      // Get typed name signature and signature block from user result we already fetched
+      let typedNameSignature = '';
+      let signatureBlock = '';
+      if (userResult.rows.length > 0) {
+        const preferences = userResult.rows[0].preferences || {};
+        
+        // Get typed name signature
+        if (preferences.typedName?.appendString) {
+          typedNameSignature = preferences.typedName.appendString;
+        }
+        
+        // Get signature block
+        if (preferences.signatureBlock) {
+          signatureBlock = preferences.signatureBlock;
+        }
       }
       
-      // Get signature block
-      if (preferences.signatureBlock) {
-        signatureBlock = preferences.signatureBlock;
-      }
+      // Format the complete reply email with typed name signature and signature block
+      formattedReply = formatReplyEmail(
+        fromName || fromAddress,
+        fromAddress,
+        parsed.date ? new Date(parsed.date) : new Date(),
+        emailBody,
+        draft.body,
+        typedNameSignature,
+        parsed.html || undefined,
+        signatureBlock
+      );
+      
+      // Create reply subject
+      replySubject = subject.toLowerCase().startsWith('re:') 
+        ? subject 
+        : `Re: ${subject}`;
     }
-    
-    // Format the complete reply email with typed name signature and signature block
-    const formattedReply = formatReplyEmail(
-      fromName || fromAddress,
-      fromAddress,
-      parsed.date ? new Date(parsed.date) : new Date(),
-      emailBody,
-      draft.body,
-      typedNameSignature,
-      parsed.html || undefined,
-      signatureBlock
-    );
-    
-    // Create reply subject
-    const replySubject = subject.toLowerCase().startsWith('re:') 
-      ? subject 
-      : `Re: ${subject}`;
     
     imapLogger.log(userId, {
       userId,

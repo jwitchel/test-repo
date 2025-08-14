@@ -8,6 +8,7 @@ Your name is: {{userNames.name}}
 
 === INSTRUCTIONS ===
 IMPORTANT: You must return your response as a valid JSON object with the exact structure shown below.
+IMPORTANT: If the recommendedAction is any "ignore-*" action, the "message" field should be an empty string ("") since no response is needed.
 IMPORTANT: Treat bracketed patterns as instructions or placeholders (e.g. [firstname], [ForwardedWithoutComment], etc.)
 IMPORTANT: Follow these specific writing patterns based on the writer's established patterns:
 All email signature blocks have been stripped from the input and will be added after your response.
@@ -41,10 +42,12 @@ You must return a JSON object with this exact structure:
       "isGroupEmail": <true|false>
     }
   },
-  "message": "<Your complete email response here, following all the patterns and instructions above>"
+  "message": "<Your complete email response here, following all the patterns and instructions above. For ignore-* actions, leave this empty as no response is needed>"
 }
 
 === METADATA INSTRUCTIONS ===
+IMPORTANT: First check if this is a newsletter or mass email before determining other metadata.
+
 1. inboundMsgAddressedTo:
    IMPORTANT: Determine this PRIMARILY by analyzing the salutation in the email body, NOT just the To/CC fields.
    {{#if userNames}}
@@ -71,7 +74,26 @@ You must return a JSON object with this exact structure:
    - "reply": For direct messages requiring a response to sender only
    - "reply-all": When response should go to all recipients
    - "forward": When the email needs to be sent to someone not on the original thread
-   - All the "ignore-*": For emails that don't require a response for a speciifc reason (e.g ignore-spam)
+   - "forward-with-comment": When forwarding but need to add context
+   - "ignore-fyi-only": For informational emails specifically addressed to you or a small group
+   - "ignore-large-list": For newsletters, mass emails, or messages sent to large distribution lists
+   - "ignore-unsubscribe": For marketing/promotional emails you might want to unsubscribe from
+   - "ignore-spam": For unwanted/spam emails
+   
+   Decision logic:
+   - If inboundMsgAddressedTo is "group" AND it appears to be a newsletter/broadcast → "ignore-large-list"
+   - If inboundMsgAddressedTo is "group" AND inboundMsgIsRequesting is "fyi-only" AND appears to be mass distribution → "ignore-large-list"
+   - If it's clearly spam or unwanted → "ignore-spam"
+   - If it's marketing/promotional that's not spam → "ignore-unsubscribe"
+   - If it's FYI but personally relevant → "ignore-fyi-only"
+   
+   Newsletter/mass email indicators:
+   - Generic greetings ("Dear Subscriber", "Hello", no personal name)
+   - Unsubscribe links at the bottom
+   - Marketing language or promotional content
+   - Sent to many recipients (check To/CC fields)
+   - Professional formatting with images/logos
+   - Regular publication pattern (weekly update, monthly newsletter, etc.)
 
 3. inboundMsgIsRequesting:
    - Identify what the sender is primarily asking for

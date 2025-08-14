@@ -4,6 +4,8 @@ import { pool } from '../server';
 import { ImapOperations } from '../lib/imap-operations';
 import { v4 as uuidv4 } from 'uuid';
 import * as nodemailer from 'nodemailer';
+import { EmailActionRouter } from '../lib/email-action-router';
+import { LLMMetadata } from '../lib/llm-client';
 
 const router = express.Router();
 
@@ -15,6 +17,7 @@ interface UploadDraftRequest {
   bodyHtml?: string;
   inReplyTo?: string;
   references?: string;
+  recommendedAction?: LLMMetadata['recommendedAction'];
 }
 
 // Helper function to create RFC2822 formatted email using nodemailer
@@ -75,7 +78,8 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       subject,
       body,
       inReplyTo,
-      references
+      references,
+      recommendedAction
     }: UploadDraftRequest = req.body;
     
     // Validate required fields
@@ -99,37 +103,36 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
     
     const fromEmail = accountResult.rows[0].email_address;
     
+    // Get user's folder preferences
+    const userResult = await pool.query(
+      'SELECT preferences FROM "user" WHERE id = $1',
+      [userId]
+    );
+    
+    const preferences = userResult.rows[0]?.preferences || {};
+    const folderPrefs = preferences.folderPreferences;
+    
+    // Create action router with user's preferences
+    const actionRouter = new EmailActionRouter(folderPrefs);
+    
+    // Get the destination folder based on recommended action
+    const routeResult = actionRouter.getActionRoute(recommendedAction || 'reply');
+    
     // Create IMAP operations instance
     const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
     
-    // Find draft folder
-    let draftFolder: string;
-    try {
-      draftFolder = await imapOps.findDraftFolder();
-    } catch (error) {
-      console.error('Draft folder not found:', error);
+    // Check if the destination folder exists
+    const folderStatus = await actionRouter.checkFolders(imapOps);
+    
+    if (folderStatus.missing.includes(routeResult.folder)) {
+      // Try to create the missing folders
+      const createResult = await actionRouter.createMissingFolders(imapOps);
       
-      // Try once more to get all folders and log them
-      const allFolders = await imapOps.getFolders();
-      console.log('All available folders (including nested):', allFolders.map(f => ({
-        path: f.path,
-        flags: f.flags
-      })));
-      
-      // For Gmail, try the standard Gmail drafts path
-      const gmailDrafts = allFolders.find(f => 
-        f.path.toLowerCase() === '[gmail]/drafts' ||
-        (f.path.includes('[Gmail]') && f.path.toLowerCase().includes('draft'))
-      );
-      
-      if (gmailDrafts) {
-        console.log(`Found Gmail drafts folder: ${gmailDrafts.path}`);
-        draftFolder = gmailDrafts.path;
-      } else {
-        // Fail - do not fallback to INBOX
+      if (createResult.failed.some(f => f.folder === routeResult.folder)) {
         res.status(400).json({ 
-          error: 'Draft folder not found. Cannot save draft email.',
-          availableFolders: allFolders.map(f => f.path)
+          error: `Failed to create destination folder: ${routeResult.folder}`,
+          missingFolders: folderStatus.missing,
+          failedToCreate: createResult.failed
         });
         return;
       }
@@ -146,14 +149,14 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       references
     );
     
-    // Upload to draft folder with both Draft and Seen flags
-    // The Seen flag marks it as read so it won't appear unread in sent folder
-    await imapOps.appendMessage(draftFolder, emailMessage, ['\\Draft', '\\Seen']);
+    // Upload to destination folder with appropriate flags
+    await imapOps.appendMessage(routeResult.folder, emailMessage, routeResult.flags);
     
     res.json({ 
       success: true,
-      message: 'Draft uploaded successfully',
-      folder: draftFolder
+      message: `Email uploaded to ${routeResult.displayName}`,
+      folder: routeResult.folder,
+      action: recommendedAction || 'reply'
     });
   } catch (error) {
     console.error('Error uploading draft:', error);
@@ -177,6 +180,76 @@ router.get('/folders/:accountId', requireAuth, async (req, res): Promise<void> =
     console.error('Error fetching folders:', error);
     res.status(500).json({ 
       error: error instanceof Error ? error.message : 'Failed to fetch folders' 
+    });
+  }
+});
+
+// Move email to folder based on action
+router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const {
+      emailAccountId,
+      rawMessage,
+      recommendedAction
+    } = req.body;
+    
+    // Validate required fields
+    if (!emailAccountId || !rawMessage || !recommendedAction) {
+      res.status(400).json({ 
+        error: 'Missing required fields: emailAccountId, rawMessage, recommendedAction' 
+      });
+      return;
+    }
+    
+    // Get user's folder preferences
+    const userResult = await pool.query(
+      'SELECT preferences FROM "user" WHERE id = $1',
+      [userId]
+    );
+    
+    const preferences = userResult.rows[0]?.preferences || {};
+    const folderPrefs = preferences.folderPreferences;
+    
+    // Create action router with user's preferences
+    const actionRouter = new EmailActionRouter(folderPrefs);
+    
+    // Get the destination folder based on recommended action
+    const routeResult = actionRouter.getActionRoute(recommendedAction);
+    
+    // Create IMAP operations instance
+    const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
+    
+    // Check if the destination folder exists
+    const folderStatus = await actionRouter.checkFolders(imapOps);
+    
+    if (folderStatus.missing.includes(routeResult.folder)) {
+      // Try to create the missing folders
+      const createResult = await actionRouter.createMissingFolders(imapOps);
+      
+      if (createResult.failed.some(f => f.folder === routeResult.folder)) {
+        res.status(400).json({ 
+          error: `Failed to create destination folder: ${routeResult.folder}`,
+          missingFolders: folderStatus.missing,
+          failedToCreate: createResult.failed
+        });
+        return;
+      }
+    }
+    
+    // Upload the original message to destination folder with appropriate flags
+    await imapOps.appendMessage(routeResult.folder, rawMessage, routeResult.flags);
+    
+    res.json({ 
+      success: true,
+      message: `Email moved to ${routeResult.displayName}`,
+      folder: routeResult.folder,
+      action: recommendedAction
+    });
+  } catch (error) {
+    console.error('Error moving email:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to move email' 
     });
   }
 });

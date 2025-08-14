@@ -218,9 +218,16 @@ export class LLMClient {
       }
       
       // Validate structure
-      if (!parsed.meta || !parsed.message) {
+      if (!parsed.meta || typeof parsed.message !== 'string') {
         console.error('[LLMClient] Invalid structure. Expected {meta: {...}, message: "..."}, got:', JSON.stringify(parsed).substring(0, 500));
-        throw new Error('Invalid response structure: missing meta or message');
+        throw new Error('Invalid response structure: missing meta or message field');
+      }
+      
+      // For ignore actions, empty message is acceptable
+      const ignoreActions = ['ignore-fyi-only', 'ignore-large-list', 'ignore-unsubscribe', 'ignore-spam'];
+      if (parsed.message === '' && !ignoreActions.includes(parsed.meta.recommendedAction)) {
+        console.error('[LLMClient] Empty message for non-ignore action:', parsed.meta.recommendedAction);
+        throw new Error('Empty message content for action that requires a response');
       }
       
       return parsed;
