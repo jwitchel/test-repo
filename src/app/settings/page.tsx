@@ -13,12 +13,14 @@ import { TypedNameSettings } from '@/components/settings/typed-name-settings'
 import { useState, useEffect } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { apiGet, apiPost } from '@/lib/api'
+import { Textarea } from '@/components/ui/textarea'
 
 export default function SettingsPage() {
   const { user } = useAuth()
   const { success, error } = useToast()
   const [name, setName] = useState('')
   const [nicknames, setNicknames] = useState('')
+  const [signatureBlock, setSignatureBlock] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -29,10 +31,11 @@ export default function SettingsPage() {
       
       setIsLoading(true)
       try {
-        const data = await apiGet<{ preferences: { name?: string; nicknames?: string } }>('/api/settings/profile')
+        const data = await apiGet<{ preferences: { name?: string; nicknames?: string; signatureBlock?: string } }>('/api/settings/profile')
         if (data.preferences) {
           setName(data.preferences.name || user.name || '')
           setNicknames(data.preferences.nicknames || '')
+          setSignatureBlock(data.preferences.signatureBlock || '')
         } else {
           setName(user.name || '')
         }
@@ -51,7 +54,8 @@ export default function SettingsPage() {
     try {
       await apiPost('/api/settings/profile', {
         name,
-        nicknames
+        nicknames,
+        signatureBlock
       })
       success('Profile updated successfully')
     } catch (err) {
@@ -137,6 +141,35 @@ export default function SettingsPage() {
                 </div>
                 
                 <TypedNameSettings />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Email Signature Block</CardTitle>
+                <CardDescription>
+                  Add a signature that will be included in your generated email replies
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signatureBlock">Signature Block</Label>
+                  <Textarea
+                    id="signatureBlock"
+                    value={signatureBlock}
+                    onChange={(e) => setSignatureBlock(e.target.value)}
+                    placeholder={`---\nCell: 970-759-1403\nReplied on ${new Date().toLocaleDateString()}`}
+                    className="min-h-[120px] font-mono text-sm"
+                    disabled={isLoading}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    This signature will be added to your email replies before the quoted original message.
+                    You can use multiple lines.
+                  </p>
+                </div>
+                <Button onClick={handleSave} disabled={isSaving || isLoading}>
+                  {isSaving ? 'Saving...' : 'Save Signature'}
+                </Button>
               </CardContent>
             </Card>
 

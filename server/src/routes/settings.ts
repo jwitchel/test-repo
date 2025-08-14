@@ -39,23 +39,27 @@ router.get('/profile', requireAuth, async (req, res) => {
 router.post('/profile', requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user.id;
-    const { name, nicknames } = req.body;
+    const { name, nicknames, signatureBlock } = req.body;
     
     // Update preferences JSONB with new profile data
     const result = await pool.query(
       `UPDATE "user" 
        SET preferences = jsonb_set(
          jsonb_set(
-           COALESCE(preferences, '{}'::jsonb),
-           '{name}',
-           $2::jsonb
+           jsonb_set(
+             COALESCE(preferences, '{}'::jsonb),
+             '{name}',
+             $2::jsonb
+           ),
+           '{nicknames}',
+           $3::jsonb
          ),
-         '{nicknames}',
-         $3::jsonb
+         '{signatureBlock}',
+         $4::jsonb
        )
        WHERE id = $1
        RETURNING preferences`,
-      [userId, JSON.stringify(name), JSON.stringify(nicknames)]
+      [userId, JSON.stringify(name), JSON.stringify(nicknames), JSON.stringify(signatureBlock)]
     );
     
     if (result.rows.length === 0) {

@@ -25,10 +25,35 @@ import {
   User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useState, useEffect } from 'react'
+import { apiGet } from '@/lib/api'
 
 export function Navbar() {
   const pathname = usePathname()
   const { user, signOut } = useAuth()
+  const [displayName, setDisplayName] = useState<string>('')
+
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      if (!user?.id) return
+      
+      try {
+        const data = await apiGet<{ preferences: { name?: string } }>('/api/settings/profile')
+        if (data.preferences?.name) {
+          setDisplayName(data.preferences.name)
+        } else if (user.name) {
+          setDisplayName(user.name)
+        } else {
+          setDisplayName(user.email)
+        }
+      } catch {
+        // Fallback to email if preferences can't be loaded
+        setDisplayName(user.email)
+      }
+    }
+    
+    loadUserPreferences()
+  }, [user])
 
   if (!user) return null
 
@@ -134,7 +159,7 @@ export function Navbar() {
                   className="flex items-center gap-2"
                 >
                   <User className="h-4 w-4" />
-                  <span className="hidden sm:inline-block">{user.email}</span>
+                  <span className="hidden sm:inline-block">{displayName || user.email}</span>
                   <ChevronDown className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>

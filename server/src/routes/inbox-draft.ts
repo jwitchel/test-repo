@@ -37,7 +37,8 @@ function formatReplyEmail(
   originalBody: string,
   replyBody: string,
   typedName?: string,
-  originalHtml?: string
+  originalHtml?: string,
+  signatureBlock?: string
 ): { text: string; html?: string } {
   // Format date to match email client format: "August 12, 2025 at 4:44:56 PM"
   const formattedDate = originalDate.toLocaleString('en-US', {
@@ -73,13 +74,19 @@ function formatReplyEmail(
     formattedReply = `${replyBody}\n${typedName}`;
   }
   
+  // Add signature block if provided
+  let finalTextReply = formattedReply;
+  if (signatureBlock) {
+    finalTextReply = `${formattedReply}\n${signatureBlock}`;
+  }
+  
   // Plain text version
   const quotedBody = originalBody
     .split('\n')
     .map(line => `> ${line}`)
     .join('\n');
   
-  const textReply = `${formattedReply}
+  const textReply = `${finalTextReply}
 
 On ${dateFormatted}, ${senderInfo} wrote:
 
@@ -118,10 +125,28 @@ ${quotedBody}`;
       typedNameHtml = `<p style="margin: 0;">${escapedTypedName}</p>`;
     }
     
+    // Format signature block for HTML
+    let signatureHtml = '';
+    if (signatureBlock) {
+      const signatureLines = signatureBlock.split('\n');
+      signatureHtml = signatureLines
+        .map(line => {
+          const escaped = line
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+          return `<p style="margin: 0;">${escaped}</p>`;
+        })
+        .join('\n');
+    }
+    
     // Simple HTML structure that works well with email clients
     htmlReply = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
 ${replyHtml}
 ${typedNameHtml}
+${signatureHtml ? `<div style="margin-top: 1em;">${signatureHtml}</div>` : ''}
 <br>
 <div style="margin-top: 1em;">On ${dateFormatted}, ${senderInfoHtml} wrote:</div>
 <blockquote type="cite" style="margin: 1em 0 0 0; padding-left: 1em; border-left: 2px solid #ccc;">
@@ -370,8 +395,9 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       throw new Error('Failed to generate draft after retries');
     }
     
-    // Get typed name signature from user result we already fetched
+    // Get typed name signature and signature block from user result we already fetched
     let typedNameSignature = '';
+    let signatureBlock = '';
     if (userResult.rows.length > 0) {
       const preferences = userResult.rows[0].preferences || {};
       
@@ -379,9 +405,14 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       if (preferences.typedName?.appendString) {
         typedNameSignature = preferences.typedName.appendString;
       }
+      
+      // Get signature block
+      if (preferences.signatureBlock) {
+        signatureBlock = preferences.signatureBlock;
+      }
     }
     
-    // Format the complete reply email with typed name signature
+    // Format the complete reply email with typed name signature and signature block
     const formattedReply = formatReplyEmail(
       fromName || fromAddress,
       fromAddress,
@@ -389,7 +420,8 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       emailBody,
       draft.body,
       typedNameSignature,
-      parsed.html || undefined
+      parsed.html || undefined,
+      signatureBlock
     );
     
     // Create reply subject
