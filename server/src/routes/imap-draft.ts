@@ -146,8 +146,9 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       references
     );
     
-    // Upload to draft folder
-    await imapOps.appendMessage(draftFolder, emailMessage, ['\\Draft']);
+    // Upload to draft folder with both Draft and Seen flags
+    // The Seen flag marks it as read so it won't appear unread in sent folder
+    await imapOps.appendMessage(draftFolder, emailMessage, ['\\Draft', '\\Seen']);
     
     res.json({ 
       success: true,
