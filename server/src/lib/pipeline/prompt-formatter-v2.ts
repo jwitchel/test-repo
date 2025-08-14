@@ -10,6 +10,10 @@ export interface PromptFormatterParams {
   relationshipProfile?: EnhancedRelationshipProfile | null;
   nlpFeatures?: any; // NLP features from the incoming email
   writingPatterns?: WritingPatterns | null;
+  userNames?: {
+    name: string;
+    nicknames?: string;
+  };
 }
 
 export interface FormattedPrompt {
@@ -33,7 +37,7 @@ export class PromptFormatterV2 {
     defaultTemplate?: string;
   }) {
     this.templateManager = new TemplateManager(options?.templateDir);
-    this.defaultTemplate = options?.defaultTemplate || process.env.PROMPT_TEMPLATE || 'default';
+    this.defaultTemplate = options?.defaultTemplate || process.env.PROMPT_TEMPLATE || 'default-json';
   }
 
   async initialize() {

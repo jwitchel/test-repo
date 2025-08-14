@@ -15,6 +15,24 @@ export interface PipelineOutput {
   enhancedProfile: any;
 }
 
+export interface LLMMetadata {
+  inboundMsgAddressedTo: 'you' | 'group' | 'someone-else';
+  recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'ignore-fyi-only' | 'ignore-large-list' | 'ignore-unsubscribe' | 'ignore-spam';
+  inboundMsgIsRequesting: 'meeting-request' | 'answer-questions' | 'acknowledge-receipt' | 'acknowledge-emotional' | 'request-for-info' | 'fyi-only' | 'action-items' | 'approval-needed' | 'none';
+  keyConsiderations: string[];
+  urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
+  contextFlags: {
+    isThreaded: boolean;
+    hasAttachments: boolean;
+    isGroupEmail: boolean;
+  };
+}
+
+export interface StructuredLLMResponse {
+  meta: LLMMetadata;
+  message: string;
+}
+
 export class LLMClient {
   private model: any;
   private modelName: string;
@@ -159,6 +177,59 @@ export class LLMClient {
       
       return text;
     } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Generate structured JSON response for email drafts
+   */
+  async generateStructured(prompt: string, options?: {
+    temperature?: number;
+    maxTokens?: number;
+    systemPrompt?: string;
+  }): Promise<StructuredLLMResponse> {
+    try {
+      const jsonSystemPrompt = `${options?.systemPrompt || ''}\n\nIMPORTANT: You must respond with a valid JSON object only. Do not include any text before or after the JSON.`;
+      
+      const text = await this.generate(prompt, {
+        ...options,
+        systemPrompt: jsonSystemPrompt,
+        maxTokens: options?.maxTokens ?? 2000, // Increase for JSON responses
+      });
+      
+      // Log the raw response for debugging
+      console.log('[LLMClient] Raw LLM response:', text.substring(0, 500) + '...');
+      
+      // Extract JSON from response (handle cases where LLM adds text)
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('[LLMClient] No JSON found in response. Full response:', text);
+        throw new Error('No valid JSON found in LLM response');
+      }
+      
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('[LLMClient] JSON parse error:', parseError);
+        console.error('[LLMClient] Attempted to parse:', jsonMatch[0].substring(0, 500));
+        throw new Error(`Failed to parse JSON: ${parseError}`);
+      }
+      
+      // Validate structure
+      if (!parsed.meta || !parsed.message) {
+        console.error('[LLMClient] Invalid structure. Expected {meta: {...}, message: "..."}, got:', JSON.stringify(parsed).substring(0, 500));
+        throw new Error('Invalid response structure: missing meta or message');
+      }
+      
+      return parsed;
+    } catch (error: any) {
+      // If JSON parsing fails, throw a specific error
+      if (error.message.includes('JSON')) {
+        console.error('JSON parse error:', error.message);
+        throw new Error(`Failed to parse LLM response as JSON: ${error.message}`);
+      }
       throw this.handleError(error);
     }
   }

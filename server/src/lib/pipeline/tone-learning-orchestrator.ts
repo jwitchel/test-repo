@@ -15,6 +15,10 @@ export interface ToneLearningConfig {
   maxExamples?: number;
   templateName?: string;
   verbose?: boolean;
+  userNames?: {
+    name: string;
+    nicknames?: string;
+  };
 }
 
 export interface DraftGenerationRequest {
@@ -158,7 +162,8 @@ Email Details:
       userId,
       maxExamples = parseInt(process.env.EXAMPLE_COUNT || '25'),
       templateName = 'default',
-      verbose = false
+      verbose = false,
+      userNames
     } = config;
     
     if (!userId) {
@@ -262,13 +267,15 @@ Email Details:
       }
     }
     
+    
     const prompt = await this.promptFormatter.formatWithExamples({
       incomingEmail: incomingEmail.userReply,
       recipientEmail,
       examples: exampleSelection.examples,
       relationship: exampleSelection.relationship,
       relationshipProfile: enhancedProfile,
-      writingPatterns
+      writingPatterns,
+      userNames
     });
     
     if (verbose) {
@@ -286,12 +293,14 @@ Email Details:
       throw new Error('LLM client not initialized. Please configure an LLM provider.');
     }
     
-    // Generate the draft using the LLM
-    const generatedText = await this.patternAnalyzer['llmClient'].generate(prompt);
+    // Generate the draft using the LLM with structured response
+    const structuredResponse = await this.patternAnalyzer['llmClient'].generateStructured(prompt);
     
     if (verbose) {
       console.log(chalk.green('  ✓ Draft generated successfully'));
-      console.log(chalk.gray(`  Length: ${generatedText.length} characters`));
+      console.log(chalk.gray(`  Message length: ${structuredResponse.message.length} characters`));
+      console.log(chalk.gray(`  Inbound message addressed to: ${structuredResponse.meta.inboundMsgAddressedTo}`));
+      console.log(chalk.gray(`  Recommended action: ${structuredResponse.meta.recommendedAction}`));
     }
     
     const draft: GeneratedDraft = {
@@ -300,7 +309,8 @@ Email Details:
       incomingEmailId: incomingEmail.uid,
       recipientEmail,
       subject: `Re: ${incomingEmail.subject}`,
-      body: generatedText,
+      body: structuredResponse.message,
+      meta: structuredResponse.meta,
       relationship: {
         type: exampleSelection.relationship,
         confidence: detectedRelationship.confidence,

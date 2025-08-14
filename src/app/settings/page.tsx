@@ -10,9 +10,57 @@ import Link from 'next/link'
 import { Separator } from '@/components/ui/separator'
 import { SignaturePatterns } from '@/components/settings/signature-patterns'
 import { TypedNameSettings } from '@/components/settings/typed-name-settings'
+import { useState, useEffect } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { apiGet, apiPost } from '@/lib/api'
 
 export default function SettingsPage() {
   const { user } = useAuth()
+  const { success, error } = useToast()
+  const [name, setName] = useState('')
+  const [nicknames, setNicknames] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Load user preferences on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!user?.id) return
+      
+      setIsLoading(true)
+      try {
+        const data = await apiGet<{ preferences: { name?: string; nicknames?: string } }>('/api/settings/profile')
+        if (data.preferences) {
+          setName(data.preferences.name || user.name || '')
+          setNicknames(data.preferences.nicknames || '')
+        } else {
+          setName(user.name || '')
+        }
+      } catch (err) {
+        console.error('Failed to load preferences:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    loadPreferences()
+  }, [user])
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      await apiPost('/api/settings/profile', {
+        name,
+        nicknames
+      })
+      success('Profile updated successfully')
+    } catch (err) {
+      error('Failed to update profile')
+      console.error(err)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <ProtectedRoute>
@@ -32,9 +80,25 @@ export default function SettingsPage() {
                   <Input
                     id="name"
                     type="text"
-                    defaultValue={user?.name || ''}
-                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your full name"
+                    disabled={isLoading}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nicknames">Nicknames</Label>
+                  <Input
+                    id="nicknames"
+                    type="text"
+                    value={nicknames}
+                    onChange={(e) => setNicknames(e.target.value)}
+                    placeholder="e.g. Jessica, Jess, JW"
+                    disabled={isLoading}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Enter common nicknames or variations of your name, separated by commas
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -48,7 +112,9 @@ export default function SettingsPage() {
                     Email cannot be changed
                   </p>
                 </div>
-                <Button>Save Changes</Button>
+                <Button onClick={handleSave} disabled={isSaving || isLoading}>
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </Button>
                 
                 <Separator className="my-6" />
                 

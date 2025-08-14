@@ -11,6 +11,12 @@ export interface PromptTemplateData {
   relationship: string;
   incomingEmail: string;
   
+  // User identity
+  userNames?: {
+    name: string;
+    nicknames?: string;
+  };
+  
   // Examples formatted for templates
   exactExamples?: FormattedExample[];
   otherExamples?: FormattedExample[];
@@ -241,6 +247,10 @@ export class TemplateManager {
       relationshipProfile?: EnhancedRelationshipProfile | null;
       nlpFeatures?: any;
       writingPatterns?: WritingPatterns | null;
+      userNames?: {
+        name: string;
+        nicknames?: string;
+      };
     }
   ): PromptTemplateData {
     const exactMatches = params.examples.filter(e => 
@@ -275,6 +285,7 @@ export class TemplateManager {
       recipientEmail: params.recipientEmail,
       relationship: params.relationship,
       incomingEmail: params.incomingEmail,
+      userNames: params.userNames,
       exactExamples: exactMatches.length > 0 
         ? this.formatExamplesForTemplate(exactMatches) 
         : undefined,

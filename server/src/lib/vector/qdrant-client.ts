@@ -20,10 +20,25 @@ export interface EmailMetadata {
     confidence: number;
     detectionMethod: string;
   };
-  frequencyScore: number;
-  wordCount: number;
+  frequencyScore?: number;
+  wordCount?: number;
   responseTimeMinutes?: number;
   eml_file?: string;          // Raw RFC 5322 message format
+  emailType?: 'incoming' | 'sent';  // Type of email
+  senderEmail?: string;       // For incoming emails
+  senderName?: string;        // For incoming emails
+  llmResponse?: {             // LLM metadata for generated responses
+    meta: any;                // LLMMetadata object
+    generatedAt: string;
+    providerId: string;
+    modelName: string;
+    draftId: string;
+    relationship: {
+      type: string;
+      confidence: number;
+      detectionMethod: string;
+    };
+  };
 }
 
 export interface EmailVector {

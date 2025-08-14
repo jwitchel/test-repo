@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText, Send, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText, Send, Loader2, Brain, AlertCircle, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PostalMime from 'postal-mime';
 import { apiGet, apiPost } from '@/lib/api';
@@ -39,10 +40,15 @@ interface ParsedEmail {
   text?: string;
   html?: string;
   attachments: Array<{
-    filename: string;
+    filename: string | null;
     mimeType: string;
-    size: number;
-    content: Uint8Array;
+    disposition: "attachment" | "inline" | null;
+    related?: boolean;
+    description?: string;
+    contentId?: string;
+    method?: string;
+    content: ArrayBuffer | string;
+    encoding?: "base64" | "utf8";
   }>;
 }
 
@@ -55,6 +61,18 @@ interface GeneratedDraft {
   bodyHtml?: string;
   inReplyTo: string;
   references: string;
+  meta?: {
+    inboundMsgAddressedTo: 'you' | 'group' | 'someone-else';
+    recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'ignore-fyi-only' | 'ignore-large-list' | 'ignore-unsubscribe' | 'ignore-spam';
+    inboundMsgIsRequesting: string;
+    keyConsiderations: string[];
+    urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
+    contextFlags: {
+      isThreaded: boolean;
+      hasAttachments: boolean;
+      isGroupEmail: boolean;
+    };
+  };
   relationship: {
     type: string;
     confidence: number;
@@ -174,10 +192,16 @@ export default function InboxPage() {
       
       setParsedMessage({
         headers: headersArray,
-        from: parsed.from || { address: '' },
-        to: parsed.to || [],
+        from: { 
+          address: parsed.from?.address || '', 
+          name: parsed.from?.name || undefined 
+        },
+        to: (parsed.to || []).map(addr => ({ 
+          address: addr.address || '', 
+          name: addr.name || undefined 
+        })),
         subject: parsed.subject || '',
-        date: parsed.date || new Date(),
+        date: parsed.date ? new Date(parsed.date) : new Date(),
         text: parsed.text,
         html: parsed.html,
         attachments: parsed.attachments || []
@@ -191,12 +215,14 @@ export default function InboxPage() {
   const handlePrevious = () => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
+      setActiveTab('message');
     }
   };
   
   const handleNext = () => {
     if (currentIndex < totalMessages - 1) {
       setCurrentIndex(currentIndex + 1);
+      setActiveTab('message');
     }
   };
   
@@ -439,9 +465,11 @@ export default function InboxPage() {
                     {parsedMessage.attachments.map((attachment, idx) => (
                       <div key={idx} className="flex items-center gap-2 p-2 bg-muted rounded-md">
                         <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm flex-1">{attachment.filename}</span>
+                        <span className="text-sm flex-1">{attachment.filename || 'Unnamed'}</span>
                         <span className="text-xs text-muted-foreground">
-                          {attachment.mimeType} • {formatFileSize(attachment.size)}
+                          {attachment.mimeType}
+                          {attachment.content && typeof attachment.content !== 'string' && 
+                            ` • ${formatFileSize(attachment.content.byteLength)}`}
                         </span>
                       </div>
                     ))}
@@ -514,6 +542,95 @@ export default function InboxPage() {
                 <div className="bg-muted p-4 rounded-md">
                   <pre className="whitespace-pre-wrap font-sans text-sm">{generatedDraft.body}</pre>
                 </div>
+                
+                {/* AI Analysis Metadata */}
+                {generatedDraft.meta && (
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Brain className="h-5 w-5 text-muted-foreground" />
+                        <h3 className="font-semibold">AI Analysis</h3>
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono">
+                        Qdrant ID: {generatedDraft.inReplyTo}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Left Column */}
+                      <div className="space-y-3">
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground mb-1">Inbound Message Addressed To</div>
+                          <Badge variant={generatedDraft.meta.inboundMsgAddressedTo === 'you' ? 'default' : 'secondary'}>
+                            {generatedDraft.meta.inboundMsgAddressedTo === 'you' && <Users className="mr-1 h-3 w-3" />}
+                            {generatedDraft.meta.inboundMsgAddressedTo}
+                          </Badge>
+                        </div>
+                        
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground mb-1">Recommended Action</div>
+                          <Badge variant={
+                            generatedDraft.meta.recommendedAction.startsWith('ignore') ? 'secondary' :
+                            generatedDraft.meta.recommendedAction.includes('forward') ? 'outline' : 'default'
+                          }>
+                            {generatedDraft.meta.recommendedAction}
+                          </Badge>
+                        </div>
+                        
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground mb-1">Urgency Level</div>
+                          <Badge variant={
+                            generatedDraft.meta.urgencyLevel === 'critical' ? 'destructive' :
+                            generatedDraft.meta.urgencyLevel === 'high' ? 'default' :
+                            generatedDraft.meta.urgencyLevel === 'medium' ? 'secondary' : 'outline'
+                          }>
+                            {generatedDraft.meta.urgencyLevel === 'critical' && <AlertCircle className="mr-1 h-3 w-3" />}
+                            {generatedDraft.meta.urgencyLevel}
+                          </Badge>
+                        </div>
+                        
+                      </div>
+                      
+                      {/* Right Column */}
+                      <div className="space-y-3">
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground mb-1">Inbound Message Is Requesting</div>
+                          <Badge variant="secondary">
+                            {generatedDraft.meta.inboundMsgIsRequesting}
+                          </Badge>
+                        </div>
+                        
+                        
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground mb-1">Context Flags</div>
+                          <div className="flex flex-wrap gap-1">
+                            <Badge variant={generatedDraft.meta.contextFlags.isThreaded ? "default" : "outline"} className="text-xs">
+                              {generatedDraft.meta.contextFlags.isThreaded ? "✓" : "✗"} Threaded
+                            </Badge>
+                            <Badge variant={generatedDraft.meta.contextFlags.hasAttachments ? "default" : "outline"} className="text-xs">
+                              {generatedDraft.meta.contextFlags.hasAttachments ? "✓" : "✗"} Has Attachments
+                            </Badge>
+                            <Badge variant={generatedDraft.meta.contextFlags.isGroupEmail ? "default" : "outline"} className="text-xs">
+                              {generatedDraft.meta.contextFlags.isGroupEmail ? "✓" : "✗"} Group Email
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Key Considerations */}
+                    {generatedDraft.meta.keyConsiderations.length > 0 && (
+                      <div className="mt-4">
+                        <div className="text-sm font-medium text-muted-foreground mb-2">Key Considerations</div>
+                        <ul className="list-disc list-inside space-y-1">
+                          {generatedDraft.meta.keyConsiderations.map((consideration, idx) => (
+                            <li key={idx} className="text-sm text-muted-foreground">{consideration}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : (

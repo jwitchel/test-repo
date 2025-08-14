@@ -4,6 +4,74 @@ import { pool } from '../server';
 
 const router = express.Router();
 
+// Get profile preferences
+router.get('/profile', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    
+    const result = await pool.query(
+      `SELECT name, preferences
+       FROM "user"
+       WHERE id = $1`,
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    const preferences = user.preferences || {};
+    
+    return res.json({
+      preferences: {
+        name: preferences.name || user.name || '',
+        nicknames: preferences.nicknames || ''
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching profile preferences:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update profile preferences
+router.post('/profile', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { name, nicknames } = req.body;
+    
+    // Update preferences JSONB with new profile data
+    const result = await pool.query(
+      `UPDATE "user" 
+       SET preferences = jsonb_set(
+         jsonb_set(
+           COALESCE(preferences, '{}'::jsonb),
+           '{name}',
+           $2::jsonb
+         ),
+         '{nicknames}',
+         $3::jsonb
+       )
+       WHERE id = $1
+       RETURNING preferences`,
+      [userId, JSON.stringify(name), JSON.stringify(nicknames)]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    return res.json({ 
+      success: true,
+      preferences: result.rows[0].preferences
+    });
+  } catch (error) {
+    console.error('Error updating profile preferences:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get typed name preferences
 router.get('/typed-name', requireAuth, async (req, res) => {
   try {

@@ -445,8 +445,19 @@ export class ImapOperations {
         throw new ImapConnectionError('Message body not retrieved', 'BODY_NOT_FOUND');
       }
       
+      // Ensure body is a string with proper encoding
+      let bodyString: string;
+      if (Buffer.isBuffer(msg.body)) {
+        // Convert Buffer to string using UTF-8 encoding
+        bodyString = msg.body.toString('utf8');
+      } else if (typeof msg.body === 'string') {
+        bodyString = msg.body;
+      } else {
+        throw new ImapConnectionError('Unexpected body type', 'INVALID_BODY_TYPE');
+      }
+      
       // Parse the message
-      const parsed = await simpleParser(msg.body);
+      const parsed = await simpleParser(bodyString);
       
       return {
         uid: msg.uid,
@@ -457,9 +468,9 @@ export class ImapOperations {
         date: msg.date,
         flags: msg.flags,
         size: msg.size,
-        body: msg.body,
+        body: bodyString,
         parsed,
-        rawMessage: msg.body  // This is the complete RFC 5322 message with headers and body
+        rawMessage: bodyString  // This is the complete RFC 5322 message with headers and body
       };
     } finally {
       this.release();

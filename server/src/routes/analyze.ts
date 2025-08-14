@@ -550,4 +550,68 @@ router.post('/api/analyze/email', requireAuth, async (req: Request, res: Respons
   }
 });
 
+// Debug endpoint to check Qdrant record by ID
+router.get('/debug/qdrant/:messageId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    await ensureServicesInitialized();
+    
+    const { messageId } = req.params;
+    const userId = (req as AuthenticatedRequest).user.id;
+    
+    console.log('[analyze/debug] Looking up Qdrant record:', { messageId, userId });
+    
+    // Get the Qdrant client
+    const vectorStore = orchestrator!['vectorStore'];
+    const qdrantClient = vectorStore['client'];
+    
+    // Convert messageId to numeric ID (same hash function as in qdrant-client.ts)
+    let hash = 0;
+    for (let i = 0; i < messageId.length; i++) {
+      const char = messageId.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    const numericId = Math.abs(hash);
+    
+    console.log('[analyze/debug] Numeric ID:', numericId);
+    
+    // Retrieve the point from Qdrant
+    const points = await qdrantClient.retrieve('user-emails', {
+      ids: [numericId],
+      with_payload: true,
+      with_vector: false
+    });
+    
+    if (points.length === 0) {
+      return res.status(404).json({ 
+        error: 'Record not found',
+        messageId,
+        numericId 
+      });
+    }
+    
+    const payload = points[0].payload as any;
+    
+    return res.json({
+      found: true,
+      messageId,
+      numericId,
+      payload,
+      recipientEmail: payload?.recipientEmail || 'not found',
+      senderEmail: payload?.senderEmail || 'not found',
+      userId: payload?.userId || 'not found',
+      emailType: payload?.emailType || 'not found',
+      subject: payload?.subject || 'not found',
+      hasLlmResponse: !!payload?.llmResponse
+    });
+    
+  } catch (error) {
+    console.error('Qdrant debug error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to retrieve Qdrant record',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

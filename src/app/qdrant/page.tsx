@@ -25,7 +25,7 @@ export default function QdrantPage() {
               <p className="text-sm font-medium mb-2">Connection Details:</p>
               <div className="space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
                 <p>URL: http://localhost:6333</p>
-                <p>Collection: email_embeddings</p>
+                <p>Collection: user-emails</p>
               </div>
             </div>
 

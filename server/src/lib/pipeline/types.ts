@@ -1,5 +1,7 @@
 // Type definitions for the tone learning pipeline
 
+import { LLMMetadata } from '../llm-client';
+
 export interface ProcessedEmail {
   uid: string;
   messageId: string;
@@ -29,6 +31,7 @@ export interface GeneratedDraft {
   recipientEmail: string;
   subject: string;
   body: string;
+  meta?: LLMMetadata;
   relationship: {
     type: string;
     confidence: number;

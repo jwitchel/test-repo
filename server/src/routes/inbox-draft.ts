@@ -5,16 +5,27 @@ import { ProcessedEmail } from '../lib/pipeline/types';
 import { imapLogger } from '../lib/imap-logger';
 import PostalMime from 'postal-mime';
 import { pool } from '../server';
+import { VectorStore } from '../lib/vector/qdrant-client';
+import { EmbeddingService } from '../lib/vector/embedding-service';
 
 const router = express.Router();
 
-// Initialize orchestrator
+// Initialize services
 let orchestrator: ToneLearningOrchestrator | null = null;
+let vectorStore: VectorStore | null = null;
+let embeddingService: EmbeddingService | null = null;
 
-async function ensureOrchestratorInitialized() {
+async function ensureServicesInitialized() {
   if (!orchestrator) {
     orchestrator = new ToneLearningOrchestrator();
     await orchestrator.initialize();
+  }
+  if (!vectorStore) {
+    vectorStore = new VectorStore();
+    await vectorStore.initialize();
+  }
+  if (!embeddingService) {
+    embeddingService = new EmbeddingService();
   }
 }
 
@@ -150,6 +161,19 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
     
     // Extract email body - if HTML exists, convert it to plain text
     let emailBody = parsed.text || '';
+    
+    // Log to debug encoding issues
+    console.log('[inbox-draft] Parsed text preview:', emailBody.substring(0, 200));
+    console.log('[inbox-draft] Text includes apostrophe:', emailBody.includes("'"));
+    console.log('[inbox-draft] Text includes right single quote:', emailBody.includes("'"));
+    console.log('[inbox-draft] Raw message preview (first 200 chars):', rawMessage.substring(0, 200));
+    
+    // Check if raw message contains quoted-printable encoding
+    if (rawMessage.includes('=92')) {
+      console.log('[inbox-draft] WARNING: Raw message contains quoted-printable =92 which should be decoded to apostrophe');
+      console.log('[inbox-draft] Sample text with =92:', rawMessage.match(/.{0,20}=92.{0,20}/g)?.slice(0, 3));
+    }
+    
     if (!emailBody && parsed.html) {
       // Simple HTML to text conversion - remove tags
       emailBody = parsed.html
@@ -194,11 +218,69 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       }
     });
     
-    // Initialize orchestrator
-    await ensureOrchestratorInitialized();
+    // Initialize services
+    await ensureServicesInitialized();
     
     // Initialize pattern analyzer with the selected provider
     await orchestrator!['patternAnalyzer'].initialize(providerId);
+    
+    // Store incoming email in Qdrant
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId,
+      level: 'info',
+      command: 'STORING_INCOMING_EMAIL',
+      data: {
+        parsed: {
+          messageId: messageId,
+          from: fromAddress,
+          subject: subject
+        }
+      }
+    });
+    
+    // Generate embedding for the email content
+    const emailVector = await embeddingService!.embedText(emailBody);
+    
+    // Log what we're storing
+    console.log('[inbox-draft] Storing email in Qdrant:', {
+      messageId,
+      userId,
+      userEmail,
+      fromAddress,
+      subject: subject.substring(0, 50) + '...'
+    });
+    
+    // Store the incoming email in Qdrant
+    await vectorStore!.upsertEmail({
+      id: messageId,
+      userId,
+      vector: emailVector.vector,
+      metadata: {
+        emailId: messageId,
+        userId,
+        emailType: 'incoming', // Changed from 'type' to avoid conflicts
+        senderEmail: fromAddress,
+        senderName: fromName || fromAddress,
+        subject: subject,
+        sentDate: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
+        rawText: emailBody,
+        features: {}, // Add empty features for now
+        relationship: {
+          type: 'unknown',
+          confidence: 0,
+          detectionMethod: 'none'
+        },
+        userReply: '', // Empty for incoming emails
+        respondedTo: '',
+        recipientEmail: userEmail,
+        redactedNames: [],
+        redactedEmails: [],
+        wordCount: emailBody.split(/\s+/).length,
+        frequencyScore: 0,
+        eml_file: rawMessage // Store raw RFC 5322 message
+      }
+    });
     
     // Create a ProcessedEmail object for the orchestrator
     const processedEmail: ProcessedEmail = {
@@ -217,28 +299,85 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       respondedTo: ''  // Empty since this is the original email
     };
     
-    // Generate the draft using the orchestrator
-    const draft = await orchestrator!.generateDraft({
-      incomingEmail: processedEmail,
-      recipientEmail: fromAddress,
-      config: {
-        userId,
-        templateName: 'standard'
-      }
-    });
-    
-    // Get user's typed name preference
+    // Get user's preferences including name and typed name first
     const userResult = await pool.query(
-      'SELECT preferences FROM "user" WHERE id = $1',
+      'SELECT name, preferences FROM "user" WHERE id = $1',
       [userId]
     );
     
+    let userNames;
+    if (userResult.rows.length > 0) {
+      const user = userResult.rows[0];
+      const preferences = user.preferences || {};
+      
+      // Get user names for detection
+      userNames = {
+        name: preferences.name || user.name || '',
+        nicknames: preferences.nicknames || ''
+      };
+    }
+    
+    // Generate the draft using the orchestrator with retry logic
+    let draft;
+    let retryCount = 0;
+    const maxRetries = 1; // Allow one retry
+    
+    while (retryCount <= maxRetries) {
+      try {
+        draft = await orchestrator!.generateDraft({
+          incomingEmail: processedEmail,
+          recipientEmail: fromAddress,
+          config: {
+            userId,
+            templateName: 'default-json',
+            userNames
+          }
+        });
+        break; // Success, exit the loop
+      } catch (error: any) {
+        // Check if it's the specific JSON structure error
+        if (error.message?.includes('Invalid response structure: missing meta or message') && 
+            retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[inbox-draft] LLM response structure error, retrying (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+          console.log(`[inbox-draft] Subject: ${subject}`);
+          console.log(`[inbox-draft] From: ${fromAddress}`);
+          
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId,
+            level: 'warn',
+            command: 'DRAFT_GENERATION_RETRY',
+            data: {
+              parsed: {
+                error: error.message,
+                retryAttempt: retryCount,
+                emailSubject: subject,
+                emailFrom: fromAddress
+              }
+            }
+          });
+          
+          // Continue to next iteration for retry
+          continue;
+        }
+        // If it's not the specific error or we've exhausted retries, throw
+        throw error;
+      }
+    }
+    
+    if (!draft) {
+      throw new Error('Failed to generate draft after retries');
+    }
+    
+    // Get typed name signature from user result we already fetched
     let typedNameSignature = '';
-    if (userResult.rows.length > 0 && userResult.rows[0].preferences?.typedName) {
-      const typedName = userResult.rows[0].preferences.typedName;
-      // Check for appendString directly (some users might not have 'enabled' field)
-      if (typedName.appendString) {
-        typedNameSignature = typedName.appendString;
+    if (userResult.rows.length > 0) {
+      const preferences = userResult.rows[0].preferences || {};
+      
+      // Get typed name signature
+      if (preferences.typedName?.appendString) {
+        typedNameSignature = preferences.typedName.appendString;
       }
     }
     
@@ -272,6 +411,64 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       }
     });
     
+    // Store LLM metadata back to Qdrant
+    if (draft.meta) {
+      imapLogger.log(userId, {
+        userId,
+        emailAccountId,
+        level: 'info',
+        command: 'STORING_LLM_METADATA',
+        data: {
+          parsed: {
+            messageId: messageId,
+            inboundMsgAddressedTo: draft.meta.inboundMsgAddressedTo,
+            recommendedAction: draft.meta.recommendedAction
+          }
+        }
+      });
+      
+      // Update the email in Qdrant with LLM response metadata
+      // For now, we'll create a new embedding with the response included
+      const updatedContent = `${emailBody}\n\nGenerated Response:\n${draft.body}`;
+      const updatedVector = await embeddingService!.embedText(updatedContent);
+      
+      await vectorStore!.upsertEmail({
+        id: messageId,
+        userId,
+        vector: updatedVector.vector,
+        metadata: {
+          emailId: messageId,
+          userId,
+          emailType: 'incoming',
+          senderEmail: fromAddress,
+          senderName: fromName || fromAddress,
+          subject: subject,
+          sentDate: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
+          rawText: emailBody,
+          features: {},
+          relationship: draft.relationship,
+          userReply: draft.body, // Store the generated response
+          respondedTo: emailBody,
+          recipientEmail: userEmail,
+          redactedNames: [],
+          redactedEmails: [],
+          wordCount: emailBody.split(/\s+/).length,
+          frequencyScore: 0,
+          eml_file: rawMessage,
+          llmResponse: {
+            meta: draft.meta,
+            generatedAt: new Date().toISOString(),
+            providerId: providerId,
+            modelName: (orchestrator && orchestrator['patternAnalyzer'] && orchestrator['patternAnalyzer']['llmClient']) 
+              ? orchestrator['patternAnalyzer']['llmClient'].getModelInfo().name 
+              : 'unknown',
+            draftId: draft.id,
+            relationship: draft.relationship
+          }
+        }
+      });
+    }
+    
     res.json({
       success: true,
       draft: {
@@ -285,6 +482,7 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
         bodyHtml: formattedReply.html,
         inReplyTo: messageId,
         references: messageId,
+        meta: draft.meta,
         relationship: draft.relationship,
         metadata: {
           ...draft.metadata,
