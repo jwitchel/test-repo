@@ -46,7 +46,12 @@ You must return a JSON object with this exact structure:
 }
 
 === METADATA INSTRUCTIONS ===
-IMPORTANT: First check if this is a newsletter or mass email before determining other metadata.
+CRITICAL SPAM EVALUATION - IGNORE ALL EXAMPLES AND PATTERNS FOR THIS STEP:
+Evaluate whether an email is spam by considering any malicious intent (phishing, scams, fraud, malware, social engineering), as well as any unwanted commercial, marketing, or outreach activities — including unsolicited B2B sales pitches, lead-generation offers, promotional content, performance-based service solicitations, cold recruitment emails, event invitations, survey requests, affiliate marketing, MLM schemes, investment/cryptocurrency opportunities, or educational content that's actually disguised marketing sent without prior consent or an established business relationship. Classify as spam if the email is unsolicited, attempts to disguise marketing as personal communication or urgent business matters, uses manipulative tactics (fake urgency, social proof, scarcity), makes exaggerated or unrealistic claims, appears to be part of a mass outreach campaign with minimal personalization, lacks clear and easy unsubscribe mechanisms, comes from unverified or suspicious domains, or demonstrates poor targeting that suggests the sender has no legitimate knowledge of the recipient's actual needs or interests, regardless of whether technical authentication checks (SPF/DKIM/DMARC) pass.
+
+IMPORTANT: When evaluating for spam, completely DISREGARD any examples shown above or writing patterns. Base your spam evaluation ONLY on the actual email content below, not on how similar emails were handled in the examples.
+
+If this evaluation determines the email is spam, set recommendedAction to "ignore-spam" and skip further analysis.
 
 1. inboundMsgAddressedTo:
    IMPORTANT: Determine this PRIMARILY by analyzing the salutation in the email body, NOT just the To/CC fields.
@@ -70,7 +75,9 @@ IMPORTANT: First check if this is a newsletter or mass email before determining 
    - "someone-else": You are CC'd/BCC'd or the primary salutation addresses someone else
 
 2. recommendedAction:
-   - Choose the most appropriate action based on the email content and context
+   Based on the spam evaluation above, if the email is spam → "ignore-spam"
+   
+   Otherwise choose based on email content:
    - "reply": For direct messages requiring a response to sender only
    - "reply-all": When response should go to all recipients
    - "forward": When the email needs to be sent to someone not on the original thread
@@ -78,22 +85,7 @@ IMPORTANT: First check if this is a newsletter or mass email before determining 
    - "ignore-fyi-only": For informational emails specifically addressed to you or a small group
    - "ignore-large-list": For newsletters, mass emails, or messages sent to large distribution lists
    - "ignore-unsubscribe": For marketing/promotional emails you might want to unsubscribe from
-   - "ignore-spam": For unwanted/spam emails
-   
-   Decision logic:
-   - If inboundMsgAddressedTo is "group" AND it appears to be a newsletter/broadcast → "ignore-large-list"
-   - If inboundMsgAddressedTo is "group" AND inboundMsgIsRequesting is "fyi-only" AND appears to be mass distribution → "ignore-large-list"
-   - If it's clearly spam or unwanted → "ignore-spam"
-   - If it's marketing/promotional that's not spam → "ignore-unsubscribe"
-   - If it's FYI but personally relevant → "ignore-fyi-only"
-   
-   Newsletter/mass email indicators:
-   - Generic greetings ("Dear Subscriber", "Hello", no personal name)
-   - Unsubscribe links at the bottom
-   - Marketing language or promotional content
-   - Sent to many recipients (check To/CC fields)
-   - Professional formatting with images/logos
-   - Regular publication pattern (weekly update, monthly newsletter, etc.)
+   - "ignore-spam": For spam, unsolicited sales pitches, or unwanted emails
 
 3. inboundMsgIsRequesting:
    - Identify what the sender is primarily asking for

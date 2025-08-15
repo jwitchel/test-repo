@@ -54,11 +54,8 @@ export class RelationshipDetector {
         relationship = 'colleague';
         confidence = 0.7;
       }
-      // Professional domains
-      else if (domain.includes('.com') || domain.includes('.org')) {
-        relationship = 'colleague';  // Changed from 'professional' to 'colleague'
-        confidence = 0.6;
-      }
+      // All other domains default to 'external' unless we have more context
+      // Removed the assumption that .com/.org = colleague
     }
     
     // Use historical context if provided to refine the detection

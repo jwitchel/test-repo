@@ -690,4 +690,92 @@ export class ImapOperations {
       this.release();
     }
   }
+
+  async moveMessage(
+    sourceFolder: string,
+    destFolder: string,
+    uid: number,
+    flags?: string[]
+  ): Promise<void> {
+    const conn = await this.getConnection();
+    
+    try {
+      // Select the source folder
+      await conn.selectFolder(sourceFolder);
+      
+      // Fetch the message
+      const messages = await conn.fetch(uid.toString(), {
+        bodies: '', // Fetch entire message
+      });
+
+      if (messages.length === 0) {
+        throw new ImapConnectionError('Message not found in source folder', 'MESSAGE_NOT_FOUND');
+      }
+
+      const msg = messages[0];
+      
+      // Ensure body is a string
+      let bodyString: string;
+      if (Buffer.isBuffer(msg.body)) {
+        bodyString = msg.body.toString('utf8');
+      } else if (typeof msg.body === 'string') {
+        bodyString = msg.body;
+      } else {
+        throw new ImapConnectionError('Invalid message body format', 'INVALID_BODY_FORMAT');
+      }
+      
+      // Copy message to destination folder
+      await this.appendMessage(destFolder, bodyString, flags);
+      
+      // Mark original as deleted
+      await new Promise<void>((resolve, reject) => {
+        (conn as any).imap.addFlags(uid, '\\Deleted', (err: Error) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      // Expunge to permanently remove from source
+      await new Promise<void>((resolve, reject) => {
+        (conn as any).imap.expunge((err: Error) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      console.log(`Message moved from ${sourceFolder} to ${destFolder}`);
+    } catch (error) {
+      console.error('Error moving message:', error);
+      throw new ImapConnectionError(
+        `Failed to move message: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'MOVE_FAILED'
+      );
+    } finally {
+      this.release();
+    }
+  }
+
+  async findMessageByMessageId(folderName: string, messageId: string): Promise<number | null> {
+    const conn = await this.getConnection();
+    
+    try {
+      await conn.selectFolder(folderName);
+      
+      // Search for message by Message-ID header
+      const searchCriteria = ['HEADER', 'Message-ID', messageId];
+      const uids = await conn.search(searchCriteria);
+      
+      if (uids.length === 0) {
+        return null;
+      }
+      
+      // Return the first matching UID
+      return uids[0];
+    } catch (error) {
+      console.error('Error finding message by ID:', error);
+      return null;
+    } finally {
+      this.release();
+    }
+  }
 }

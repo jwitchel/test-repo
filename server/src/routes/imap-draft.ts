@@ -191,13 +191,15 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
     const {
       emailAccountId,
       rawMessage,
+      messageUid,
+      sourceFolder,
       recommendedAction
     } = req.body;
     
     // Validate required fields
-    if (!emailAccountId || !rawMessage || !recommendedAction) {
+    if (!emailAccountId || !recommendedAction) {
       res.status(400).json({ 
-        error: 'Missing required fields: emailAccountId, rawMessage, recommendedAction' 
+        error: 'Missing required fields: emailAccountId, recommendedAction' 
       });
       return;
     }
@@ -237,14 +239,25 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
       }
     }
     
-    // Upload the original message to destination folder with appropriate flags
-    await imapOps.appendMessage(routeResult.folder, rawMessage, routeResult.flags);
+    // If we have a UID and source folder, use moveMessage to remove from inbox
+    if (messageUid && sourceFolder) {
+      await imapOps.moveMessage(sourceFolder, routeResult.folder, messageUid, routeResult.flags);
+    } else if (rawMessage) {
+      // Fallback to append if we only have raw message
+      await imapOps.appendMessage(routeResult.folder, rawMessage, routeResult.flags);
+    } else {
+      res.status(400).json({ 
+        error: 'Either messageUid/sourceFolder or rawMessage must be provided' 
+      });
+      return;
+    }
     
     res.json({ 
       success: true,
       message: `Email moved to ${routeResult.displayName}`,
       folder: routeResult.folder,
-      action: recommendedAction
+      action: recommendedAction,
+      removedFromInbox: !!(messageUid && sourceFolder)
     });
   } catch (error) {
     console.error('Error moving email:', error);

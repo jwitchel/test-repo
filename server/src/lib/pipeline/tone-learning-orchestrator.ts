@@ -303,6 +303,21 @@ Email Details:
       console.log(chalk.gray(`  Recommended action: ${structuredResponse.meta.recommendedAction}`));
     }
     
+    // Override relationship to 'external' for spam emails
+    let finalRelationship = {
+      type: exampleSelection.relationship,
+      confidence: detectedRelationship.confidence,
+      detectionMethod: detectedRelationship.method
+    };
+    
+    if (structuredResponse.meta.recommendedAction === 'ignore-spam') {
+      finalRelationship = {
+        type: 'external',
+        confidence: 0.9,
+        detectionMethod: 'spam-override'
+      };
+    }
+    
     const draft: GeneratedDraft = {
       id: `draft-${Date.now()}`,
       userId,
@@ -311,11 +326,7 @@ Email Details:
       subject: `Re: ${incomingEmail.subject}`,
       body: structuredResponse.message,
       meta: structuredResponse.meta,
-      relationship: {
-        type: exampleSelection.relationship,
-        confidence: detectedRelationship.confidence,
-        detectionMethod: detectedRelationship.method
-      },
+      relationship: finalRelationship,
       examplesUsed: exampleSelection.examples.map(e => e.id),
       metadata: {
         promptTemplate: templateName,

@@ -372,6 +372,8 @@ export default function InboxPage() {
         await apiPost('/api/imap-draft/move-email', {
           emailAccountId: selectedAccount,
           rawMessage: currentMessage.rawMessage,
+          messageUid: currentMessage.uid,
+          sourceFolder: 'INBOX',
           recommendedAction: recommendedAction
         });
       } else {
