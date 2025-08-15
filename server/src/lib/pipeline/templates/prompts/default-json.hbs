@@ -49,6 +49,13 @@ You must return a JSON object with this exact structure:
 CRITICAL SPAM EVALUATION - IGNORE ALL EXAMPLES AND PATTERNS FOR THIS STEP:
 Evaluate whether an email is spam by considering any malicious intent (phishing, scams, fraud, malware, social engineering), as well as any unwanted commercial, marketing, or outreach activities — including unsolicited B2B sales pitches, lead-generation offers, promotional content, performance-based service solicitations, cold recruitment emails, event invitations, survey requests, affiliate marketing, MLM schemes, investment/cryptocurrency opportunities, or educational content that's actually disguised marketing sent without prior consent or an established business relationship. Classify as spam if the email is unsolicited, attempts to disguise marketing as personal communication or urgent business matters, uses manipulative tactics (fake urgency, social proof, scarcity), makes exaggerated or unrealistic claims, appears to be part of a mass outreach campaign with minimal personalization, lacks clear and easy unsubscribe mechanisms, comes from unverified or suspicious domains, or demonstrates poor targeting that suggests the sender has no legitimate knowledge of the recipient's actual needs or interests, regardless of whether technical authentication checks (SPF/DKIM/DMARC) pass.
 
+IMPORTANT EXCEPTIONS - Do NOT classify as spam:
+- Calendar notifications and meeting responses (Google Calendar, Outlook, etc.)
+- System-generated notifications from legitimate services you use
+- Transaction confirmations and receipts
+- Automated status updates from known systems
+- Any email with "auto-submitted: auto-generated" that relates to your actual activities
+
 IMPORTANT: When evaluating for spam, completely DISREGARD any examples shown above or writing patterns. Base your spam evaluation ONLY on the actual email content below, not on how similar emails were handled in the examples.
 
 If this evaluation determines the email is spam, set recommendedAction to "ignore-spam" and skip further analysis.
@@ -82,10 +89,20 @@ If this evaluation determines the email is spam, set recommendedAction to "ignor
    - "reply-all": When response should go to all recipients
    - "forward": When the email needs to be sent to someone not on the original thread
    - "forward-with-comment": When forwarding but need to add context
-   - "ignore-fyi-only": For informational emails specifically addressed to you or a small group
+   - "ignore-fyi-only": For informational emails including:
+     * Calendar notifications (invites, acceptances, declines, updates)
+     * System notifications and confirmations
+     * Automated status updates
+     * Receipts and transaction confirmations
+     * Informational emails addressed to you personally
    - "ignore-large-list": For newsletters, mass emails, or messages sent to large distribution lists
    - "ignore-unsubscribe": For marketing/promotional emails you might want to unsubscribe from
    - "ignore-spam": For spam, unsolicited sales pitches, or unwanted emails
+   
+   Special handling for automated emails:
+   - Calendar notifications (sender contains "calendar-notification@google.com" or similar) → "ignore-fyi-only"
+   - Meeting responses (subject starts with "Accepted:", "Declined:", "Tentative:") → "ignore-fyi-only"
+   - Auto-generated emails (has "auto-submitted: auto-generated" header) → usually "ignore-fyi-only"
 
 3. inboundMsgIsRequesting:
    - Identify what the sender is primarily asking for
