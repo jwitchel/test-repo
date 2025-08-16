@@ -12,6 +12,7 @@ const router = express.Router();
 interface UploadDraftRequest {
   emailAccountId: string;
   to: string;
+  cc?: string;
   subject: string;
   body: string;
   bodyHtml?: string;
@@ -27,6 +28,7 @@ async function createEmailMessage(
   subject: string,
   body: string,
   bodyHtml?: string,
+  cc?: string,
   inReplyTo?: string,
   references?: string
 ): Promise<string> {
@@ -46,6 +48,11 @@ async function createEmailMessage(
     date: new Date(),
     text: body
   };
+  
+  // Add CC if provided
+  if (cc) {
+    mailOptions.cc = cc;
+  }
   
   // Add HTML if provided
   if (bodyHtml) {
@@ -75,6 +82,7 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
     const {
       emailAccountId,
       to,
+      cc,
       subject,
       body,
       inReplyTo,
@@ -145,6 +153,7 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       subject,
       body,
       req.body.bodyHtml,
+      cc,
       inReplyTo,
       references
     );

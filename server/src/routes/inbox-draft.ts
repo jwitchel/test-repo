@@ -183,6 +183,8 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
     const fromAddress = parsed.from?.address || '';
     const fromName = parsed.from?.name || parsed.from?.address || '';
     const subject = parsed.subject || '';
+    const toAddresses = parsed.to || [];
+    const ccAddresses = parsed.cc || [];
     
     // Extract email body - if HTML exists, convert it to plain text
     let emailBody = parsed.text || '';
@@ -314,8 +316,8 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       inReplyTo: null,
       date: parsed.date ? new Date(parsed.date) : new Date(),
       from: [{ address: fromAddress, name: fromName }],
-      to: [{ address: userEmail }],
-      cc: [],
+      to: toAddresses.map(addr => ({ address: addr.address || '', name: addr.name || '' })),
+      cc: ccAddresses.map(addr => ({ address: addr.address || '', name: addr.name || '' })),
       bcc: [],
       subject: subject,
       textContent: emailBody,
@@ -511,14 +513,53 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       });
     }
     
+    // Determine recipients based on recommended action
+    let recipients = fromName && fromName !== fromAddress 
+      ? `${fromName} <${fromAddress}>` 
+      : fromAddress;
+    
+    let ccRecipients = '';
+    
+    if (draft.meta?.recommendedAction === 'reply-all') {
+      // For reply-all, include all original recipients
+      const allRecipients: string[] = [];
+      const allCc: string[] = [];
+      
+      // Add the sender to recipients
+      allRecipients.push(recipients);
+      
+      // Add all TO recipients (except the user)
+      toAddresses.forEach(addr => {
+        if (addr.address && addr.address.toLowerCase() !== userEmail.toLowerCase()) {
+          const formatted = addr.name && addr.name !== addr.address
+            ? `${addr.name} <${addr.address}>`
+            : addr.address;
+          allRecipients.push(formatted);
+        }
+      });
+      
+      // Add all CC recipients (except the user)
+      ccAddresses.forEach(addr => {
+        if (addr.address && addr.address.toLowerCase() !== userEmail.toLowerCase()) {
+          const formatted = addr.name && addr.name !== addr.address
+            ? `${addr.name} <${addr.address}>`
+            : addr.address;
+          allCc.push(formatted);
+        }
+      });
+      
+      // Join recipients
+      recipients = allRecipients.join(', ');
+      ccRecipients = allCc.join(', ');
+    }
+    
     res.json({
       success: true,
       draft: {
         id: draft.id,
         from: userEmail,
-        to: fromName && fromName !== fromAddress 
-          ? `${fromName} <${fromAddress}>` 
-          : fromAddress,
+        to: recipients,
+        cc: ccRecipients,
         subject: replySubject,
         body: formattedReply.text,
         bodyHtml: formattedReply.html,

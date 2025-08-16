@@ -17,6 +17,15 @@ export interface PromptTemplateData {
     nicknames?: string;
   };
   
+  // Incoming email metadata
+  incomingEmailMetadata?: {
+    from: { address: string; name?: string }[];
+    to: { address: string; name?: string }[];
+    cc?: { address: string; name?: string }[];
+    subject: string;
+    date: Date;
+  };
+  
   // Examples formatted for templates
   exactExamples?: FormattedExample[];
   otherExamples?: FormattedExample[];
@@ -251,6 +260,13 @@ export class TemplateManager {
         name: string;
         nicknames?: string;
       };
+      incomingEmailMetadata?: {
+        from: { address: string; name?: string }[];
+        to: { address: string; name?: string }[];
+        cc?: { address: string; name?: string }[];
+        subject: string;
+        date: Date;
+      };
     }
   ): PromptTemplateData {
     const exactMatches = params.examples.filter(e => 
@@ -286,6 +302,7 @@ export class TemplateManager {
       relationship: params.relationship,
       incomingEmail: params.incomingEmail,
       userNames: params.userNames,
+      incomingEmailMetadata: params.incomingEmailMetadata,
       exactExamples: exactMatches.length > 0 
         ? this.formatExamplesForTemplate(exactMatches) 
         : undefined,

@@ -14,6 +14,13 @@ export interface PromptFormatterParams {
     name: string;
     nicknames?: string;
   };
+  incomingEmailMetadata?: {
+    from: { address: string; name?: string }[];
+    to: { address: string; name?: string }[];
+    cc?: { address: string; name?: string }[];
+    subject: string;
+    date: Date;
+  };
 }
 
 export interface FormattedPrompt {

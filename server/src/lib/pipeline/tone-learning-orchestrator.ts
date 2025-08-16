@@ -275,7 +275,14 @@ Email Details:
       relationship: exampleSelection.relationship,
       relationshipProfile: enhancedProfile,
       writingPatterns,
-      userNames
+      userNames,
+      incomingEmailMetadata: {
+        from: incomingEmail.from,
+        to: incomingEmail.to,
+        cc: incomingEmail.cc,
+        subject: incomingEmail.subject,
+        date: incomingEmail.date
+      }
     });
     
     if (verbose) {

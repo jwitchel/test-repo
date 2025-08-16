@@ -61,9 +61,11 @@ IMPORTANT: When evaluating for spam, completely DISREGARD any examples shown abo
 If this evaluation determines the email is spam, set recommendedAction to "ignore-spam" and skip further analysis.
 
 1. inboundMsgAddressedTo:
-   IMPORTANT: Determine this PRIMARILY by analyzing the salutation in the email body, NOT just the To/CC fields.
+   CRITICAL: First check if you are only in the CC field. If you are CC'd and never directly addressed in the email body, this is "someone-else".
+   
    {{#if userNames}}
-   Look for your name/nicknames in the salutation:
+   Check the entire email thread for your name/nicknames:
+   - If you ({{userNames.name}}) are only mentioned in CC fields throughout the thread → "someone-else"
    - If the email starts with "{{userNames.name}}," or any variation ({{userNames.nicknames}}), check the context:
      * "{{userNames.name}}, nice to meet you" → addressed to YOU
      * "Thanks for the intro Susan. {{userNames.name}}, nice to meet you" → addressed to YOU
@@ -71,6 +73,7 @@ If this evaluation determines the email is spam, set recommendedAction to "ignor
    {{/if}}
    
    Common patterns to recognize:
+   - If you're only in CC and the conversation is between others → "someone-else"
    - "[firstname], [the primary message]" at the beginning indicates the email is addressed to that person
    - "[firstname], thank you for the intro", "[firstname] to BCC" → the email is NOT for that person
    - Generic salutations like "Team," or "All," indicate group
@@ -84,22 +87,42 @@ If this evaluation determines the email is spam, set recommendedAction to "ignor
 2. recommendedAction:
    Based on the spam evaluation above, if the email is spam → "ignore-spam"
    
+   CRITICAL: If inboundMsgAddressedTo is "someone-else" (you're only CC'd), the default action should be "ignore-fyi-only" unless there's a specific reason to act.
+   
+   CRITICAL RECIPIENT COUNTING: Count ALL recipients in the TO field. If there are 2+ people in TO (e.g., "To: John, JP"), this requires reply-all, not reply.
+   
+   CRITICAL REPLY-ALL LOGIC:
+   - FIRST: Check if there are MULTIPLE recipients (either multiple TO recipients OR any CC recipients)
+   - IF MULTIPLE RECIPIENTS EXIST: DEFAULT TO "reply-all" to keep all parties informed, UNLESS:
+     * The sender is a robot/unattended mailbox (noreply@, donotreply@, notifications@, calendar-notification@, etc.)
+     * The sender explicitly asks for a private/confidential response
+     * The sender asks to be removed from the thread or indicates they don't need updates
+     * You're responding to decline something (meeting, request, etc.) where others don't need to know
+   - Use "reply" (single recipient) ONLY when:
+     * There is only ONE recipient total (single TO, no CCs)
+     * One of the exceptions above applies
+     * The content is clearly meant for one person only (personal, confidential, or private matters)
+   - IMPORTANT: If there are multiple TO recipients OR any CC recipients, use "reply-all" to keep everyone informed
+   
    Otherwise choose based on email content:
-   - "reply": For direct messages requiring a response to sender only
-   - "reply-all": When response should go to all recipients
+   - "reply": For direct messages to sender only when there's a SINGLE recipient (one TO, no CCs) OR exceptions apply
+   - "reply-all": DEFAULT action when there are MULTIPLE recipients (multiple TO addresses OR any CC recipients), for keeping all parties informed (only when inboundMsgAddressedTo is "you" or "group")
    - "forward": When the email needs to be sent to someone not on the original thread
    - "forward-with-comment": When forwarding but need to add context
    - "ignore-fyi-only": For informational emails including:
+     * Emails where you're only CC'd (inboundMsgAddressedTo is "someone-else")
      * Calendar notifications (invites, acceptances, declines, updates)
      * System notifications and confirmations
      * Automated status updates
      * Receipts and transaction confirmations
      * Informational emails addressed to you personally
+     * Business discussions where you're kept in the loop but not expected to respond
    - "ignore-large-list": For newsletters, mass emails, or messages sent to large distribution lists
    - "ignore-unsubscribe": For marketing/promotional emails you might want to unsubscribe from
    - "ignore-spam": For spam, unsolicited sales pitches, or unwanted emails
    
-   Special handling for automated emails:
+   Special handling:
+   - If you're only CC'd throughout the thread → "ignore-fyi-only"
    - Calendar notifications (sender contains "calendar-notification@google.com" or similar) → "ignore-fyi-only"
    - Meeting responses (subject starts with "Accepted:", "Declined:", "Tentative:") → "ignore-fyi-only"
    - Auto-generated emails (has "auto-submitted: auto-generated" header) → usually "ignore-fyi-only"
@@ -126,7 +149,15 @@ If this evaluation determines the email is spam, set recommendedAction to "ignor
    - Set each boolean based on email analysis
    - isThreaded: true if this is part of an ongoing conversation (has Re: or references previous emails)
    - hasAttachments: true if email contains attachments
-   - isGroupEmail: true if multiple recipients are involved
+   - isGroupEmail: true if multiple recipients are involved (IMPORTANT: check if TO field has multiple addresses OR if any CC recipients exist - if either is true, this is a group email)
 
 === EMAIL TO RESPOND TO ===
+{{#if incomingEmailMetadata}}
+From: {{#each incomingEmailMetadata.from}}{{#if name}}{{name}} <{{address}}>{{else}}{{address}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}
+To: {{#each incomingEmailMetadata.to}}{{#if name}}{{name}} <{{address}}>{{else}}{{address}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}
+{{#if incomingEmailMetadata.cc}}CC: {{#each incomingEmailMetadata.cc}}{{#if name}}{{name}} <{{address}}>{{else}}{{address}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
+Subject: {{incomingEmailMetadata.subject}}
+Date: {{incomingEmailMetadata.date}}
+
+{{/if}}
 {{incomingEmail}}

@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText, Send, Loader2, Brain, AlertCircle, Users, FolderOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PostalMime from 'postal-mime';
@@ -35,6 +36,7 @@ interface ParsedEmail {
   headers: Array<{ key: string; value: string }>;
   from: { name?: string; address: string };
   to: Array<{ name?: string; address: string }>;
+  cc?: Array<{ name?: string; address: string }>;
   subject: string;
   date: Date;
   text?: string;
@@ -56,6 +58,7 @@ interface GeneratedDraft {
   id: string;
   from: string;
   to: string;
+  cc?: string;
   subject: string;
   body: string;
   bodyHtml?: string;
@@ -105,6 +108,7 @@ export default function InboxPage() {
     noActionFolder?: string;
     spamFolder?: string;
   } | null>(null);
+  const [jumpToInput, setJumpToInput] = useState('');
   
   // Helper function to get destination folder based on recommended action
   const getDestinationFolder = (recommendedAction?: string) => {
@@ -255,6 +259,10 @@ export default function InboxPage() {
           address: addr.address || '', 
           name: addr.name || undefined 
         })),
+        cc: parsed.cc ? parsed.cc.map(addr => ({ 
+          address: addr.address || '', 
+          name: addr.name || undefined 
+        })) : undefined,
         subject: parsed.subject || '',
         date: parsed.date ? new Date(parsed.date) : new Date(),
         text: parsed.text,
@@ -381,6 +389,7 @@ export default function InboxPage() {
         await apiPost('/api/imap-draft/upload-draft', {
           emailAccountId: selectedAccount,
           to: generatedDraft.to,
+          cc: generatedDraft.cc,
           subject: generatedDraft.subject,
           body: generatedDraft.body,
           bodyHtml: generatedDraft.bodyHtml,
@@ -453,6 +462,48 @@ export default function InboxPage() {
               Next
               <ChevronRight className="h-4 w-4" />
             </Button>
+            
+            <div className="flex items-center gap-2 ml-4">
+              <span className="text-sm text-muted-foreground">Jump to:</span>
+              <Input
+                type="number"
+                min="1"
+                max={totalMessages}
+                value={jumpToInput}
+                onChange={(e) => setJumpToInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const index = parseInt(jumpToInput) - 1;
+                    if (!isNaN(index) && index >= 0 && index < totalMessages) {
+                      setCurrentIndex(index);
+                      setActiveTab('message');
+                      setJumpToInput('');
+                    } else {
+                      error(`Please enter a number between 1 and ${totalMessages}`);
+                    }
+                  }
+                }}
+                className="w-20 h-8"
+                placeholder="#"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const index = parseInt(jumpToInput) - 1;
+                  if (!isNaN(index) && index >= 0 && index < totalMessages) {
+                    setCurrentIndex(index);
+                    setActiveTab('message');
+                    setJumpToInput('');
+                  } else {
+                    error(`Please enter a number between 1 and ${totalMessages}`);
+                  }
+                }}
+                disabled={!jumpToInput || loading}
+              >
+                Go
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -486,6 +537,14 @@ export default function InboxPage() {
                 <CardTitle className="text-lg">{parsedMessage.subject || '(No subject)'}</CardTitle>
                 <div className="text-sm text-muted-foreground mt-1">
                   <div>From: {parsedMessage.from.name ? `${parsedMessage.from.name} <${parsedMessage.from.address}>` : parsedMessage.from.address}</div>
+                  <div>To: {parsedMessage.to.map(addr => 
+                    addr.name ? `${addr.name} <${addr.address}>` : addr.address
+                  ).join(', ')}</div>
+                  {parsedMessage.cc && parsedMessage.cc.length > 0 && (
+                    <div>CC: {parsedMessage.cc.map(addr => 
+                      addr.name ? `${addr.name} <${addr.address}>` : addr.address
+                    ).join(', ')}</div>
+                  )}
                   <div>Date: {new Date(parsedMessage.date).toLocaleString()}</div>
                 </div>
               </div>
@@ -604,6 +663,7 @@ export default function InboxPage() {
                     <CardTitle className="text-lg">Draft Reply</CardTitle>
                     <div className="text-sm text-muted-foreground mt-1">
                       <div>To: {generatedDraft.to}</div>
+                      {generatedDraft.cc && <div>CC: {generatedDraft.cc}</div>}
                       <div>Subject: {generatedDraft.subject}</div>
                       <div>Relationship: {generatedDraft.relationship.type} ({Math.round(generatedDraft.relationship.confidence * 100)}% confidence)</div>
                     </div>
