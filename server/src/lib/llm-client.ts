@@ -17,8 +17,8 @@ export interface PipelineOutput {
 
 export interface LLMMetadata {
   inboundMsgAddressedTo: 'you' | 'group' | 'someone-else';
-  recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'ignore-fyi-only' | 'ignore-large-list' | 'ignore-unsubscribe' | 'ignore-spam';
-  inboundMsgIsRequesting: 'meeting-request' | 'answer-questions' | 'acknowledge-receipt' | 'acknowledge-emotional' | 'request-for-info' | 'fyi-only' | 'action-items' | 'approval-needed' | 'none';
+  recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'silent-fyi-only' | 'silent-large-list' | 'silent-unsubscribe' | 'silent-spam' | 'unknown';
+  inboundMsgIsRequesting: 'meeting-request' | 'answer-questions' | 'acknowledge-receipt' | 'acknowledge-emotional' | 'request-for-info' | 'fyi-only' | 'task-assignment' | 'approval-needed' | 'none';
   keyConsiderations: string[];
   urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
   contextFlags: {
@@ -31,6 +31,10 @@ export interface LLMMetadata {
 export interface StructuredLLMResponse {
   meta: LLMMetadata;
   message: string;
+}
+
+export interface ActionAnalysisResponse {
+  meta: LLMMetadata;
 }
 
 export class LLMClient {
@@ -223,10 +227,10 @@ export class LLMClient {
         throw new Error('Invalid response structure: missing meta or message field');
       }
       
-      // For ignore actions, empty message is acceptable
-      const ignoreActions = ['ignore-fyi-only', 'ignore-large-list', 'ignore-unsubscribe', 'ignore-spam'];
+      // For silent actions, empty message is acceptable
+      const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
       if (parsed.message === '' && !ignoreActions.includes(parsed.meta.recommendedAction)) {
-        console.error('[LLMClient] Empty message for non-ignore action:', parsed.meta.recommendedAction);
+        console.error('[LLMClient] Empty message for non-silent action:', parsed.meta.recommendedAction);
         throw new Error('Empty message content for action that requires a response');
       }
       
@@ -236,6 +240,112 @@ export class LLMClient {
       if (error.message.includes('JSON')) {
         console.error('JSON parse error:', error.message);
         throw new Error(`Failed to parse LLM response as JSON: ${error.message}`);
+      }
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Generate action analysis for email (metadata only, no response message)
+   */
+  async generateActionAnalysis(prompt: string, options?: {
+    temperature?: number;
+    maxTokens?: number;
+    systemPrompt?: string;
+  }): Promise<ActionAnalysisResponse> {
+    try {
+      const jsonSystemPrompt = `${options?.systemPrompt || ''}\n\nIMPORTANT: You must respond with a valid JSON object only. Do not include any text before or after the JSON.`;
+      
+      const text = await this.generate(prompt, {
+        ...options,
+        systemPrompt: jsonSystemPrompt,
+        maxTokens: options?.maxTokens ?? 1000,
+      });
+      
+      // Log the raw response for debugging
+      console.log('[LLMClient] Action analysis raw response:', text.substring(0, 500) + '...');
+      
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('[LLMClient] No JSON found in action analysis response. Full response:', text);
+        throw new Error('No valid JSON found in action analysis response');
+      }
+      
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('[LLMClient] JSON parse error in action analysis:', parseError);
+        console.error('[LLMClient] Attempted to parse:', jsonMatch[0].substring(0, 500));
+        throw new Error(`Failed to parse action analysis JSON: ${parseError}`);
+      }
+      
+      // Validate structure
+      if (!parsed.meta) {
+        console.error('[LLMClient] Invalid action analysis structure. Expected {meta: {...}}, got:', JSON.stringify(parsed).substring(0, 500));
+        throw new Error('Invalid action analysis structure: missing meta field');
+      }
+      
+      return { meta: parsed.meta };
+    } catch (error: any) {
+      // If JSON parsing fails, throw a specific error
+      if (error.message.includes('JSON')) {
+        console.error('Action analysis JSON parse error:', error.message);
+        throw new Error(`Failed to parse action analysis response as JSON: ${error.message}`);
+      }
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Generate response message for email (with tone/style)
+   */
+  async generateResponseMessage(prompt: string, options?: {
+    temperature?: number;
+    maxTokens?: number;
+    systemPrompt?: string;
+  }): Promise<string> {
+    try {
+      const jsonSystemPrompt = `${options?.systemPrompt || ''}\n\nIMPORTANT: You must respond with a valid JSON object only. Do not include any text before or after the JSON.`;
+      
+      const text = await this.generate(prompt, {
+        ...options,
+        systemPrompt: jsonSystemPrompt,
+        maxTokens: options?.maxTokens ?? 2000,
+      });
+      
+      // Log the raw response for debugging
+      console.log('[LLMClient] Response generation raw response:', text.substring(0, 500) + '...');
+      
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('[LLMClient] No JSON found in response generation. Full response:', text);
+        throw new Error('No valid JSON found in response generation');
+      }
+      
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('[LLMClient] JSON parse error in response generation:', parseError);
+        console.error('[LLMClient] Attempted to parse:', jsonMatch[0].substring(0, 500));
+        throw new Error(`Failed to parse response generation JSON: ${parseError}`);
+      }
+      
+      // Validate structure
+      if (typeof parsed.message !== 'string') {
+        console.error('[LLMClient] Invalid response generation structure. Expected {message: "..."}, got:', JSON.stringify(parsed).substring(0, 500));
+        throw new Error('Invalid response generation structure: missing message field');
+      }
+      
+      return parsed.message;
+    } catch (error: any) {
+      // If JSON parsing fails, throw a specific error
+      if (error.message.includes('JSON')) {
+        console.error('Response generation JSON parse error:', error.message);
+        throw new Error(`Failed to parse response generation as JSON: ${error.message}`);
       }
       throw this.handleError(error);
     }

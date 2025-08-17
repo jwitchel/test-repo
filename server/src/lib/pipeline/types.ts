@@ -39,7 +39,6 @@ export interface GeneratedDraft {
   };
   examplesUsed: string[];
   metadata: {
-    promptTemplate: string;
     exampleCount: number;
     directCorrespondence?: number;
     timestamp: string;

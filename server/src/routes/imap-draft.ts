@@ -124,7 +124,7 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
     const actionRouter = new EmailActionRouter(folderPrefs);
     
     // Get the destination folder based on recommended action
-    const routeResult = actionRouter.getActionRoute(recommendedAction || 'reply');
+    const routeResult = actionRouter.getActionRoute(recommendedAction || 'reply-all');
     
     // Create IMAP operations instance
     const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
@@ -165,7 +165,7 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       success: true,
       message: `Email uploaded to ${routeResult.displayName}`,
       folder: routeResult.folder,
-      action: recommendedAction || 'reply'
+      action: recommendedAction || 'reply-all'
     });
   } catch (error) {
     console.error('Error uploading draft:', error);

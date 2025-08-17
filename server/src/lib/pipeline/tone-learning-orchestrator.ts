@@ -13,7 +13,6 @@ import chalk from 'chalk';
 export interface ToneLearningConfig {
   userId: string;
   maxExamples?: number;
-  templateName?: string;
   verbose?: boolean;
   userNames?: {
     name: string;
@@ -150,6 +149,9 @@ Email Details:
   
   /**
    * Generate a draft reply using learned tone
+   * Now uses a two-step process:
+   * 1. Action analysis to determine what to do
+   * 2. Response generation (if needed) with tone/style
    */
   async generateDraft(request: DraftGenerationRequest): Promise<GeneratedDraft> {
     const {
@@ -161,7 +163,6 @@ Email Details:
     const {
       userId,
       maxExamples = parseInt(process.env.EXAMPLE_COUNT || '25'),
-      templateName = 'default',
       verbose = false,
       userNames
     } = config;
@@ -259,22 +260,15 @@ Email Details:
       console.log(chalk.gray(`  Unique expressions: ${writingPatterns.uniqueExpressions.length}`));
     }
     
-    // Step 3: Format prompt with examples and patterns
+    // Step 3: Action Analysis (First LLM Call)
     if (verbose) {
-      console.log(chalk.blue('\n3️⃣ Formatting prompt...'));
-      if (enhancedProfile?.aggregatedStyle) {
-        console.log(chalk.gray(`  Using aggregated style from ${enhancedProfile.aggregatedStyle.emailCount} emails`));
-      }
+      console.log(chalk.blue('\n3️⃣ Analyzing email action...'));
     }
     
-    
-    const prompt = await this.promptFormatter.formatWithExamples({
+    // Format prompt for action analysis
+    const actionPrompt = await this.promptFormatter.formatActionAnalysis({
       incomingEmail: incomingEmail.userReply,
       recipientEmail,
-      examples: exampleSelection.examples,
-      relationship: exampleSelection.relationship,
-      relationshipProfile: enhancedProfile,
-      writingPatterns,
       userNames,
       incomingEmailMetadata: {
         from: incomingEmail.from,
@@ -285,30 +279,117 @@ Email Details:
       }
     });
     
-    if (verbose) {
-      console.log(chalk.gray(`  Template: ${templateName}`));
-      console.log(chalk.gray(`  Prompt length: ${prompt.length} characters`));
-    }
-    
-    // Step 4: Generate draft using LLM
-    if (verbose) {
-      console.log(chalk.blue('\n4️⃣ Generating draft...'));
-    }
-    
     // Use the pattern analyzer's LLM client
     if (!this.patternAnalyzer['llmClient']) {
       throw new Error('LLM client not initialized. Please configure an LLM provider.');
     }
     
-    // Generate the draft using the LLM with structured response
-    const structuredResponse = await this.patternAnalyzer['llmClient'].generateStructured(prompt);
+    // Debug log the action analysis prompt
+    console.log(chalk.yellow('\n🔍 ACTION ANALYSIS PROMPT:'));
+    console.log(chalk.gray('─'.repeat(80)));
+    console.log(actionPrompt);
+    console.log(chalk.gray('─'.repeat(80)));
+    
+    // Perform action analysis with retry logic
+    const maxRetries = parseInt(process.env.LLM_ACTION_RETRIES || '1');
+    let actionAnalysis;
+    let retryCount = 0;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        actionAnalysis = await this.patternAnalyzer['llmClient'].generateActionAnalysis(actionPrompt);
+        break; // Success, exit loop
+      } catch (error: any) {
+        if (error.message?.includes('JSON') && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[ToneLearning] Action analysis failed, retrying (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+          continue;
+        }
+        throw error;
+      }
+    }
+    
+    if (!actionAnalysis) {
+      throw new Error('Failed to analyze email action after retries');
+    }
     
     if (verbose) {
-      console.log(chalk.green('  ✓ Draft generated successfully'));
-      console.log(chalk.gray(`  Message length: ${structuredResponse.message.length} characters`));
-      console.log(chalk.gray(`  Inbound message addressed to: ${structuredResponse.meta.inboundMsgAddressedTo}`));
-      console.log(chalk.gray(`  Recommended action: ${structuredResponse.meta.recommendedAction}`));
+      console.log(chalk.green('  ✓ Action analysis complete'));
+      console.log(chalk.gray(`  Inbound message addressed to: ${actionAnalysis.meta.inboundMsgAddressedTo}`));
+      console.log(chalk.gray(`  Recommended action: ${actionAnalysis.meta.recommendedAction}`));
     }
+    
+    // Check if we need to generate a response
+    const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
+    const needsResponse = !ignoreActions.includes(actionAnalysis.meta.recommendedAction);
+    
+    let responseMessage = '';
+    let responsePrompt = '';
+    
+    if (needsResponse) {
+      // Step 4: Response Generation (Second LLM Call)
+      if (verbose) {
+        console.log(chalk.blue('\n4️⃣ Generating response with tone and style...'));
+        if (enhancedProfile?.aggregatedStyle) {
+          console.log(chalk.gray(`  Using aggregated style from ${enhancedProfile.aggregatedStyle.emailCount} emails`));
+        }
+      }
+      
+      // Format prompt for response generation
+      responsePrompt = await this.promptFormatter.formatResponseGeneration({
+        incomingEmail: incomingEmail.userReply,
+        recipientEmail,
+        examples: exampleSelection.examples,
+        relationship: exampleSelection.relationship,
+        relationshipProfile: enhancedProfile,
+        writingPatterns,
+        userNames,
+        incomingEmailMetadata: {
+          from: incomingEmail.from,
+          to: incomingEmail.to,
+          cc: incomingEmail.cc,
+          subject: incomingEmail.subject,
+          date: incomingEmail.date
+        },
+        actionMeta: actionAnalysis.meta
+      });
+      
+      // Generate response with retry logic
+      retryCount = 0;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          responseMessage = await this.patternAnalyzer['llmClient'].generateResponseMessage(responsePrompt);
+          break; // Success, exit loop
+        } catch (error: any) {
+          if (error.message?.includes('JSON') && retryCount < maxRetries) {
+            retryCount++;
+            console.log(`[ToneLearning] Response generation failed, retrying (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+            continue;
+          }
+          throw error;
+        }
+      }
+      
+      if (responseMessage === undefined) {
+        throw new Error('Failed to generate response after retries');
+      }
+      
+      if (verbose) {
+        console.log(chalk.green('  ✓ Response generated successfully'));
+        console.log(chalk.gray(`  Message length: ${responseMessage.length} characters`));
+      }
+    } else {
+      if (verbose) {
+        console.log(chalk.yellow('\n⏭️  Skipping response generation (silent action)'));
+      }
+    }
+    
+    // Combine the results
+    const structuredResponse = {
+      meta: actionAnalysis.meta,
+      message: responseMessage
+    };
     
     // Override relationship to 'external' for spam emails
     let finalRelationship = {
@@ -317,7 +398,7 @@ Email Details:
       detectionMethod: detectedRelationship.method
     };
     
-    if (structuredResponse.meta.recommendedAction === 'ignore-spam') {
+    if (structuredResponse.meta.recommendedAction === 'silent-spam') {
       finalRelationship = {
         type: 'external',
         confidence: 0.9,
@@ -336,7 +417,6 @@ Email Details:
       relationship: finalRelationship,
       examplesUsed: exampleSelection.examples.map(e => e.id),
       metadata: {
-        promptTemplate: templateName,
         exampleCount: exampleSelection.examples.length,
         directCorrespondence: exampleSelection.stats.directCorrespondence,
         timestamp: new Date().toISOString()
@@ -346,10 +426,21 @@ Email Details:
     
     if (verbose) {
       console.log(chalk.green('\n✅ Draft generated successfully!\n'));
-      console.log(chalk.bold('Generated Prompt:'));
-      console.log(chalk.gray('─'.repeat(80)));
-      console.log(prompt);
-      console.log(chalk.gray('─'.repeat(80)));
+      if (needsResponse) {
+        console.log(chalk.bold('Action Analysis Prompt:'));
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(actionPrompt.substring(0, 1000) + '...');
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(chalk.bold('\nResponse Generation Prompt:'));
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(responsePrompt.substring(0, 1000) + '...');
+        console.log(chalk.gray('─'.repeat(80)));
+      } else {
+        console.log(chalk.bold('Action Analysis Prompt:'));
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(actionPrompt.substring(0, 1000) + '...');
+        console.log(chalk.gray('─'.repeat(80)));
+      }
     }
     
     return draft;

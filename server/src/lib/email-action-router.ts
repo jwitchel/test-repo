@@ -48,16 +48,16 @@ export class EmailActionRouter {
           displayName: this.folderPrefs.draftsFolder
         };
 
-      case 'ignore-fyi-only':
-      case 'ignore-large-list':
-      case 'ignore-unsubscribe':
+      case 'silent-fyi-only':
+      case 'silent-large-list':
+      case 'silent-unsubscribe':
         return {
           folder: `${rootPath}${this.folderPrefs.noActionFolder}`,
           flags: ['\\Seen'],
           displayName: this.folderPrefs.noActionFolder
         };
 
-      case 'ignore-spam':
+      case 'silent-spam':
         return {
           folder: `${rootPath}${this.folderPrefs.spamFolder}`,
           flags: ['\\Seen'],
@@ -163,13 +163,13 @@ export class EmailActionRouter {
         return 'Forward to someone';
       case 'forward-with-comment':
         return 'Forward with your comments';
-      case 'ignore-fyi-only':
+      case 'silent-fyi-only':
         return 'FYI only - no action needed';
-      case 'ignore-large-list':
-        return 'Large distribution list - ignore';
-      case 'ignore-unsubscribe':
+      case 'silent-large-list':
+        return 'Large distribution list - silent';
+      case 'silent-unsubscribe':
         return 'Unsubscribe candidate';
-      case 'ignore-spam':
+      case 'silent-spam':
         return 'Spam - move to spam folder';
       default:
         return 'Unknown action';

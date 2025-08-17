@@ -44,7 +44,7 @@ export class PromptFormatterV2 {
     defaultTemplate?: string;
   }) {
     this.templateManager = new TemplateManager(options?.templateDir);
-    this.defaultTemplate = options?.defaultTemplate || process.env.PROMPT_TEMPLATE || 'default-json';
+    this.defaultTemplate = options?.defaultTemplate || process.env.PROMPT_TEMPLATE || 'default';
   }
 
   async initialize() {
@@ -102,9 +102,33 @@ export class PromptFormatterV2 {
     return this.templateManager.renderPrompt('verbose', templateData);
   }
 
+  // Format action analysis prompt (no tone/style needed)
+  async formatActionAnalysis(params: Partial<PromptFormatterParams>): Promise<string> {
+    await this.initialize();
+    const templateData = this.templateManager.prepareTemplateData({
+      incomingEmail: params.incomingEmail || '',
+      recipientEmail: params.recipientEmail || '',
+      relationship: 'unknown', // Not needed for action analysis
+      examples: [], // No examples needed for action analysis
+      userNames: params.userNames,
+      incomingEmailMetadata: params.incomingEmailMetadata
+    });
+    return this.templateManager.renderPrompt('action-analysis', templateData);
+  }
+
+  // Format response generation prompt (with tone/style)
+  async formatResponseGeneration(params: PromptFormatterParams & { actionMeta: any }): Promise<string> {
+    await this.initialize();
+    const templateData = {
+      ...this.templateManager.prepareTemplateData(params),
+      actionMeta: params.actionMeta
+    };
+    return this.templateManager.renderPrompt('response-generation', templateData);
+  }
+
   // Get available templates
   getAvailableTemplates(): string[] {
     // In a real implementation, this would scan the template directory
-    return ['default', 'verbose'];
+    return ['default', 'verbose', 'action-analysis', 'response-generation'];
   }
 }

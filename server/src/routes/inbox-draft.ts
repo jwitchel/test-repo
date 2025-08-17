@@ -356,7 +356,6 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
           recipientEmail: fromAddress,
           config: {
             userId,
-            templateName: 'default-json',
             userNames
           }
         });
@@ -397,15 +396,15 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       throw new Error('Failed to generate draft after retries');
     }
     
-    // Check if this is an ignore action
-    const ignoreActions = ['ignore-fyi-only', 'ignore-large-list', 'ignore-unsubscribe', 'ignore-spam'];
+    // Check if this is an silent action
+    const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
     const isIgnoreAction = draft.meta && ignoreActions.includes(draft.meta.recommendedAction);
     
     let formattedReply: { text: string; html?: string } = { text: '', html: undefined };
     let replySubject = subject;
     
     if (!isIgnoreAction) {
-      // Only format as reply for non-ignore actions
+      // Only format as reply for non-silent actions
       // Get typed name signature and signature block from user result we already fetched
       let typedNameSignature = '';
       let signatureBlock = '';

@@ -66,8 +66,8 @@ interface GeneratedDraft {
   references: string;
   meta?: {
     inboundMsgAddressedTo: 'you' | 'group' | 'someone-else';
-    recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'ignore-fyi-only' | 'ignore-large-list' | 'ignore-unsubscribe' | 'ignore-spam';
-    inboundMsgIsRequesting: string;
+    recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'silent-fyi-only' | 'silent-large-list' | 'silent-unsubscribe' | 'silent-spam';
+    inboundMsgIsRequesting: string | string[];
     keyConsiderations: string[];
     urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
     contextFlags: {
@@ -133,16 +133,16 @@ export default function InboxPage() {
           buttonLabel: 'Send to Drafts'
         };
       
-      case 'ignore-fyi-only':
-      case 'ignore-large-list':
-      case 'ignore-unsubscribe':
+      case 'silent-fyi-only':
+      case 'silent-large-list':
+      case 'silent-unsubscribe':
         return {
           folder: `${rootPath}${prefs.noActionFolder}`,
           displayName: prefs.noActionFolder,
           buttonLabel: 'File as No Action'
         };
       
-      case 'ignore-spam':
+      case 'silent-spam':
         return {
           folder: `${rootPath}${prefs.spamFolder}`,
           displayName: prefs.spamFolder,
@@ -373,10 +373,10 @@ export default function InboxPage() {
     
     try {
       const recommendedAction = generatedDraft.meta?.recommendedAction;
-      const ignoreActions = ['ignore-fyi-only', 'ignore-large-list', 'ignore-unsubscribe', 'ignore-spam'];
+      const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
       
       if (ignoreActions.includes(recommendedAction || '')) {
-        // For ignore actions, move the original email
+        // For silent actions, move the original email
         await apiPost('/api/imap-draft/move-email', {
           emailAccountId: selectedAccount,
           rawMessage: currentMessage.rawMessage,
@@ -724,7 +724,7 @@ export default function InboxPage() {
                         <div>
                           <div className="text-sm font-medium text-muted-foreground mb-1">Recommended Action</div>
                           <Badge variant={
-                            generatedDraft.meta.recommendedAction.startsWith('ignore') ? 'secondary' :
+                            generatedDraft.meta.recommendedAction.startsWith('silent') ? 'secondary' :
                             generatedDraft.meta.recommendedAction.includes('forward') ? 'outline' : 'default'
                           }>
                             {generatedDraft.meta.recommendedAction}
@@ -749,9 +749,19 @@ export default function InboxPage() {
                       <div className="space-y-3">
                         <div>
                           <div className="text-sm font-medium text-muted-foreground mb-1">Inbound Message Is Requesting</div>
-                          <Badge variant="secondary">
-                            {generatedDraft.meta.inboundMsgIsRequesting}
-                          </Badge>
+                          <div className="flex flex-wrap gap-1">
+                            {Array.isArray(generatedDraft.meta.inboundMsgIsRequesting) ? (
+                              generatedDraft.meta.inboundMsgIsRequesting.map((request, idx) => (
+                                <Badge key={idx} variant="secondary">
+                                  {request}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge variant="secondary">
+                                {generatedDraft.meta.inboundMsgIsRequesting}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         
                         <div>
