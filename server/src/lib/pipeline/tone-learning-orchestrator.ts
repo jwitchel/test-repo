@@ -260,13 +260,18 @@ Email Details:
       console.log(chalk.gray(`  Unique expressions: ${writingPatterns.uniqueExpressions.length}`));
     }
     
-    // Step 3: Action Analysis (First LLM Call)
+    // Declare prompts at wider scope
+    let metaContextPrompt = '';
+    let actionPrompt = '';
+    let responsePrompt = '';
+    
+    // Step 3: Meta-Context Analysis (First LLM Call)
     if (verbose) {
-      console.log(chalk.blue('\n3️⃣ Analyzing email action...'));
+      console.log(chalk.blue('\n3️⃣ Analyzing email meta-context...'));
     }
     
-    // Format prompt for action analysis
-    const actionPrompt = await this.promptFormatter.formatActionAnalysis({
+    // Format prompt for meta-context analysis
+    metaContextPrompt = await this.promptFormatter.formatMetaContextAnalysis({
       incomingEmail: incomingEmail.userReply,
       recipientEmail,
       userNames,
@@ -284,16 +289,71 @@ Email Details:
       throw new Error('LLM client not initialized. Please configure an LLM provider.');
     }
     
+    // Debug log the meta-context analysis prompt
+    console.log(chalk.yellow('\n🔍 META-CONTEXT ANALYSIS PROMPT:'));
+    console.log(chalk.gray('─'.repeat(80)));
+    console.log(metaContextPrompt);
+    console.log(chalk.gray('─'.repeat(80)));
+    
+    // Perform meta-context analysis with retry logic
+    const maxRetries = parseInt(process.env.LLM_ACTION_RETRIES || '1');
+    let metaContextAnalysis;
+    let retryCount = 0;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        metaContextAnalysis = await this.patternAnalyzer['llmClient'].generateMetaContextAnalysis(metaContextPrompt);
+        break; // Success, exit loop
+      } catch (error: any) {
+        if (error.message?.includes('JSON') && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[ToneLearning] Meta-context analysis failed, retrying (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+          continue;
+        }
+        throw error;
+      }
+    }
+    
+    if (!metaContextAnalysis) {
+      throw new Error('Failed to analyze email meta-context after retries');
+    }
+    
+    if (verbose) {
+      console.log(chalk.green('  ✓ Meta-context analysis complete'));
+      console.log(chalk.gray(`  Addressed to: ${metaContextAnalysis.meta.inboundMsgAddressedTo}`));
+      console.log(chalk.gray(`  Urgency level: ${metaContextAnalysis.meta.urgencyLevel}`));
+      console.log(chalk.gray(`  Request type: ${metaContextAnalysis.meta.inboundMsgIsRequesting}`));
+      console.log(chalk.gray(`  Is threaded: ${metaContextAnalysis.meta.contextFlags.isThreaded}`));
+    }
+    
+    // Step 4: Action Analysis (Second LLM Call)
+    if (verbose) {
+      console.log(chalk.blue('\n4️⃣ Determining email action...'));
+    }
+    
+    // Format prompt for action analysis
+    actionPrompt = await this.promptFormatter.formatActionAnalysis({
+      incomingEmail: incomingEmail.userReply,
+      recipientEmail,
+      userNames,
+      incomingEmailMetadata: {
+        from: incomingEmail.from,
+        to: incomingEmail.to,
+        cc: incomingEmail.cc,
+        subject: incomingEmail.subject,
+        date: incomingEmail.date
+      }
+    });
+    
     // Debug log the action analysis prompt
-    console.log(chalk.yellow('\n🔍 ACTION ANALYSIS PROMPT:'));
+    console.log(chalk.yellow('\n🎯 ACTION ANALYSIS PROMPT:'));
     console.log(chalk.gray('─'.repeat(80)));
     console.log(actionPrompt);
     console.log(chalk.gray('─'.repeat(80)));
     
     // Perform action analysis with retry logic
-    const maxRetries = parseInt(process.env.LLM_ACTION_RETRIES || '1');
     let actionAnalysis;
-    let retryCount = 0;
+    retryCount = 0;
     
     while (retryCount <= maxRetries) {
       try {
@@ -315,21 +375,26 @@ Email Details:
     
     if (verbose) {
       console.log(chalk.green('  ✓ Action analysis complete'));
-      console.log(chalk.gray(`  Inbound message addressed to: ${actionAnalysis.meta.inboundMsgAddressedTo}`));
       console.log(chalk.gray(`  Recommended action: ${actionAnalysis.meta.recommendedAction}`));
+      console.log(chalk.gray(`  Key considerations: ${actionAnalysis.meta.keyConsiderations.length} items`));
     }
+    
+    // Combine meta-context and action into full metadata (for backward compatibility)
+    const combinedMeta = {
+      ...metaContextAnalysis.meta,
+      ...actionAnalysis.meta
+    };
     
     // Check if we need to generate a response
     const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
-    const needsResponse = !ignoreActions.includes(actionAnalysis.meta.recommendedAction);
+    const needsResponse = !ignoreActions.includes(combinedMeta.recommendedAction);
     
     let responseMessage = '';
-    let responsePrompt = '';
     
     if (needsResponse) {
-      // Step 4: Response Generation (Second LLM Call)
+      // Step 5: Response Generation (Third LLM Call)
       if (verbose) {
-        console.log(chalk.blue('\n4️⃣ Generating response with tone and style...'));
+        console.log(chalk.blue('\n5️⃣ Generating response with tone and style...'));
         if (enhancedProfile?.aggregatedStyle) {
           console.log(chalk.gray(`  Using aggregated style from ${enhancedProfile.aggregatedStyle.emailCount} emails`));
         }
@@ -351,7 +416,7 @@ Email Details:
           subject: incomingEmail.subject,
           date: incomingEmail.date
         },
-        actionMeta: actionAnalysis.meta
+        actionMeta: combinedMeta
       });
       
       // Generate response with retry logic
@@ -387,7 +452,7 @@ Email Details:
     
     // Combine the results
     const structuredResponse = {
-      meta: actionAnalysis.meta,
+      meta: combinedMeta,
       message: responseMessage
     };
     
@@ -398,7 +463,7 @@ Email Details:
       detectionMethod: detectedRelationship.method
     };
     
-    if (structuredResponse.meta.recommendedAction === 'silent-spam') {
+    if (combinedMeta.recommendedAction === 'silent-spam') {
       finalRelationship = {
         type: 'external',
         confidence: 0.9,
@@ -427,18 +492,26 @@ Email Details:
     if (verbose) {
       console.log(chalk.green('\n✅ Draft generated successfully!\n'));
       if (needsResponse) {
-        console.log(chalk.bold('Action Analysis Prompt:'));
+        console.log(chalk.bold('Meta-Context Analysis Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(actionPrompt.substring(0, 1000) + '...');
+        console.log(metaContextPrompt.substring(0, 500) + '...');
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(chalk.bold('\nAction Analysis Prompt:'));
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(actionPrompt.substring(0, 500) + '...');
         console.log(chalk.gray('─'.repeat(80)));
         console.log(chalk.bold('\nResponse Generation Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(responsePrompt.substring(0, 1000) + '...');
+        console.log(responsePrompt.substring(0, 500) + '...');
         console.log(chalk.gray('─'.repeat(80)));
       } else {
-        console.log(chalk.bold('Action Analysis Prompt:'));
+        console.log(chalk.bold('Meta-Context Analysis Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(actionPrompt.substring(0, 1000) + '...');
+        console.log(metaContextPrompt.substring(0, 500) + '...');
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(chalk.bold('\nAction Analysis Prompt:'));
+        console.log(chalk.gray('─'.repeat(80)));
+        console.log(actionPrompt.substring(0, 500) + '...');
         console.log(chalk.gray('─'.repeat(80)));
       }
     }

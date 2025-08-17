@@ -102,6 +102,20 @@ export class PromptFormatterV2 {
     return this.templateManager.renderPrompt('verbose', templateData);
   }
 
+  // Format meta-context analysis prompt
+  async formatMetaContextAnalysis(params: Partial<PromptFormatterParams>): Promise<string> {
+    await this.initialize();
+    const templateData = this.templateManager.prepareTemplateData({
+      incomingEmail: params.incomingEmail || '',
+      recipientEmail: params.recipientEmail || '',
+      relationship: 'unknown', // Not needed for meta-context analysis
+      examples: [], // No examples needed for meta-context analysis
+      userNames: params.userNames,
+      incomingEmailMetadata: params.incomingEmailMetadata
+    });
+    return this.templateManager.renderPrompt('meta-context-analysis', templateData);
+  }
+
   // Format action analysis prompt (no tone/style needed)
   async formatActionAnalysis(params: Partial<PromptFormatterParams>): Promise<string> {
     await this.initialize();
@@ -129,6 +143,6 @@ export class PromptFormatterV2 {
   // Get available templates
   getAvailableTemplates(): string[] {
     // In a real implementation, this would scan the template directory
-    return ['default', 'verbose', 'action-analysis', 'response-generation'];
+    return ['default', 'verbose', 'meta-context-analysis', 'action-analysis', 'response-generation'];
   }
 }

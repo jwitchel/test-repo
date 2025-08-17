@@ -15,11 +15,9 @@ export interface PipelineOutput {
   enhancedProfile: any;
 }
 
-export interface LLMMetadata {
+export interface MetaContext {
   inboundMsgAddressedTo: 'you' | 'group' | 'someone-else';
-  recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'silent-fyi-only' | 'silent-large-list' | 'silent-unsubscribe' | 'silent-spam' | 'unknown';
   inboundMsgIsRequesting: 'meeting-request' | 'answer-questions' | 'acknowledge-receipt' | 'acknowledge-emotional' | 'request-for-info' | 'fyi-only' | 'task-assignment' | 'approval-needed' | 'none';
-  keyConsiderations: string[];
   urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
   contextFlags: {
     isThreaded: boolean;
@@ -28,13 +26,24 @@ export interface LLMMetadata {
   };
 }
 
+export interface ActionData {
+  recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'silent-fyi-only' | 'silent-large-list' | 'silent-unsubscribe' | 'silent-spam' | 'unknown';
+  keyConsiderations: string[];
+}
+
+export interface LLMMetadata extends MetaContext, ActionData {}
+
 export interface StructuredLLMResponse {
   meta: LLMMetadata;
   message: string;
 }
 
+export interface MetaContextAnalysisResponse {
+  meta: MetaContext;
+}
+
 export interface ActionAnalysisResponse {
-  meta: LLMMetadata;
+  meta: ActionData;
 }
 
 export class LLMClient {
@@ -246,7 +255,60 @@ export class LLMClient {
   }
 
   /**
-   * Generate action analysis for email (metadata only, no response message)
+   * Generate meta-context analysis for email (urgency, request type, context flags)
+   */
+  async generateMetaContextAnalysis(prompt: string, options?: {
+    temperature?: number;
+    maxTokens?: number;
+    systemPrompt?: string;
+  }): Promise<MetaContextAnalysisResponse> {
+    try {
+      const jsonSystemPrompt = `${options?.systemPrompt || ''}\n\nIMPORTANT: You must respond with a valid JSON object only. Do not include any text before or after the JSON.`;
+      
+      const text = await this.generate(prompt, {
+        ...options,
+        systemPrompt: jsonSystemPrompt,
+        maxTokens: options?.maxTokens ?? 500,
+      });
+      
+      // Log the raw response for debugging
+      console.log('[LLMClient] Meta-context analysis raw response:', text.substring(0, 500) + '...');
+      
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('[LLMClient] No JSON found in meta-context analysis response. Full response:', text);
+        throw new Error('No valid JSON found in meta-context analysis response');
+      }
+      
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('[LLMClient] JSON parse error in meta-context analysis:', parseError);
+        console.error('[LLMClient] Attempted to parse:', jsonMatch[0].substring(0, 500));
+        throw new Error(`Failed to parse meta-context analysis JSON: ${parseError}`);
+      }
+      
+      // Validate structure
+      if (!parsed.meta) {
+        console.error('[LLMClient] Invalid meta-context analysis structure. Expected {meta: {...}}, got:', JSON.stringify(parsed).substring(0, 500));
+        throw new Error('Invalid meta-context analysis structure: missing meta field');
+      }
+      
+      return { meta: parsed.meta };
+    } catch (error: any) {
+      // If JSON parsing fails, throw a specific error
+      if (error.message.includes('JSON')) {
+        console.error('Meta-context analysis JSON parse error:', error.message);
+        throw new Error(`Failed to parse meta-context analysis response as JSON: ${error.message}`);
+      }
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Generate action analysis for email (what action to take)
    */
   async generateActionAnalysis(prompt: string, options?: {
     temperature?: number;
