@@ -323,7 +323,8 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       textContent: emailBody,
       htmlContent: parsed.html || null,
       userReply: emailBody,  // For incoming emails, this is what we're analyzing
-      respondedTo: ''  // Empty since this is the original email
+      respondedTo: '',  // Empty since this is the original email
+      rawMessage: rawMessage  // Include raw RFC 5322 message for spam check
     };
     
     // Get user's preferences including name and typed name first

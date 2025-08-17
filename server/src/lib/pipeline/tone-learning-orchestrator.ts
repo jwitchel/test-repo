@@ -261,13 +261,124 @@ Email Details:
     }
     
     // Declare prompts at wider scope
+    let spamCheckPrompt = '';
     let metaContextPrompt = '';
     let actionPrompt = '';
     let responsePrompt = '';
     
-    // Step 3: Meta-Context Analysis (First LLM Call)
+    // Retry logic configuration
+    const maxRetries = parseInt(process.env.LLM_ACTION_RETRIES || '1');
+    let retryCount = 0;
+    
+    // Step 3: Spam Check (First LLM Call - if we have raw message)
+    let isSpam = false;
+    let spamIndicators: string[] = [];
+    
+    if (incomingEmail.rawMessage) {
+      if (verbose) {
+        console.log(chalk.blue('\n3️⃣ Checking for spam...'));
+      }
+      
+      // Format prompt for spam check
+      spamCheckPrompt = await this.promptFormatter.formatSpamCheck({
+        rawEmail: incomingEmail.rawMessage,
+        userNames
+      });
+      
+      // Use the pattern analyzer's LLM client
+      if (!this.patternAnalyzer['llmClient']) {
+        throw new Error('LLM client not initialized. Please configure an LLM provider.');
+      }
+      
+      // Debug log the spam check prompt
+      console.log(chalk.yellow('\n🚫 SPAM CHECK PROMPT:'));
+      console.log(chalk.gray('─'.repeat(80)));
+      console.log(spamCheckPrompt.substring(0, 500) + '...');
+      console.log(chalk.gray('─'.repeat(80)));
+      
+      // Perform spam check with retry logic
+      let spamCheckResult;
+      retryCount = 0;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          spamCheckResult = await this.patternAnalyzer['llmClient'].generateSpamCheck(spamCheckPrompt);
+          break; // Success, exit loop
+        } catch (error: any) {
+          if (error.message?.includes('JSON') && retryCount < maxRetries) {
+            retryCount++;
+            console.log(`[ToneLearning] Spam check failed, retrying (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+            continue;
+          }
+          throw error;
+        }
+      }
+      
+      if (!spamCheckResult) {
+        throw new Error('Failed to check for spam after retries');
+      }
+      
+      isSpam = spamCheckResult.meta.isSpam;
+      spamIndicators = spamCheckResult.meta.spamIndicators || [];
+      
+      if (verbose) {
+        console.log(chalk.green('  ✓ Spam check complete'));
+        console.log(chalk.gray(`  Is spam: ${isSpam}`));
+        if (spamIndicators.length > 0) {
+          console.log(chalk.gray(`  Spam indicators: ${spamIndicators.join(', ')}`));
+        }
+      }
+      
+      // If it's spam, return early with silent-spam action
+      if (isSpam) {
+        const draft: GeneratedDraft = {
+          id: `draft-${Date.now()}`,
+          userId,
+          incomingEmailId: incomingEmail.uid,
+          recipientEmail,
+          subject: `Re: ${incomingEmail.subject}`,
+          body: '',
+          meta: {
+            inboundMsgAddressedTo: 'you',
+            inboundMsgIsRequesting: 'none',
+            urgencyLevel: 'low',
+            contextFlags: {
+              isThreaded: false,
+              hasAttachments: false,
+              isGroupEmail: false
+            },
+            recommendedAction: 'silent-spam',
+            keyConsiderations: spamIndicators
+          },
+          relationship: {
+            type: 'external',
+            confidence: 0.9,
+            detectionMethod: 'spam-override'
+          },
+          examplesUsed: [],
+          metadata: {
+            exampleCount: 0,
+            directCorrespondence: 0,
+            timestamp: new Date().toISOString()
+          },
+          createdAt: new Date()
+        };
+        
+        if (verbose) {
+          console.log(chalk.red('\n⛔ Email identified as spam. Skipping further processing.\n'));
+        }
+        
+        return draft;
+      }
+    } else {
+      if (verbose) {
+        console.log(chalk.yellow('\n⚠️  No raw message available for spam check, skipping...'));
+      }
+    }
+    
+    // Step 4: Meta-Context Analysis (Second LLM Call)
     if (verbose) {
-      console.log(chalk.blue('\n3️⃣ Analyzing email meta-context...'));
+      console.log(chalk.blue('\n4️⃣ Analyzing email meta-context...'));
     }
     
     // Format prompt for meta-context analysis
@@ -296,9 +407,8 @@ Email Details:
     console.log(chalk.gray('─'.repeat(80)));
     
     // Perform meta-context analysis with retry logic
-    const maxRetries = parseInt(process.env.LLM_ACTION_RETRIES || '1');
     let metaContextAnalysis;
-    let retryCount = 0;
+    retryCount = 0;
     
     while (retryCount <= maxRetries) {
       try {
@@ -326,9 +436,9 @@ Email Details:
       console.log(chalk.gray(`  Is threaded: ${metaContextAnalysis.meta.contextFlags.isThreaded}`));
     }
     
-    // Step 4: Action Analysis (Second LLM Call)
+    // Step 5: Action Analysis (Third LLM Call)
     if (verbose) {
-      console.log(chalk.blue('\n4️⃣ Determining email action...'));
+      console.log(chalk.blue('\n5️⃣ Determining email action...'));
     }
     
     // Format prompt for action analysis
@@ -392,9 +502,9 @@ Email Details:
     let responseMessage = '';
     
     if (needsResponse) {
-      // Step 5: Response Generation (Third LLM Call)
+      // Step 6: Response Generation (Fourth LLM Call)
       if (verbose) {
-        console.log(chalk.blue('\n5️⃣ Generating response with tone and style...'));
+        console.log(chalk.blue('\n6️⃣ Generating response with tone and style...'));
         if (enhancedProfile?.aggregatedStyle) {
           console.log(chalk.gray(`  Using aggregated style from ${enhancedProfile.aggregatedStyle.emailCount} emails`));
         }
@@ -492,26 +602,38 @@ Email Details:
     if (verbose) {
       console.log(chalk.green('\n✅ Draft generated successfully!\n'));
       if (needsResponse) {
-        console.log(chalk.bold('Meta-Context Analysis Prompt:'));
+        if (spamCheckPrompt) {
+          console.log(chalk.bold('Spam Check Prompt:'));
+          console.log(chalk.gray('─'.repeat(80)));
+          console.log(spamCheckPrompt.substring(0, 300) + '...');
+          console.log(chalk.gray('─'.repeat(80)));
+        }
+        console.log(chalk.bold('\nMeta-Context Analysis Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(metaContextPrompt.substring(0, 500) + '...');
+        console.log(metaContextPrompt.substring(0, 400) + '...');
         console.log(chalk.gray('─'.repeat(80)));
         console.log(chalk.bold('\nAction Analysis Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(actionPrompt.substring(0, 500) + '...');
+        console.log(actionPrompt.substring(0, 400) + '...');
         console.log(chalk.gray('─'.repeat(80)));
         console.log(chalk.bold('\nResponse Generation Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(responsePrompt.substring(0, 500) + '...');
+        console.log(responsePrompt.substring(0, 400) + '...');
         console.log(chalk.gray('─'.repeat(80)));
       } else {
-        console.log(chalk.bold('Meta-Context Analysis Prompt:'));
+        if (spamCheckPrompt) {
+          console.log(chalk.bold('Spam Check Prompt:'));
+          console.log(chalk.gray('─'.repeat(80)));
+          console.log(spamCheckPrompt.substring(0, 300) + '...');
+          console.log(chalk.gray('─'.repeat(80)));
+        }
+        console.log(chalk.bold('\nMeta-Context Analysis Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(metaContextPrompt.substring(0, 500) + '...');
+        console.log(metaContextPrompt.substring(0, 400) + '...');
         console.log(chalk.gray('─'.repeat(80)));
         console.log(chalk.bold('\nAction Analysis Prompt:'));
         console.log(chalk.gray('─'.repeat(80)));
-        console.log(actionPrompt.substring(0, 500) + '...');
+        console.log(actionPrompt.substring(0, 400) + '...');
         console.log(chalk.gray('─'.repeat(80)));
       }
     }

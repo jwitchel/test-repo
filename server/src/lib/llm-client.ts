@@ -38,6 +38,13 @@ export interface StructuredLLMResponse {
   message: string;
 }
 
+export interface SpamCheckResponse {
+  meta: {
+    isSpam: boolean;
+    spamIndicators: string[];
+  };
+}
+
 export interface MetaContextAnalysisResponse {
   meta: MetaContext;
 }
@@ -249,6 +256,59 @@ export class LLMClient {
       if (error.message.includes('JSON')) {
         console.error('JSON parse error:', error.message);
         throw new Error(`Failed to parse LLM response as JSON: ${error.message}`);
+      }
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Generate spam check for email (analyze if email is spam)
+   */
+  async generateSpamCheck(prompt: string, options?: {
+    temperature?: number;
+    maxTokens?: number;
+    systemPrompt?: string;
+  }): Promise<SpamCheckResponse> {
+    try {
+      const jsonSystemPrompt = `${options?.systemPrompt || ''}\n\nIMPORTANT: You must respond with a valid JSON object only. Do not include any text before or after the JSON.`;
+      
+      const text = await this.generate(prompt, {
+        ...options,
+        systemPrompt: jsonSystemPrompt,
+        maxTokens: options?.maxTokens ?? 300,
+      });
+      
+      // Log the raw response for debugging
+      console.log('[LLMClient] Spam check raw response:', text.substring(0, 500) + '...');
+      
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('[LLMClient] No JSON found in spam check response. Full response:', text);
+        throw new Error('No valid JSON found in spam check response');
+      }
+      
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('[LLMClient] JSON parse error in spam check:', parseError);
+        console.error('[LLMClient] Attempted to parse:', jsonMatch[0].substring(0, 500));
+        throw new Error(`Failed to parse spam check JSON: ${parseError}`);
+      }
+      
+      // Validate structure
+      if (!parsed.meta || typeof parsed.meta.isSpam !== 'boolean') {
+        console.error('[LLMClient] Invalid spam check structure. Expected {meta: {isSpam: boolean, ...}}, got:', JSON.stringify(parsed).substring(0, 500));
+        throw new Error('Invalid spam check structure: missing meta.isSpam field');
+      }
+      
+      return { meta: parsed.meta };
+    } catch (error: any) {
+      // If JSON parsing fails, throw a specific error
+      if (error.message.includes('JSON')) {
+        console.error('Spam check JSON parse error:', error.message);
+        throw new Error(`Failed to parse spam check response as JSON: ${error.message}`);
       }
       throw this.handleError(error);
     }

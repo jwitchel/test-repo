@@ -102,6 +102,24 @@ export class PromptFormatterV2 {
     return this.templateManager.renderPrompt('verbose', templateData);
   }
 
+  // Format spam check prompt
+  async formatSpamCheck(params: {
+    rawEmail: string;
+    userNames?: {
+      name: string;
+      nicknames?: string;
+    };
+  }): Promise<string> {
+    await this.initialize();
+    // For spam check, we need to bypass prepareTemplateData since it expects different fields
+    // We'll directly load and render the template
+    const template = await this.templateManager['loadTemplate']('spam-check', 'prompt');
+    return template({
+      rawEmail: params.rawEmail,
+      userNames: params.userNames || { name: 'User' }
+    });
+  }
+
   // Format meta-context analysis prompt
   async formatMetaContextAnalysis(params: Partial<PromptFormatterParams>): Promise<string> {
     await this.initialize();
@@ -143,6 +161,6 @@ export class PromptFormatterV2 {
   // Get available templates
   getAvailableTemplates(): string[] {
     // In a real implementation, this would scan the template directory
-    return ['default', 'verbose', 'meta-context-analysis', 'action-analysis', 'response-generation'];
+    return ['default', 'verbose', 'spam-check', 'meta-context-analysis', 'action-analysis', 'response-generation'];
   }
 }
