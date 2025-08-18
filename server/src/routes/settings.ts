@@ -25,10 +25,15 @@ router.get('/profile', requireAuth, async (req, res) => {
     const user = result.rows[0];
     const preferences = user.preferences || {};
     
+    // Get defaults from EmailActionRouter
+    const defaultFolders = EmailActionRouter.getDefaultFolders();
+    
     return res.json({
       preferences: {
         name: preferences.name || user.name || '',
-        nicknames: preferences.nicknames || ''
+        nicknames: preferences.nicknames || '',
+        signatureBlock: preferences.signatureBlock || '',
+        folderPreferences: preferences.folderPreferences || defaultFolders
       }
     });
   } catch (error) {
@@ -158,10 +163,15 @@ router.post('/typed-name', requireAuth, async (req, res) => {
 router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
-    const { emailAccountId } = req.body;
     
-    if (!emailAccountId) {
-      res.status(400).json({ error: 'Email account ID required' });
+    // Get all email accounts for the user
+    const accountsResult = await pool.query(
+      'SELECT id, email_address FROM email_accounts WHERE user_id = $1',
+      [userId]
+    );
+    
+    if (accountsResult.rows.length === 0) {
+      res.status(404).json({ error: 'No email accounts found' });
       return;
     }
     
@@ -176,23 +186,45 @@ router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
     
     // Create router with user's preferences
     const router = new EmailActionRouter(folderPrefs);
+    const requiredFolders = router.getRequiredFolders();
     
-    // Get IMAP operations
-    const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
+    // Check folders for each account
+    const results: any[] = [];
     
-    try {
-      // Check which folders exist
-      const folderStatus = await router.checkFolders(imapOps);
-      
-      res.json({
-        success: true,
-        requiredFolders: router.getRequiredFolders(),
-        existing: folderStatus.existing,
-        missing: folderStatus.missing
-      });
-    } finally {
-      imapOps.release();
+    for (const account of accountsResult.rows) {
+      try {
+        // Get IMAP operations for this account
+        const imapOps = await ImapOperations.fromAccountId(account.id, userId);
+        
+        try {
+          // Check which folders exist
+          const folderStatus = await router.checkFolders(imapOps);
+          
+          results.push({
+            accountId: account.id,
+            email: account.email_address,
+            success: true,
+            existing: folderStatus.existing,
+            missing: folderStatus.missing
+          });
+        } finally {
+          imapOps.release();
+        }
+      } catch (error) {
+        results.push({
+          accountId: account.id,
+          email: account.email_address,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     }
+    
+    res.json({
+      success: true,
+      requiredFolders,
+      accounts: results
+    });
   } catch (error) {
     console.error('Error testing folders:', error);
     res.status(500).json({ 
@@ -207,10 +239,15 @@ router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
 router.post('/create-folders', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
-    const { emailAccountId } = req.body;
     
-    if (!emailAccountId) {
-      res.status(400).json({ error: 'Email account ID required' });
+    // Get all email accounts for the user
+    const accountsResult = await pool.query(
+      'SELECT id, email_address FROM email_accounts WHERE user_id = $1',
+      [userId]
+    );
+    
+    if (accountsResult.rows.length === 0) {
+      res.status(404).json({ error: 'No email accounts found' });
       return;
     }
     
@@ -226,21 +263,42 @@ router.post('/create-folders', requireAuth, async (req, res): Promise<void> => {
     // Create router with user's preferences
     const router = new EmailActionRouter(folderPrefs);
     
-    // Get IMAP operations
-    const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
+    // Create folders for each account
+    const results: any[] = [];
     
-    try {
-      // Create missing folders
-      const result = await router.createMissingFolders(imapOps);
-      
-      res.json({
-        success: true,
-        created: result.created,
-        failed: result.failed
-      });
-    } finally {
-      imapOps.release();
+    for (const account of accountsResult.rows) {
+      try {
+        // Get IMAP operations for this account
+        const imapOps = await ImapOperations.fromAccountId(account.id, userId);
+        
+        try {
+          // Create missing folders
+          const result = await router.createMissingFolders(imapOps);
+          
+          results.push({
+            accountId: account.id,
+            email: account.email_address,
+            success: true,
+            created: result.created,
+            failed: result.failed
+          });
+        } finally {
+          imapOps.release();
+        }
+      } catch (error) {
+        results.push({
+          accountId: account.id,
+          email: account.email_address,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     }
+    
+    res.json({
+      success: true,
+      accounts: results
+    });
   } catch (error) {
     console.error('Error creating folders:', error);
     res.status(500).json({ 

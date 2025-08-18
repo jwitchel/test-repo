@@ -22,10 +22,10 @@ export default function SettingsPage() {
   const [nicknames, setNicknames] = useState('')
   const [signatureBlock, setSignatureBlock] = useState('')
   const [folderPreferences, setFolderPreferences] = useState({
-    rootFolder: 'Prescreen',
-    draftsFolder: 'Drafts',
-    noActionFolder: 'No Action',
-    spamFolder: 'Spam'
+    rootFolder: '',
+    draftsFolder: '',
+    noActionFolder: '',
+    spamFolder: ''
   })
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -34,6 +34,14 @@ export default function SettingsPage() {
     requiredFolders?: string[];
     existing?: string[];
     missing?: string[];
+    accounts?: Array<{
+      accountId: string;
+      email: string;
+      success: boolean;
+      existing?: string[];
+      missing?: string[];
+      error?: string;
+    }>;
   } | null>(null)
 
   // Load user preferences on mount
@@ -95,26 +103,38 @@ export default function SettingsPage() {
     setFolderTestResult(null)
     
     try {
-      // Get the first email account
-      const accounts = await apiGet<{ accounts: Array<{ id: string }> }>('/api/inbox/accounts')
-      if (accounts.accounts.length === 0) {
-        error('No email accounts configured')
-        return
-      }
-      
       const result = await apiPost<{
         success: boolean;
         requiredFolders: string[];
-        existing: string[];
-        missing: string[];
-      }>('/api/settings/test-folders', {
-        emailAccountId: accounts.accounts[0].id
+        accounts: Array<{
+          accountId: string;
+          email: string;
+          success: boolean;
+          existing?: string[];
+          missing?: string[];
+          error?: string;
+        }>;
+      }>('/api/settings/test-folders', {})
+      
+      // Combine results from all accounts
+      const allExisting = new Set<string>()
+      const allMissing = new Set<string>()
+      
+      result.accounts?.forEach(account => {
+        if (account.success) {
+          account.existing?.forEach(f => allExisting.add(f))
+          account.missing?.forEach(f => allMissing.add(f))
+        }
       })
       
-      setFolderTestResult(result)
+      setFolderTestResult({
+        ...result,
+        existing: Array.from(allExisting),
+        missing: Array.from(allMissing)
+      })
       
-      if (result.missing?.length === 0) {
-        success('All required folders exist!')
+      if (allMissing.size === 0) {
+        success('All required folders exist across all accounts!')
       }
     } catch (err) {
       error('Failed to test folders')
@@ -128,29 +148,44 @@ export default function SettingsPage() {
     setIsTestingFolders(true)
     
     try {
-      // Get the first email account
-      const accounts = await apiGet<{ accounts: Array<{ id: string }> }>('/api/inbox/accounts')
-      if (accounts.accounts.length === 0) {
-        error('No email accounts configured')
-        return
-      }
-      
       const result = await apiPost<{
         success: boolean;
-        created: string[];
-        failed: Array<{ folder: string; error: string }>;
-      }>('/api/settings/create-folders', {
-        emailAccountId: accounts.accounts[0].id
+        accounts: Array<{
+          accountId: string;
+          email: string;
+          success: boolean;
+          created?: string[];
+          failed?: Array<{ folder: string; error: string }>;
+          error?: string;
+        }>;
+      }>('/api/settings/create-folders', {})
+      
+      // Count total created and failed across all accounts
+      let totalCreated = 0
+      let totalFailed = 0
+      let accountsWithErrors = 0
+      
+      result.accounts?.forEach(account => {
+        if (account.success) {
+          totalCreated += account.created?.length || 0
+          totalFailed += account.failed?.length || 0
+        } else {
+          accountsWithErrors++
+        }
       })
       
-      if (result.created?.length > 0) {
-        success(`Created ${result.created.length} folders successfully!`)
+      if (totalCreated > 0) {
+        success(`Created ${totalCreated} folders across ${result.accounts.length} accounts!`)
         // Re-test to update the display
         await handleTestFolders()
       }
       
-      if (result.failed?.length > 0) {
-        error(`Failed to create ${result.failed.length} folders`)
+      if (totalFailed > 0) {
+        error(`Failed to create ${totalFailed} folders`)
+      }
+      
+      if (accountsWithErrors > 0) {
+        error(`${accountsWithErrors} accounts had connection errors`)
       }
     } catch (err) {
       error('Failed to create folders')
@@ -281,7 +316,7 @@ export default function SettingsPage() {
                     id="rootFolder"
                     value={folderPreferences.rootFolder}
                     onChange={(e) => setFolderPreferences({ ...folderPreferences, rootFolder: e.target.value })}
-                    placeholder="Prescreen"
+                    placeholder="Leave empty for root level"
                     disabled={isLoading}
                   />
                   <p className="text-sm text-muted-foreground">
@@ -295,7 +330,7 @@ export default function SettingsPage() {
                     id="draftsFolder"
                     value={folderPreferences.draftsFolder}
                     onChange={(e) => setFolderPreferences({ ...folderPreferences, draftsFolder: e.target.value })}
-                    placeholder="Drafts"
+                    placeholder="e.g., t2j-draft"
                     disabled={isLoading}
                   />
                   <p className="text-sm text-muted-foreground">
@@ -309,7 +344,7 @@ export default function SettingsPage() {
                     id="noActionFolder"
                     value={folderPreferences.noActionFolder}
                     onChange={(e) => setFolderPreferences({ ...folderPreferences, noActionFolder: e.target.value })}
-                    placeholder="No Action"
+                    placeholder="e.g., t2j-no-action"
                     disabled={isLoading}
                   />
                   <p className="text-sm text-muted-foreground">
@@ -323,7 +358,7 @@ export default function SettingsPage() {
                     id="spamFolder"
                     value={folderPreferences.spamFolder}
                     onChange={(e) => setFolderPreferences({ ...folderPreferences, spamFolder: e.target.value })}
-                    placeholder="Spam"
+                    placeholder="e.g., t2j-spam"
                     disabled={isLoading}
                   />
                   <p className="text-sm text-muted-foreground">
@@ -347,49 +382,69 @@ export default function SettingsPage() {
                 
                 {folderTestResult && (
                   <div className="mt-4 p-4 bg-muted rounded-md">
-                    <h4 className="font-medium mb-2">Folder Test Results</h4>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="font-medium">Required Folders:</span>
-                        <ul className="list-disc list-inside mt-1">
-                          {folderTestResult.requiredFolders?.map((folder: string) => (
-                            <li key={folder}>{folder}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      
-                      {folderTestResult.missing?.length > 0 && (
-                        <div>
-                          <span className="font-medium text-orange-600">Missing Folders:</span>
-                          <ul className="list-disc list-inside mt-1">
-                            {folderTestResult.missing.map((folder: string) => (
-                              <li key={folder} className="text-orange-600">{folder}</li>
-                            ))}
-                          </ul>
-                          
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="mt-2"
-                            onClick={handleCreateFolders}
-                            disabled={isTestingFolders}
-                          >
-                            Create Missing Folders
-                          </Button>
-                        </div>
-                      )}
-                      
-                      {folderTestResult.existing?.length > 0 && (
-                        <div>
-                          <span className="font-medium text-green-600">Existing Folders:</span>
-                          <ul className="list-disc list-inside mt-1">
-                            {folderTestResult.existing.map((folder: string) => (
-                              <li key={folder} className="text-green-600">{folder}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                    <h4 className="font-medium mb-3">Folder Test Results</h4>
+                    
+                    {/* Required Folders */}
+                    <div className="mb-4">
+                      <span className="font-medium text-sm">Required Folders:</span>
+                      <ul className="list-disc list-inside mt-1 text-sm text-muted-foreground">
+                        {folderTestResult.requiredFolders?.map((folder: string) => (
+                          <li key={folder}>{folder || 'Root Level'}</li>
+                        ))}
+                      </ul>
                     </div>
+                    
+                    {/* Per-Account Results */}
+                    <div className="space-y-3">
+                      <span className="font-medium text-sm">Account Status:</span>
+                      {folderTestResult.accounts?.map((account) => (
+                        <div key={account.accountId} className="border-l-2 border-muted-foreground/20 pl-3 ml-2">
+                          <div className="font-medium text-sm mb-1">{account.email}</div>
+                          
+                          {account.success ? (
+                            <div className="space-y-1 text-xs">
+                              {account.existing?.length > 0 && (
+                                <div className="text-green-600">
+                                  ✓ Existing: {account.existing.join(', ')}
+                                </div>
+                              )}
+                              {account.missing?.length > 0 && (
+                                <div className="text-orange-600">
+                                  ⚠ Missing: {account.missing.join(', ')}
+                                </div>
+                              )}
+                              {account.existing?.length === folderTestResult.requiredFolders?.length && (
+                                <div className="text-green-600">
+                                  ✓ All folders exist
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-red-600">
+                              ✗ Error: {account.error || 'Connection failed'}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Create Missing Folders Button */}
+                    {folderTestResult.missing?.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-muted-foreground/20">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={handleCreateFolders}
+                          disabled={isTestingFolders}
+                          className="w-full"
+                        >
+                          Create All Missing Folders
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          This will create missing folders on all connected accounts
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

@@ -112,15 +112,28 @@ export default function InboxPage() {
   
   // Helper function to get destination folder based on recommended action
   const getDestinationFolder = (recommendedAction?: string) => {
-    const defaultPrefs = {
-      rootFolder: 'Prescreen',
-      draftsFolder: 'Drafts',
-      noActionFolder: 'No Action',
-      spamFolder: 'Spam'
-    };
+    // Folder preferences must be loaded from the user's saved settings
+    if (!userFolderPrefs) {
+      // Return error state to be displayed in UI
+      return {
+        folder: '[Configure folders in Settings]',
+        displayName: '[Not configured]',
+        buttonLabel: 'Configure Folders First',
+        error: true
+      };
+    }
     
-    const prefs = userFolderPrefs || defaultPrefs;
-    const rootPath = prefs.rootFolder ? `${prefs.rootFolder}/` : '';
+    // Ensure all required folder names are present
+    if (!userFolderPrefs.draftsFolder || !userFolderPrefs.noActionFolder || !userFolderPrefs.spamFolder) {
+      return {
+        folder: '[Incomplete configuration]',
+        displayName: '[Not configured]',
+        buttonLabel: 'Complete Folder Setup',
+        error: true
+      };
+    }
+    
+    const rootPath = userFolderPrefs.rootFolder ? `${userFolderPrefs.rootFolder}/` : '';
     
     switch (recommendedAction) {
       case 'reply':
@@ -128,32 +141,36 @@ export default function InboxPage() {
       case 'forward':
       case 'forward-with-comment':
         return {
-          folder: `${rootPath}${prefs.draftsFolder}`,
-          displayName: prefs.draftsFolder,
-          buttonLabel: 'Send to Drafts'
+          folder: `${rootPath}${userFolderPrefs.draftsFolder}`,
+          displayName: userFolderPrefs.draftsFolder,
+          buttonLabel: 'Send to Drafts',
+          error: false
         };
       
       case 'silent-fyi-only':
       case 'silent-large-list':
       case 'silent-unsubscribe':
         return {
-          folder: `${rootPath}${prefs.noActionFolder}`,
-          displayName: prefs.noActionFolder,
-          buttonLabel: 'File as No Action'
+          folder: `${rootPath}${userFolderPrefs.noActionFolder}`,
+          displayName: userFolderPrefs.noActionFolder,
+          buttonLabel: 'File as No Action',
+          error: false
         };
       
       case 'silent-spam':
         return {
-          folder: `${rootPath}${prefs.spamFolder}`,
-          displayName: prefs.spamFolder,
-          buttonLabel: 'Move to Spam'
+          folder: `${rootPath}${userFolderPrefs.spamFolder}`,
+          displayName: userFolderPrefs.spamFolder,
+          buttonLabel: 'Move to Spam',
+          error: false
         };
       
       default:
         return {
-          folder: `${rootPath}${prefs.draftsFolder}`,
-          displayName: prefs.draftsFolder,
-          buttonLabel: 'Send to Drafts'
+          folder: `${rootPath}${userFolderPrefs.draftsFolder}`,
+          displayName: userFolderPrefs.draftsFolder,
+          buttonLabel: 'Send to Drafts',
+          error: false
         };
     }
   };
@@ -400,6 +417,10 @@ export default function InboxPage() {
       }
       
       const destination = getDestinationFolder(recommendedAction);
+      if (destination.error) {
+        error('Folder configuration missing. Please configure folders in Settings.');
+        return;
+      }
       success(`Email sent to ${destination.folder}!`);
     } catch (err) {
       error('Failed to process email');
@@ -670,7 +691,8 @@ export default function InboxPage() {
                   </div>
                   <Button 
                     onClick={handleSendToDraft}
-                    disabled={isUploadingDraft}
+                    disabled={isUploadingDraft || getDestinationFolder(generatedDraft.meta?.recommendedAction).error}
+                    variant={getDestinationFolder(generatedDraft.meta?.recommendedAction).error ? "destructive" : "default"}
                   >
                     {isUploadingDraft ? (
                       <>
@@ -679,7 +701,11 @@ export default function InboxPage() {
                       </>
                     ) : (
                       <>
-                        <Send className="mr-2 h-4 w-4" />
+                        {getDestinationFolder(generatedDraft.meta?.recommendedAction).error ? (
+                          <AlertCircle className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Send className="mr-2 h-4 w-4" />
+                        )}
                         {getDestinationFolder(generatedDraft.meta?.recommendedAction).buttonLabel}
                       </>
                     )}

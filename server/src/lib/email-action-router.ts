@@ -1,12 +1,6 @@
 import { ImapOperations } from './imap-operations';
 import { LLMMetadata } from './llm-client';
-
-export interface FolderPreferences {
-  rootFolder: string;
-  draftsFolder: string;
-  noActionFolder: string;
-  spamFolder: string;
-}
+import { FolderPreferences } from '../types/settings';
 
 export interface ActionRouteResult {
   folder: string;
@@ -15,16 +9,27 @@ export interface ActionRouteResult {
 }
 
 export class EmailActionRouter {
-  private static readonly DEFAULT_ROOT_FOLDER = 'Prescreen';
-  private static readonly DEFAULT_DRAFTS_FOLDER = 'Drafts';
-  private static readonly DEFAULT_NO_ACTION_FOLDER = 'No Action';
-  private static readonly DEFAULT_SPAM_FOLDER = 'Spam';
+  // Read defaults from environment variables or use fallback values
+  private static readonly DEFAULT_ROOT_FOLDER = process.env.DEFAULT_ROOT_FOLDER || '';
+  private static readonly DEFAULT_DRAFTS_FOLDER = process.env.DEFAULT_DRAFTS_FOLDER || 't2j-draft';
+  private static readonly DEFAULT_NO_ACTION_FOLDER = process.env.DEFAULT_NO_ACTION_FOLDER || 't2j-no-action';
+  private static readonly DEFAULT_SPAM_FOLDER = process.env.DEFAULT_SPAM_FOLDER || 't2j-spam';
+  
+  // Public method to get default folder configuration
+  static getDefaultFolders(): FolderPreferences {
+    return {
+      rootFolder: EmailActionRouter.DEFAULT_ROOT_FOLDER,
+      draftsFolder: EmailActionRouter.DEFAULT_DRAFTS_FOLDER,
+      noActionFolder: EmailActionRouter.DEFAULT_NO_ACTION_FOLDER,
+      spamFolder: EmailActionRouter.DEFAULT_SPAM_FOLDER
+    };
+  }
 
   private folderPrefs: FolderPreferences;
 
   constructor(preferences?: Partial<FolderPreferences>) {
     this.folderPrefs = {
-      rootFolder: preferences?.rootFolder || EmailActionRouter.DEFAULT_ROOT_FOLDER,
+      rootFolder: preferences?.rootFolder !== undefined ? preferences.rootFolder : EmailActionRouter.DEFAULT_ROOT_FOLDER,
       draftsFolder: preferences?.draftsFolder || EmailActionRouter.DEFAULT_DRAFTS_FOLDER,
       noActionFolder: preferences?.noActionFolder || EmailActionRouter.DEFAULT_NO_ACTION_FOLDER,
       spamFolder: preferences?.spamFolder || EmailActionRouter.DEFAULT_SPAM_FOLDER
