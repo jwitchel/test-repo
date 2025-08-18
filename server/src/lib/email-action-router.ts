@@ -49,7 +49,7 @@ export class EmailActionRouter {
       case 'forward-with-comment':
         return {
           folder: `${rootPath}${this.folderPrefs.draftsFolder}`,
-          flags: ['\\Draft', '\\Seen'],
+          flags: ['\\Draft'],  // Drafts should not be marked as Seen
           displayName: this.folderPrefs.draftsFolder
         };
 
@@ -58,14 +58,14 @@ export class EmailActionRouter {
       case 'silent-unsubscribe':
         return {
           folder: `${rootPath}${this.folderPrefs.noActionFolder}`,
-          flags: ['\\Seen'],
+          flags: [],  // No-action items should not be marked as Seen
           displayName: this.folderPrefs.noActionFolder
         };
 
       case 'silent-spam':
         return {
           folder: `${rootPath}${this.folderPrefs.spamFolder}`,
-          flags: ['\\Seen'],
+          flags: ['\\Seen'],  // Spam should be marked as Seen
           displayName: this.folderPrefs.spamFolder
         };
 
@@ -73,7 +73,7 @@ export class EmailActionRouter {
         // Default to drafts for unknown actions
         return {
           folder: `${rootPath}${this.folderPrefs.draftsFolder}`,
-          flags: ['\\Draft', '\\Seen'],
+          flags: ['\\Draft'],  // Drafts should not be marked as Seen
           displayName: this.folderPrefs.draftsFolder
         };
     }

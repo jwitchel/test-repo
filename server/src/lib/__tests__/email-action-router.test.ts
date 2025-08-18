@@ -87,7 +87,7 @@ describe('EmailActionRouter', () => {
       expect(replyRoute.folder).toBe('t2j-draft');
       expect(replyRoute.displayName).toBe('t2j-draft');
       expect(replyRoute.flags).toContain('\\Draft');
-      expect(replyRoute.flags).toContain('\\Seen');
+      expect(replyRoute.flags).not.toContain('\\Seen');  // Drafts should not be marked as Seen
     });
 
     it('should route reply-all actions to drafts folder', () => {
@@ -106,7 +106,7 @@ describe('EmailActionRouter', () => {
       const silentRoute = router.getActionRoute('silent-fyi-only');
       expect(silentRoute.folder).toBe('t2j-no-action');
       expect(silentRoute.displayName).toBe('t2j-no-action');
-      expect(silentRoute.flags).toContain('\\Seen');
+      expect(silentRoute.flags).not.toContain('\\Seen');  // No-action items should not be marked as Seen
       expect(silentRoute.flags).not.toContain('\\Draft');
     });
 

@@ -668,8 +668,6 @@ export class ImapOperations {
     const conn = await this.getConnection();
     
     try {
-      console.log(`Appending message to folder: ${folderName}`);
-      
       // Ensure the message has proper line endings (CRLF)
       const normalizedMessage = messageContent.replace(/\r?\n/g, '\r\n');
       
@@ -678,8 +676,6 @@ export class ImapOperations {
         mailbox: folderName,
         flags: flags || ['\\Draft']
       });
-      
-      console.log('Message successfully appended to draft folder');
     } catch (error) {
       console.error('Error appending message:', error);
       throw new ImapConnectionError(

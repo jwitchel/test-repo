@@ -120,7 +120,6 @@ async function runE2ETest() {
           config: {
             userId,
             maxExamples: 5,
-            templateName: 'default',
             verbose: false
           }
         });

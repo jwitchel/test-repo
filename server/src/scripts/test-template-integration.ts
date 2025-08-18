@@ -134,7 +134,6 @@ async function testTemplateIntegration() {
       config: {
         userId: testUserId,
         maxExamples: 5,
-        templateName: 'default',
         verbose: true
       }
     });

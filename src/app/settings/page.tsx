@@ -403,17 +403,18 @@ export default function SettingsPage() {
                           
                           {account.success ? (
                             <div className="space-y-1 text-xs">
-                              {account.existing?.length > 0 && (
+                              {account.existing && account.existing.length > 0 && (
                                 <div className="text-green-600">
                                   ✓ Existing: {account.existing.join(', ')}
                                 </div>
                               )}
-                              {account.missing?.length > 0 && (
+                              {account.missing && account.missing.length > 0 && (
                                 <div className="text-orange-600">
                                   ⚠ Missing: {account.missing.join(', ')}
                                 </div>
                               )}
-                              {account.existing?.length === folderTestResult.requiredFolders?.length && (
+                              {account.existing && folderTestResult.requiredFolders && 
+                               account.existing.length === folderTestResult.requiredFolders.length && (
                                 <div className="text-green-600">
                                   ✓ All folders exist
                                 </div>
@@ -429,7 +430,7 @@ export default function SettingsPage() {
                     </div>
                     
                     {/* Create Missing Folders Button */}
-                    {folderTestResult.missing?.length > 0 && (
+                    {folderTestResult.missing && folderTestResult.missing.length > 0 && (
                       <div className="mt-4 pt-3 border-t border-muted-foreground/20">
                         <Button 
                           size="sm" 

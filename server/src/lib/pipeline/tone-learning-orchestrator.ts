@@ -8,6 +8,7 @@ import { RelationshipService } from '../relationships/relationship-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
 import { StyleAggregationService } from '../style/style-aggregation-service';
 import { WritingPatternAnalyzer } from './writing-pattern-analyzer';
+import { EmailAttachmentStripper } from '../email-attachment-stripper';
 import chalk from 'chalk';
 
 export interface ToneLearningConfig {
@@ -279,9 +280,27 @@ Email Details:
         console.log(chalk.blue('\n3️⃣ Checking for spam...'));
       }
       
-      // Format prompt for spam check
+      // Strip attachments from email to reduce token count
+      let emailForSpamCheck = incomingEmail.rawMessage;
+      const hasAttachments = EmailAttachmentStripper.hasAttachments(incomingEmail.rawMessage);
+      
+      if (hasAttachments) {
+        const originalSize = incomingEmail.rawMessage.length;
+        emailForSpamCheck = await EmailAttachmentStripper.stripAttachments(incomingEmail.rawMessage);
+        const strippedSize = emailForSpamCheck.length;
+        
+        const sizeMetrics = EmailAttachmentStripper.calculateSizeReduction(originalSize, strippedSize);
+        
+        if (verbose) {
+          console.log(chalk.yellow(`📎 Stripped attachments for spam check:`));
+          console.log(chalk.gray(`   Original: ${sizeMetrics.originalSizeKB}KB → Stripped: ${sizeMetrics.strippedSizeKB}KB`));
+          console.log(chalk.gray(`   Reduction: ${sizeMetrics.reductionKB}KB (${sizeMetrics.reductionPercent}%)`));
+        }
+      }
+      
+      // Format prompt for spam check with stripped email
       spamCheckPrompt = await this.promptFormatter.formatSpamCheck({
-        rawEmail: incomingEmail.rawMessage,
+        rawEmail: emailForSpamCheck,
         userNames
       });
       

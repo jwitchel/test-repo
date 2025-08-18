@@ -7,6 +7,7 @@ import PostalMime from 'postal-mime';
 import { pool } from '../server';
 import { VectorStore } from '../lib/vector/qdrant-client';
 import { EmbeddingService } from '../lib/vector/embedding-service';
+import { EmailAttachmentStripper } from '../lib/email-attachment-stripper';
 
 const router = express.Router();
 
@@ -278,6 +279,30 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
       subject: subject.substring(0, 50) + '...'
     });
     
+    // Check if email has attachments for metadata tracking
+    const hasAttachments = EmailAttachmentStripper.hasAttachments(rawMessage);
+    let attachmentInfo: {
+      hasAttachments?: boolean;
+      attachmentSizeKB?: number;
+      attachmentCount?: number;
+    } = {};
+    
+    if (hasAttachments) {
+      // Calculate size metrics for logging
+      const originalSize = rawMessage.length;
+      const strippedForStorage = await EmailAttachmentStripper.stripAttachments(rawMessage);
+      const strippedSize = strippedForStorage.length;
+      const sizeMetrics = EmailAttachmentStripper.calculateSizeReduction(originalSize, strippedSize);
+      
+      attachmentInfo = {
+        hasAttachments: true,
+        attachmentSizeKB: sizeMetrics.reductionKB,
+        attachmentCount: parsed.attachments ? parsed.attachments.length : 0
+      };
+      
+      console.log(`[inbox-draft] Email has attachments: ${attachmentInfo.attachmentCount} files, ~${attachmentInfo.attachmentSizeKB}KB`);
+    }
+    
     // Store the incoming email in Qdrant
     await vectorStore!.upsertEmail({
       id: messageId,
@@ -305,7 +330,8 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
         redactedEmails: [],
         wordCount: emailBody.split(/\s+/).length,
         frequencyScore: 0,
-        eml_file: rawMessage // Store raw RFC 5322 message
+        eml_file: rawMessage, // Store raw RFC 5322 message (with attachments for archival)
+        ...attachmentInfo // Add attachment tracking info if present
       }
     });
     
@@ -499,6 +525,7 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
           wordCount: emailBody.split(/\s+/).length,
           frequencyScore: 0,
           eml_file: rawMessage,
+          ...attachmentInfo, // Include attachment info that was calculated earlier
           llmResponse: {
             meta: draft.meta,
             generatedAt: new Date().toISOString(),

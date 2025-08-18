@@ -423,8 +423,9 @@ export default function InboxPage() {
       }
       success(`Email sent to ${destination.folder}!`);
     } catch (err) {
-      error('Failed to process email');
-      console.error(err);
+      console.error('Failed to process email:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to process email';
+      error(errorMessage);
     } finally {
       setIsUploadingDraft(false);
     }
