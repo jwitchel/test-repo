@@ -7,12 +7,15 @@ const router = express.Router();
 
 // Get inbox emails for a specific account
 router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> => {
+  const startTime = Date.now();
   let imapOps: ImapOperations | null = null;
   
   try {
     const userId = (req as any).user.id;
     const { accountId } = req.params;
     const { offset = 0, limit = 1 } = req.query;
+    
+    console.log(`[inbox] === START === offset: ${offset}, limit: ${limit}`);
     
     // Validate account belongs to user
     const accountCheck = await pool.query(
@@ -40,14 +43,17 @@ router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> =>
     console.log(`Found ${messages.length} messages`);
     
     // For each message, get the full content including raw message
+    // Using getMessageRaw for faster loading (skips parsing attachments)
     const fullMessages = [];
     for (const msg of messages) {
       try {
+        const fetchStart = Date.now();
         console.log(`Fetching full message for UID ${msg.uid}`);
-        const fullMessage = await imapOps.getMessage('INBOX', msg.uid);
+        const fullMessage = await imapOps.getMessageRaw('INBOX', msg.uid);
+        console.log(`Fetched UID ${msg.uid} in ${Date.now() - fetchStart}ms`);
         
         // Ensure we have a raw message
-        const rawMessage = fullMessage.rawMessage || fullMessage.body || '';
+        const rawMessage = fullMessage.rawMessage || '';
         if (!rawMessage) {
           console.warn(`No raw message content for UID ${msg.uid}`);
         }
@@ -68,35 +74,40 @@ router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> =>
       }
     }
     
-    // Get total count by searching with no limit
-    let totalCount = 0;
-    try {
-      // Get folder info to get total message count
-      const folders = await imapOps.getFolders();
-      const inboxFolder = folders.find(f => f.name === 'INBOX' || f.path === 'INBOX');
-      totalCount = inboxFolder?.messageCount || 0;
-    } catch (err) {
-      console.error('Failed to get total count:', err);
-      totalCount = fullMessages.length; // Fallback to current messages length
+    // Only get total count on first request (offset 0)
+    // This avoids repeated expensive operations
+    let totalCount = -1;
+    if (Number(offset) === 0) {
+      try {
+        const folderStart = Date.now();
+        console.log('Getting INBOX message count (first request only)...');
+        const folderInfo = await imapOps.getFolderMessageCount('INBOX');
+        totalCount = folderInfo.total;
+        console.log(`Got INBOX count in ${Date.now() - folderStart}ms, total messages: ${totalCount}`);
+      } catch (err) {
+        console.error('Failed to get total count:', err);
+        totalCount = -1; // Unknown total
+      }
     }
     
-    res.json({
+    const response = {
       messages: fullMessages,
       total: totalCount,
       offset: Number(offset),
       limit: Number(limit)
-    });
+    };
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`[inbox] === COMPLETE === ${elapsed}ms`);
+    res.json(response);
     
   } catch (error) {
-    console.error('Error fetching inbox:', error);
+    const elapsed = Date.now() - startTime;
+    console.error(`[inbox] === ERROR === ${elapsed}ms`, error);
     res.status(500).json({ 
       error: 'Failed to fetch inbox',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
-  } finally {
-    if (imapOps) {
-      imapOps.release();
-    }
   }
 });
 

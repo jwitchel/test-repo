@@ -227,7 +227,10 @@ export default function InboxPage() {
       
       if (data.messages.length > 0) {
         setCurrentMessage(data.messages[0]);
-        setTotalMessages(data.total);
+        // Handle unknown total (-1) by not updating or using a high number
+        if (data.total >= 0) {
+          setTotalMessages(data.total);
+        }
       } else {
         setCurrentMessage(null);
         setParsedMessage(null);

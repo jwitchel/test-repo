@@ -185,6 +185,24 @@ export class ImapOperations {
     }
   }
 
+  /**
+   * Get message count for a specific folder (fast version)
+   * This is much faster than getFolders() when you only need one folder's count
+   */
+  async getFolderMessageCount(folderName: string): Promise<{ total: number; unseen: number }> {
+    const conn = await this.getConnection();
+    
+    try {
+      const box = await conn.selectFolder(folderName);
+      return {
+        total: box.messages.total,
+        unseen: box.messages.unseen
+      };
+    } finally {
+      this.release();
+    }
+  }
+
   async getFolders(): Promise<EmailFolder[]> {
     const conn = await this.getConnection();
     
@@ -470,6 +488,63 @@ export class ImapOperations {
         size: msg.size,
         body: bodyString,
         parsed,
+        rawMessage: bodyString  // This is the complete RFC 5322 message with headers and body
+      };
+    } finally {
+      this.release();
+    }
+  }
+
+  /**
+   * Get message without parsing (fast version for inbox listing)
+   * This skips the expensive parsing step which includes decoding attachments
+   */
+  async getMessageRaw(folderName: string, uid: number): Promise<EmailMessage & { rawMessage: string }> {
+    const conn = await this.getConnection();
+    
+    try {
+      await conn.selectFolder(folderName);
+      
+      // Fetch the complete message including all headers and body
+      const messages = await conn.fetch(uid.toString(), {
+        bodies: '', // Empty string fetches the entire RFC 5322 message
+        envelope: true,
+        size: true,
+        flags: true
+      });
+
+      if (messages.length === 0) {
+        throw new ImapConnectionError('Message not found', 'MESSAGE_NOT_FOUND');
+      }
+
+      const msg = messages[0];
+      
+      // Validate we have the body
+      if (!msg.body) {
+        throw new ImapConnectionError('Message body not retrieved', 'BODY_NOT_FOUND');
+      }
+      
+      // Ensure body is a string with proper encoding
+      let bodyString: string;
+      if (Buffer.isBuffer(msg.body)) {
+        // Convert Buffer to string using UTF-8 encoding
+        bodyString = msg.body.toString('utf8');
+      } else if (typeof msg.body === 'string') {
+        bodyString = msg.body;
+      } else {
+        throw new ImapConnectionError('Unexpected body type', 'INVALID_BODY_TYPE');
+      }
+      
+      // Return without parsing - much faster for emails with attachments
+      return {
+        uid: msg.uid,
+        messageId: msg.headers?.messageId?.[0],
+        from: msg.headers?.from?.[0],
+        to: msg.headers?.to,
+        subject: msg.headers?.subject?.[0],
+        date: msg.date,
+        flags: msg.flags,
+        size: msg.size,
         rawMessage: bodyString  // This is the complete RFC 5322 message with headers and body
       };
     } finally {
