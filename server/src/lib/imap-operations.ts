@@ -41,6 +41,10 @@ export interface EmailMessage {
   preview?: string;
 }
 
+export interface EmailMessageWithRaw extends EmailMessage {
+  rawMessage: string;
+}
+
 export interface SearchCriteria {
   seen?: boolean;
   unseen?: boolean;
@@ -169,27 +173,31 @@ export class ImapOperations {
     return this.connection;
   }
 
-  async testConnection(): Promise<boolean> {
+  async testConnection(preserveConnection: boolean = false): Promise<boolean> {
+    let success = false;
     try {
       const conn = await this.getConnection();
       
       // Try to list folders as a test
       await conn.listFolders();
       
-      return true;
+      success = true;
     } catch (error) {
       console.error('IMAP connection test failed:', error);
-      return false;
+      success = false;
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
+    return success;
   }
 
   /**
    * Get message count for a specific folder (fast version)
    * This is much faster than getFolders() when you only need one folder's count
    */
-  async getFolderMessageCount(folderName: string): Promise<{ total: number; unseen: number }> {
+  async getFolderMessageCount(folderName: string, preserveConnection: boolean = false): Promise<{ total: number; unseen: number }> {
     const conn = await this.getConnection();
     
     try {
@@ -199,11 +207,13 @@ export class ImapOperations {
         unseen: box.messages.unseen
       };
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
-  async getFolders(): Promise<EmailFolder[]> {
+  async getFolders(preserveConnection: boolean = false): Promise<EmailFolder[]> {
     const conn = await this.getConnection();
     
     try {
@@ -252,7 +262,9 @@ export class ImapOperations {
 
       return folders;
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
@@ -263,6 +275,7 @@ export class ImapOperations {
       offset?: number;
       sort?: 'date' | 'from' | 'subject';
       descending?: boolean;
+      preserveConnection?: boolean;
     } = {}
   ): Promise<EmailMessage[]> {
     const conn = await this.getConnection();
@@ -291,11 +304,8 @@ export class ImapOperations {
         return [];
       }
 
-      // Fetch message details
-      // Fetch messages individually as the test mail server doesn't handle bulk UID fetches
-      const messages: any[] = [];
-      
-      for (const uid of paginatedUids) {
+      // Fetch message details in parallel for better performance
+      const fetchPromises = paginatedUids.map(async (uid) => {
         try {
           const fetchedMessages = await conn.fetch(uid, {
             bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)',
@@ -303,13 +313,18 @@ export class ImapOperations {
             size: true,
             flags: true
           });
-          if (fetchedMessages.length > 0) {
-            messages.push(...fetchedMessages);
-          }
+          return fetchedMessages.length > 0 ? fetchedMessages[0] : null;
         } catch (err) {
           console.error(`Error fetching UID ${uid}: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
         }
-      }
+      });
+
+      // Wait for all fetches to complete
+      const fetchResults = await Promise.all(fetchPromises);
+      
+      // Filter out nulls and flatten results
+      const messages = fetchResults.filter(msg => msg !== null);
 
       return messages.map((msg: any) => ({
         uid: msg.uid,
@@ -322,7 +337,9 @@ export class ImapOperations {
         size: msg.size
       }));
     } finally {
-      this.release();
+      if (!options.preserveConnection) {
+        this.release();
+      }
     }
   }
 
@@ -332,6 +349,7 @@ export class ImapOperations {
     options: {
       limit?: number;
       offset?: number;
+      preserveConnection?: boolean;
     } = {}
   ): Promise<EmailMessage[]> {
     const conn = await this.getConnection();
@@ -398,14 +416,10 @@ export class ImapOperations {
         return [];
       }
 
-      // Fetch message details
+      // Fetch message details in parallel for better performance
       console.log(`Fetching UIDs: ${paginatedUids.slice(0, 10).join(',')}... (total: ${paginatedUids.length})`);
       
-      // Workaround: Fetch messages individually
-      // The test mail server doesn't handle bulk UID fetches properly
-      const messages: any[] = [];
-      
-      for (const uid of paginatedUids) {
+      const fetchPromises = paginatedUids.map(async (uid) => {
         try {
           const fetchedMessages = await conn.fetch(uid, {
             bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)',
@@ -413,13 +427,18 @@ export class ImapOperations {
             size: true,
             flags: true
           });
-          if (fetchedMessages.length > 0) {
-            messages.push(...fetchedMessages);
-          }
+          return fetchedMessages.length > 0 ? fetchedMessages[0] : null;
         } catch (err) {
           console.error(`Error fetching UID ${uid}: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
         }
-      }
+      });
+
+      // Wait for all fetches to complete
+      const fetchResults = await Promise.all(fetchPromises);
+      
+      // Filter out nulls
+      const messages = fetchResults.filter(msg => msg !== null);
       
       console.log(`Total fetched ${messages.length} messages from IMAP`);
 
@@ -434,11 +453,13 @@ export class ImapOperations {
         size: msg.size
       }));
     } finally {
-      this.release();
+      if (!options.preserveConnection) {
+        this.release();
+      }
     }
   }
 
-  async getMessage(folderName: string, uid: number): Promise<EmailMessage & { body?: string; parsed?: any; rawMessage?: string }> {
+  async getMessage(folderName: string, uid: number, preserveConnection: boolean = false): Promise<EmailMessage & { body?: string; parsed?: any; rawMessage?: string }> {
     const conn = await this.getConnection();
     
     try {
@@ -491,7 +512,96 @@ export class ImapOperations {
         rawMessage: bodyString  // This is the complete RFC 5322 message with headers and body
       };
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
+    }
+  }
+
+  /**
+   * Get multiple messages without parsing in a single batch (fast version)
+   * This uses the same connection for all fetches and can parallelize operations
+   */
+  async getMessagesRaw(
+    folderName: string, 
+    uids: number[], 
+    preserveConnection: boolean = false
+  ): Promise<EmailMessageWithRaw[]> {
+    if (uids.length === 0) {
+      return [];
+    }
+
+    const conn = await this.getConnection();
+    
+    try {
+      await conn.selectFolder(folderName);
+      
+      // Fetch messages in parallel for better performance
+      const fetchPromises = uids.map(async (uid) => {
+        try {
+          const messages = await conn.fetch(uid.toString(), {
+            bodies: '', // Empty string fetches the entire RFC 5322 message
+            envelope: true,
+            size: true,
+            flags: true
+          });
+
+          if (messages.length === 0) {
+            console.warn(`Message ${uid} not found`);
+            return null;
+          }
+
+          const msg = messages[0];
+          
+          if (!msg.body) {
+            console.warn(`Message ${uid} has no body`);
+            return null;
+          }
+          
+          // Ensure body is a string with proper encoding
+          let bodyString: string;
+          if (Buffer.isBuffer(msg.body)) {
+            bodyString = msg.body.toString('utf8');
+          } else if (typeof msg.body === 'string') {
+            bodyString = msg.body;
+          } else {
+            console.warn(`Message ${uid} has invalid body type`);
+            return null;
+          }
+          
+          const result: EmailMessageWithRaw = {
+            uid: msg.uid,
+            messageId: msg.headers?.messageId?.[0],
+            from: msg.headers?.from?.[0],
+            to: msg.headers?.to,
+            subject: msg.headers?.subject?.[0],
+            date: msg.date,
+            flags: msg.flags,
+            size: msg.size,
+            rawMessage: bodyString
+          };
+          return result;
+        } catch (err) {
+          console.error(`Error fetching UID ${uid}:`, err);
+          return null;
+        }
+      });
+
+      // Wait for all fetches to complete
+      const results = await Promise.all(fetchPromises);
+      
+      // Filter out nulls from failed fetches  
+      const validMessages: EmailMessageWithRaw[] = [];
+      for (const msg of results) {
+        if (msg !== null) {
+          validMessages.push(msg);
+        }
+      }
+      return validMessages;
+    } finally {
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
@@ -499,7 +609,7 @@ export class ImapOperations {
    * Get message without parsing (fast version for inbox listing)
    * This skips the expensive parsing step which includes decoding attachments
    */
-  async getMessageRaw(folderName: string, uid: number): Promise<EmailMessage & { rawMessage: string }> {
+  async getMessageRaw(folderName: string, uid: number, preserveConnection: boolean = false): Promise<EmailMessageWithRaw> {
     const conn = await this.getConnection();
     
     try {
@@ -548,11 +658,13 @@ export class ImapOperations {
         rawMessage: bodyString  // This is the complete RFC 5322 message with headers and body
       };
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
-  async markAsRead(folderName: string, uid: number): Promise<void> {
+  async markAsRead(folderName: string, uid: number, preserveConnection: boolean = false): Promise<void> {
     const conn = await this.getConnection();
     
     try {
@@ -566,11 +678,13 @@ export class ImapOperations {
         });
       });
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
-  async markAsUnread(folderName: string, uid: number): Promise<void> {
+  async markAsUnread(folderName: string, uid: number, preserveConnection: boolean = false): Promise<void> {
     const conn = await this.getConnection();
     
     try {
@@ -584,11 +698,13 @@ export class ImapOperations {
         });
       });
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
-  async deleteMessage(folderName: string, uid: number): Promise<void> {
+  async deleteMessage(folderName: string, uid: number, preserveConnection: boolean = false): Promise<void> {
     const conn = await this.getConnection();
     
     try {
@@ -610,24 +726,34 @@ export class ImapOperations {
         });
       });
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
   async startIdleMonitoring(folderName: string, callback: (event: any) => void): Promise<void> {
     const conn = await this.getConnection();
     
-    await conn.selectFolder(folderName);
-    
-    conn.on('mail', (numNewMsgs: number) => {
-      callback({ type: 'new_mail', count: numNewMsgs });
-    });
+    try {
+      await conn.selectFolder(folderName);
+      
+      conn.on('mail', (numNewMsgs: number) => {
+        callback({ type: 'new_mail', count: numNewMsgs });
+      });
 
-    conn.on('expunge', (seqno: number) => {
-      callback({ type: 'expunge', seqno });
-    });
+      conn.on('expunge', (seqno: number) => {
+        callback({ type: 'expunge', seqno });
+      });
 
-    await conn.idle();
+      await conn.idle();
+    } catch (error) {
+      // On error, release the connection
+      this.release();
+      throw error;
+    }
+    // Note: We don't release here because IDLE monitoring keeps the connection open
+    // stopIdleMonitoring() should be called to clean up
   }
 
   stopIdleMonitoring(): void {
@@ -654,8 +780,8 @@ export class ImapOperations {
     );
   }
 
-  async findDraftFolder(): Promise<string> {
-    const folders = await this.getFolders();
+  async findDraftFolder(preserveConnection: boolean = false): Promise<string> {
+    const folders = await this.getFolders(preserveConnection);
     
     // Log all folders for debugging
     console.log('Available folders:', folders.map(f => ({
@@ -715,7 +841,7 @@ export class ImapOperations {
     throw new ImapConnectionError('Draft folder not found', 'DRAFT_FOLDER_NOT_FOUND');
   }
 
-  async createFolder(folderPath: string): Promise<void> {
+  async createFolder(folderPath: string, preserveConnection: boolean = false): Promise<void> {
     const conn = await this.getConnection();
     
     try {
@@ -731,14 +857,17 @@ export class ImapOperations {
         });
       });
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
   async appendMessage(
     folderName: string, 
     messageContent: string,
-    flags?: string[]
+    flags?: string[],
+    preserveConnection: boolean = false
   ): Promise<void> {
     const conn = await this.getConnection();
     
@@ -758,7 +887,9 @@ export class ImapOperations {
         'APPEND_FAILED'
       );
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
@@ -766,7 +897,8 @@ export class ImapOperations {
     sourceFolder: string,
     destFolder: string,
     uid: number,
-    flags?: string[]
+    flags?: string[],
+    preserveConnection: boolean = false
   ): Promise<void> {
     const conn = await this.getConnection();
     
@@ -796,7 +928,7 @@ export class ImapOperations {
       }
       
       // Copy message to destination folder
-      await this.appendMessage(destFolder, bodyString, flags);
+      await this.appendMessage(destFolder, bodyString, flags, true); // preserve connection for this sub-operation
       
       // Mark original as deleted
       await new Promise<void>((resolve, reject) => {
@@ -822,12 +954,15 @@ export class ImapOperations {
         'MOVE_FAILED'
       );
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
   }
 
-  async findMessageByMessageId(folderName: string, messageId: string): Promise<number | null> {
+  async findMessageByMessageId(folderName: string, messageId: string, preserveConnection: boolean = false): Promise<number | null> {
     const conn = await this.getConnection();
+    let result: number | null = null;
     
     try {
       await conn.selectFolder(folderName);
@@ -837,16 +972,19 @@ export class ImapOperations {
       const uids = await conn.search(searchCriteria);
       
       if (uids.length === 0) {
-        return null;
+        result = null;
+      } else {
+        // Return the first matching UID
+        result = uids[0];
       }
-      
-      // Return the first matching UID
-      return uids[0];
     } catch (error) {
       console.error('Error finding message by ID:', error);
-      return null;
+      result = null;
     } finally {
-      this.release();
+      if (!preserveConnection) {
+        this.release();
+      }
     }
+    return result;
   }
 }
