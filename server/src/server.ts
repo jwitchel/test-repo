@@ -102,6 +102,7 @@ import imapDraftRoutes from './routes/imap-draft';
 import inboxRoutes from './routes/inbox';
 import inboxDraftRoutes from './routes/inbox-draft';
 import monitoringRoutes from './routes/monitoring';
+import queueRoutes from './routes/queue';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -122,6 +123,7 @@ app.use('/api/imap-draft', imapDraftRoutes);
 app.use('/api/inbox', inboxRoutes);
 app.use('/api/inbox-draft', inboxDraftRoutes);
 app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/queue', queueRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
