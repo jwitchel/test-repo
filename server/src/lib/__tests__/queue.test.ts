@@ -12,15 +12,16 @@ import {
 describe('BullMQ Queue Configuration', () => {
   afterAll(async () => {
     // Clean up after tests
-    await emailProcessingQueue.obliterate({ force: true });
-    await toneProfileQueue.obliterate({ force: true });
+    try {
+      await emailProcessingQueue.obliterate({ force: true });
+      await toneProfileQueue.obliterate({ force: true });
+    } catch (error) {
+      // Ignore obliterate errors
+    }
+    
     await emailProcessingQueue.close();
     await toneProfileQueue.close();
     
-    // Also close the queue events and redis connections to prevent hanging
-    const { emailQueueEvents, toneQueueEvents, shutdownQueues } = await import('../queue');
-    await emailQueueEvents.close();
-    await toneQueueEvents.close();
     // Give a moment for connections to close
     await new Promise(resolve => setTimeout(resolve, 100));
   });
@@ -151,8 +152,15 @@ describe('BullMQ Queue Configuration', () => {
         age: 7200
       });
 
-      // Clean up
-      await job.remove();
+      // Clean up - try to remove, but ignore if locked
+      try {
+        await job.remove();
+      } catch (error: any) {
+        // Ignore "locked" errors as the job might be being processed
+        if (!error.message?.includes('locked')) {
+          throw error;
+        }
+      }
     });
 
     it('should have different configuration for tone profile queue', async () => {
@@ -164,8 +172,15 @@ describe('BullMQ Queue Configuration', () => {
         delay: 5000
       });
 
-      // Clean up
-      await job.remove();
+      // Clean up - try to remove, but ignore if locked
+      try {
+        await job.remove();
+      } catch (error: any) {
+        // Ignore "locked" errors as the job might be being processed
+        if (!error.message?.includes('locked')) {
+          throw error;
+        }
+      }
     });
   });
 
@@ -194,10 +209,21 @@ describe('BullMQ Queue Configuration', () => {
       expect(normalJob.opts.priority).toBe(5);
       expect(lowJob.opts.priority).toBe(10);
 
-      // Clean up
-      await criticalJob.remove();
-      await normalJob.remove();
-      await lowJob.remove();
+      // Clean up - try to remove, but ignore if locked
+      const removeJob = async (job: any) => {
+        try {
+          await job.remove();
+        } catch (error: any) {
+          // Ignore "locked" errors as the job might be being processed
+          if (!error.message?.includes('locked')) {
+            throw error;
+          }
+        }
+      };
+      
+      await removeJob(criticalJob);
+      await removeJob(normalJob);
+      await removeJob(lowJob);
     });
   });
 });

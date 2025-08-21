@@ -10,6 +10,7 @@ import {
   ImapConnectionError 
 } from '../types/email-account';
 import { ImapOperations } from '../lib/imap-operations';
+import { imapLogger } from '../lib/imap-logger';
 
 const router = express.Router();
 
@@ -95,7 +96,7 @@ router.get('/', requireAuth, async (req, res) => {
     
     const result = await pool.query(
       `SELECT id, email_address, imap_host, imap_port, imap_username, 
-              is_active, last_sync, created_at, oauth_provider
+              is_active, last_sync, created_at, oauth_provider, monitoring_enabled
        FROM email_accounts 
        WHERE user_id = $1 
        ORDER BY created_at DESC`,
@@ -110,6 +111,7 @@ router.get('/', requireAuth, async (req, res) => {
       imap_secure: row.imap_port === 993 || row.imap_port === 1993, // Infer from port
       imap_username: row.imap_username,
       is_active: row.is_active,
+      monitoring_enabled: row.monitoring_enabled || false,
       last_sync: row.last_sync ? row.last_sync.toISOString() : null,
       created_at: row.created_at.toISOString(),
       updated_at: row.created_at.toISOString(), // Use created_at as fallback
@@ -260,6 +262,62 @@ router.post('/:id/test', requireAuth, async (req, res): Promise<void> => {
   } catch (error: any) {
     console.error('Test connection error:', error);
     res.status(500).json({ error: error.message || 'Failed to test connection' });
+  }
+});
+
+// Toggle monitoring for email account
+router.post('/:id/monitoring', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const accountId = req.params.id;
+    const { enabled } = req.body;
+    
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    
+    // Update the monitoring status
+    const result = await pool.query(
+      `UPDATE email_accounts 
+       SET monitoring_enabled = $1 
+       WHERE id = $2 AND user_id = $3 
+       RETURNING id, email_address, monitoring_enabled`,
+      [enabled, accountId, userId]
+    );
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Email account not found' });
+      return;
+    }
+    
+    // Log account monitoring toggle
+    imapLogger.log(userId, {
+      userId,
+      emailAccountId: result.rows[0].id,
+      level: 'info',
+      command: 'ACCOUNT_MONITORING_TOGGLE',
+      data: {
+        parsed: { 
+          accountId: result.rows[0].id,
+          email: result.rows[0].email_address,
+          enabled 
+        },
+        response: `Account monitoring ${enabled ? 'enabled' : 'disabled'} for ${result.rows[0].email_address}`
+      }
+    });
+    
+    res.json({
+      success: true,
+      account: {
+        id: result.rows[0].id,
+        email_address: result.rows[0].email_address,
+        monitoring_enabled: result.rows[0].monitoring_enabled
+      }
+    });
+  } catch (error) {
+    console.error('Error toggling monitoring:', error);
+    res.status(500).json({ error: 'Failed to toggle monitoring' });
   }
 });
 

@@ -54,7 +54,9 @@
     "monitor:process": "node scripts/monitor-node-process.js",
     "monitor:logs": "node scripts/watch-server-logs.js",
     "test:stability": "node scripts/test-server-stability.js",
-    "system:reset": "npm run docker:reset"
+    "system:reset": "npm run docker:reset",
+    "workers": "cd server && npx ts-node src/scripts/start-workers.ts",
+    "workers:test": "cd server && npx ts-node src/scripts/test-workers.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
@@ -75,6 +77,7 @@
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.12",
     "@stdlib/string-trim": "^0.2.2",
     "@types/cookie": "^0.6.0",
