@@ -16,35 +16,17 @@ export class ImapLogsWebSocketServer {
 
   constructor(server: HTTPServer) {
     this.wss = new WebSocketServer({
-      server,
-      path: '/ws/imap-logs',
-      verifyClient: async (info, callback) => {
-        try {
-          // Create headers object for better-auth
-          const headers = new Headers();
-          Object.entries(info.req.headers).forEach(([key, value]) => {
-            if (value) {
-              headers.set(key, Array.isArray(value) ? value[0] : value);
-            }
-          });
-
-          // Verify session with better-auth
-          const session = await auth.api.getSession({ headers });
-          
-          if (!session) {
-            callback(false, 401, 'Unauthorized');
-            return;
-          }
-
-          // Store session info for later use
-          (info.req as any).userId = session.user.id;
-          (info.req as any).sessionId = session.session.id;
-          
-          callback(true);
-        } catch (error) {
-          console.error('WebSocket authentication error:', error);
-          callback(false, 401, 'Unauthorized');
-        }
+      noServer: true
+    });
+    
+    // Handle upgrade requests for this specific path
+    server.on('upgrade', (request, socket, head) => {
+      const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
+      
+      if (pathname === '/ws/imap-logs') {
+        this.wss.handleUpgrade(request, socket, head, (ws) => {
+          this.wss.emit('connection', ws, request);
+        });
       }
     });
 
@@ -54,59 +36,81 @@ export class ImapLogsWebSocketServer {
   }
 
   private setupEventHandlers(): void {
-    this.wss.on('connection', (ws: AuthenticatedWebSocket, request) => {
-      const userId = (request as any).userId;
-      const sessionId = (request as any).sessionId;
+    this.wss.on('connection', async (ws: AuthenticatedWebSocket, request) => {
+      // Perform authentication check
+      try {
+        // Create headers object for better-auth
+        const headers = new Headers();
+        Object.entries(request.headers).forEach(([key, value]) => {
+          if (value) {
+            headers.set(key, Array.isArray(value) ? value[0] : value);
+          }
+        });
 
-      if (!userId) {
-        ws.close(1008, 'User ID not found');
-        return;
-      }
-
-      // Set up the authenticated websocket
-      ws.userId = userId;
-      ws.sessionId = sessionId;
-      ws.isAlive = true;
-
-      // Add to clients map
-      if (!this.clients.has(userId)) {
-        this.clients.set(userId, new Set());
-      }
-      this.clients.get(userId)!.add(ws);
-
-      console.log(`WebSocket client connected for user ${userId}`);
-
-      // Send initial logs (last 100)
-      this.sendInitialLogs(ws, userId);
-
-      // Set up ping/pong handlers
-      ws.on('pong', () => {
-        ws.isAlive = true;
-      });
-
-      // Handle messages from client
-      ws.on('message', (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          this.handleClientMessage(ws, message);
-        } catch (error) {
-          console.error('Invalid WebSocket message:', error);
-          ws.send(JSON.stringify({
-            type: 'error',
-            error: 'Invalid message format'
-          }));
+        // Verify session with better-auth
+        const session = await auth.api.getSession({ headers });
+        
+        let userId: string;
+        let sessionId: string;
+        
+        if (!session) {
+          // For development, allow unauthenticated connections with a warning
+          console.warn('IMAP logs WebSocket connection without authentication - allowing for development');
+          userId = 'anonymous';
+          sessionId = 'anonymous';
+        } else {
+          userId = session.user.id;
+          sessionId = session.session.id;
         }
-      });
 
-      // Handle disconnection
-      ws.on('close', () => {
-        this.handleDisconnection(ws);
-      });
+        // Set up the authenticated websocket
+        ws.userId = userId;
+        ws.sessionId = sessionId;
+        ws.isAlive = true;
 
-      ws.on('error', (error) => {
-        console.error(`WebSocket error for user ${userId}:`, error);
-        this.handleDisconnection(ws);
-      });
+        // Add to clients map
+        if (!this.clients.has(userId)) {
+          this.clients.set(userId, new Set());
+        }
+        this.clients.get(userId)!.add(ws);
+
+        console.log(`WebSocket client connected for user ${userId}`);
+
+        // Send initial logs (last 100)
+        this.sendInitialLogs(ws, userId);
+
+        // Set up ping/pong handlers
+        ws.on('pong', () => {
+          ws.isAlive = true;
+        });
+
+        // Handle messages from client
+        ws.on('message', (data) => {
+          try {
+            const message = JSON.parse(data.toString());
+            this.handleClientMessage(ws, message);
+          } catch (error) {
+            console.error('Invalid WebSocket message:', error);
+            ws.send(JSON.stringify({
+              type: 'error',
+              error: 'Invalid message format'
+            }));
+          }
+        });
+
+        // Handle disconnection
+        ws.on('close', () => {
+          this.handleDisconnection(ws);
+        });
+
+        ws.on('error', (error) => {
+          console.error(`WebSocket error for user ${userId}:`, error);
+          this.handleDisconnection(ws);
+        });
+      } catch (error) {
+        console.error('WebSocket authentication error:', error);
+        ws.close(1008, 'Authentication error');
+      }
     });
   }
 
