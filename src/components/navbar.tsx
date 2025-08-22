@@ -22,7 +22,8 @@ import {
   Sparkles,
   Settings,
   LogOut,
-  User
+  User,
+  Briefcase
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useEffect } from 'react'
@@ -64,6 +65,7 @@ export function Navbar() {
     { href: '/inbox', label: 'Inbox', icon: Mail },
     { href: '/inspector', label: 'Inspector', icon: FileSearch },
     { href: '/tone', label: 'Tone Analysis', icon: Sparkles },
+    { href: '/dashboard/jobs', label: 'Jobs', icon: Briefcase },
   ]
 
   const handleSignOut = async () => {

@@ -304,11 +304,10 @@ class MonitorInstance {
       // Queue each message for processing
       for (const message of messages) {
         const job = await addEmailJob(
-          JobType.PROCESS_NEW_EMAIL,
+          JobType.PROCESS_INBOX,
           {
             userId: this.userId,
             accountId: this.accountId,
-            emailUid: message.uid,
             folderName: 'INBOX'
           },
           JobPriority.HIGH

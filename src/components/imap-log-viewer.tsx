@@ -31,7 +31,6 @@ interface ImapLogViewerProps {
 
 export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps) {
   // TODO: Use emailAccountId to filter logs for specific email account
-  console.log('Viewing logs for account:', emailAccountId);
   const [logs, setLogs] = useState<ImapLogEntry[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
