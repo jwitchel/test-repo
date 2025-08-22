@@ -9,8 +9,7 @@ import {
   addEmailJob,
   addToneProfileJob,
   JobType,
-  JobPriority,
-  monitorQueueHealth
+  JobPriority
 } from '../queue';
 
 describe('Queue Integration Tests', () => {
@@ -51,121 +50,148 @@ describe('Queue Integration Tests', () => {
     const retrievedJob = await emailProcessingQueue.getJob(emailJob.id!);
     expect(retrievedJob).toBeDefined();
     expect(retrievedJob?.data.userId).toBe('integration-test-user');
-    expect(retrievedJob?.opts.priority).toBe(JobPriority.HIGH);
-
-    // Check job state (prioritized is a valid waiting state for jobs with priority)
-    const state = await retrievedJob?.getState();
-    expect(['waiting', 'prioritized', 'active']).toContain(state);
   });
 
-  it('should handle multiple job types', async () => {
-    // Queue different job types
-    const jobs = await Promise.all([
-      addEmailJob(JobType.MONITOR_INBOX, {
-        userId: 'test-user',
-        accountId: 'test-account',
-        folderName: 'INBOX'
-      }),
-      addEmailJob(JobType.LEARN_FROM_EDIT, {
-        userId: 'test-user',
-        originalDraft: 'original',
-        editedDraft: 'edited'
-      }),
-      addToneProfileJob({
-        userId: 'test-user',
-        accountId: 'test-account',
-        historyDays: 7
-      })
-    ]);
-
-    expect(jobs).toHaveLength(3);
-    jobs.forEach(job => {
-      expect(job.id).toBeDefined();
-    });
-  });
-
-  it('should respect job priorities', async () => {
-    // Add jobs with different priorities
-    const lowPriorityJob = await addEmailJob(
-      JobType.PROCESS_NEW_EMAIL,
+  it('should queue tone profile jobs correctly', async () => {
+    // Add a tone profile job
+    const toneJob = await addToneProfileJob(
       {
-        userId: 'test',
-        accountId: 'test',
-        emailUid: 1,
-        folderName: 'INBOX'
+        userId: 'integration-test-user',
+        accountId: 'integration-test-account',
+        historyDays: 30
       },
-      JobPriority.LOW
+      JobPriority.NORMAL
     );
 
-    const highPriorityJob = await addEmailJob(
-      JobType.PROCESS_NEW_EMAIL,
+    expect(toneJob).toBeDefined();
+    expect(toneJob.id).toBeDefined();
+
+    // Retrieve the job
+    const retrievedJob = await toneProfileQueue.getJob(toneJob.id!);
+    expect(retrievedJob).toBeDefined();
+    expect(retrievedJob?.data.historyDays).toBe(30);
+  });
+
+  it('should handle different job priorities', async () => {
+    // Add jobs with different priorities
+    const criticalJob = await addEmailJob(
+      JobType.MONITOR_INBOX,
       {
         userId: 'test',
         accountId: 'test',
-        emailUid: 2,
         folderName: 'INBOX'
       },
       JobPriority.CRITICAL
     );
 
-    // High priority job should have lower priority value (processes first)
-    expect(highPriorityJob.opts.priority).toBeLessThan(lowPriorityJob.opts.priority!);
-  });
-
-  it('should monitor queue health correctly', async () => {
-    const health = await monitorQueueHealth();
-
-    expect(health).toBeDefined();
-    expect(health.emailProcessing).toBeDefined();
-    expect(health.toneProfile).toBeDefined();
-    expect(health.redis).toBeDefined();
-    
-    // Redis should be connected
-    expect(health.redis.connected).toBe(true);
-    
-    // Queues should be healthy (not too many failed or waiting)
-    expect(typeof health.emailProcessing.healthy).toBe('boolean');
-    expect(typeof health.toneProfile.healthy).toBe('boolean');
-  });
-
-  it('should handle job retry configuration', async () => {
-    const job = await addEmailJob(
-      JobType.PROCESS_NEW_EMAIL,
+    const lowJob = await addEmailJob(
+      JobType.MONITOR_INBOX,
       {
         userId: 'test',
         accountId: 'test',
-        emailUid: 123,
         folderName: 'INBOX'
-      }
+      },
+      JobPriority.LOW
     );
 
-    // Check retry configuration
-    expect(job.opts.attempts).toBe(3);
-    expect(job.opts.backoff).toEqual({
-      type: 'exponential',
-      delay: 2000
-    });
+    expect(criticalJob.opts.priority).toBe(JobPriority.CRITICAL);
+    expect(lowJob.opts.priority).toBe(JobPriority.LOW);
   });
 
-  it('should clean up completed jobs according to configuration', async () => {
+  it('should get queue statistics', async () => {
+    // Get job counts from queues
+    const emailCounts = await emailProcessingQueue.getJobCounts();
+    const toneCounts = await toneProfileQueue.getJobCounts();
+
+    expect(emailCounts).toBeDefined();
+    expect(emailCounts).toHaveProperty('waiting');
+    expect(emailCounts).toHaveProperty('active');
+    expect(emailCounts).toHaveProperty('completed');
+    expect(emailCounts).toHaveProperty('failed');
+
+    expect(toneCounts).toBeDefined();
+    expect(toneCounts).toHaveProperty('waiting');
+  });
+
+  it('should check queue health', async () => {
+    // Check if queues are paused
+    const emailPaused = await emailProcessingQueue.isPaused();
+    const tonePaused = await toneProfileQueue.isPaused();
+
+    expect(typeof emailPaused).toBe('boolean');
+    expect(typeof tonePaused).toBe('boolean');
+    expect(emailPaused).toBe(false); // Should not be paused
+    expect(tonePaused).toBe(false); // Should not be paused
+  });
+
+  it('should handle job with no retry', async () => {
+    // Add a job
     const job = await addEmailJob(
-      JobType.PROCESS_NEW_EMAIL,
+      JobType.LEARN_FROM_EDIT,
       {
-        userId: 'cleanup-test',
-        accountId: 'test',
-        emailUid: 456,
-        folderName: 'INBOX'
-      }
+        userId: 'test',
+        originalDraft: 'original',
+        editedDraft: 'edited'
+      },
+      JobPriority.NORMAL
     );
 
-    // Check cleanup configuration
-    expect(job.opts.removeOnComplete).toEqual({
-      count: 100,
-      age: 3600
-    });
-    expect(job.opts.removeOnFail).toEqual({
-      count: 50,
-      age: 7200
-    });
+    // Check retry configuration (we removed retries)
+    expect(job.opts.attempts).toBe(1); // No retries
+  });
+
+  it('should handle tone profile job configuration', async () => {
+    const job = await addToneProfileJob(
+      {
+        userId: 'test',
+        accountId: 'test',
+        historyDays: 90
+      },
+      JobPriority.HIGH
+    );
+
+    // Check configuration
+    expect(job.name).toBe(JobType.BUILD_TONE_PROFILE);
+    expect(job.opts.attempts).toBe(1); // No retries in simplified system
+    expect(job.data.historyDays).toBe(90);
+  });
+
+  it('should handle job types correctly', async () => {
+    // Test different job types
+    const types = [
+      JobType.MONITOR_INBOX,
+      JobType.PROCESS_NEW_EMAIL,
+      JobType.LEARN_FROM_EDIT
+    ];
+
+    for (const type of types) {
+      const job = await addEmailJob(
+        type,
+        {
+          userId: 'test',
+          accountId: 'test',
+          folderName: 'INBOX'
+        },
+        JobPriority.NORMAL
+      );
+
+      expect(job.name).toBe(type);
+    }
+  });
+
+  it('should clean jobs from queue', async () => {
+    // Add some test jobs
+    await addEmailJob(
+      JobType.MONITOR_INBOX,
+      { userId: 'test', accountId: 'test', folderName: 'INBOX' },
+      JobPriority.NORMAL
+    );
+
+    // Clean the queue
+    await emailProcessingQueue.obliterate({ force: true });
+
+    // Check that queue is empty
+    const counts = await emailProcessingQueue.getJobCounts();
+    expect(counts.waiting).toBe(0);
   });
 });

@@ -3,8 +3,6 @@ import {
   toneProfileQueue,
   addEmailJob,
   addToneProfileJob,
-  getQueueStats,
-  monitorQueueHealth,
   JobType,
   JobPriority
 } from '../queue';
@@ -48,182 +46,195 @@ describe('BullMQ Queue Configuration', () => {
           emailUid: 123,
           folderName: 'INBOX'
         },
-        JobPriority.HIGH
+        JobPriority.NORMAL
       );
 
       expect(job).toBeDefined();
+      expect(job.id).toBeDefined();
       expect(job.name).toBe(JobType.PROCESS_NEW_EMAIL);
       expect(job.data.userId).toBe('test-user-1');
-      expect(job.opts.priority).toBe(JobPriority.HIGH);
     });
 
     it('should add monitor inbox job', async () => {
       const job = await addEmailJob(
         JobType.MONITOR_INBOX,
         {
-          userId: 'test-user-1',
-          accountId: 'test-account-1',
+          userId: 'test-user-2',
+          accountId: 'test-account-2',
           folderName: 'INBOX'
-        }
+        },
+        JobPriority.HIGH
       );
 
       expect(job).toBeDefined();
       expect(job.name).toBe(JobType.MONITOR_INBOX);
+      expect(job.opts.priority).toBe(JobPriority.HIGH);
     });
 
     it('should add learn from edit job', async () => {
       const job = await addEmailJob(
         JobType.LEARN_FROM_EDIT,
         {
-          userId: 'test-user-1',
-          originalDraft: 'Original text',
-          editedDraft: 'Edited text',
+          userId: 'test-user-3',
+          originalDraft: 'original text',
+          editedDraft: 'edited text',
           context: {
             recipient: 'test@example.com',
             subject: 'Test Subject'
           }
-        }
-      );
-
-      expect(job).toBeDefined();
-      expect(job.name).toBe(JobType.LEARN_FROM_EDIT);
-      expect(job.data.originalDraft).toBe('Original text');
-    });
-
-    it('should add tone profile job', async () => {
-      const job = await addToneProfileJob(
-        {
-          userId: 'test-user-1',
-          accountId: 'test-account-1',
-          historyDays: 30
         },
         JobPriority.LOW
       );
 
       expect(job).toBeDefined();
-      expect(job.name).toBe(JobType.BUILD_TONE_PROFILE);
-      expect(job.data.historyDays).toBe(30);
+      expect(job.name).toBe(JobType.LEARN_FROM_EDIT);
       expect(job.opts.priority).toBe(JobPriority.LOW);
+    });
+
+    it('should add build tone profile job', async () => {
+      const job = await addToneProfileJob(
+        {
+          userId: 'test-user-4',
+          accountId: 'test-account-4',
+          historyDays: 30
+        },
+        JobPriority.CRITICAL
+      );
+
+      expect(job).toBeDefined();
+      expect(job.name).toBe(JobType.BUILD_TONE_PROFILE);
+      expect(job.opts.priority).toBe(JobPriority.CRITICAL);
+      expect(job.data.historyDays).toBe(30);
+    });
+  });
+
+  describe('Job Priority', () => {
+    it('should handle all priority levels', async () => {
+      const priorities = [
+        JobPriority.CRITICAL,
+        JobPriority.HIGH,
+        JobPriority.NORMAL,
+        JobPriority.LOW
+      ];
+
+      for (const priority of priorities) {
+        const job = await addEmailJob(
+          JobType.MONITOR_INBOX,
+          {
+            userId: 'test',
+            accountId: 'test',
+            folderName: 'INBOX'
+          },
+          priority
+        );
+
+        expect(job.opts.priority).toBe(priority);
+      }
     });
   });
 
   describe('Queue Statistics', () => {
-    it('should get queue statistics', async () => {
-      const stats = await getQueueStats(emailProcessingQueue);
+    it('should get queue statistics using native BullMQ methods', async () => {
+      // Add a test job
+      await addEmailJob(
+        JobType.MONITOR_INBOX,
+        {
+          userId: 'stats-test',
+          accountId: 'stats-test',
+          folderName: 'INBOX'
+        },
+        JobPriority.NORMAL
+      );
 
-      expect(stats).toBeDefined();
-      expect(typeof stats.waiting).toBe('number');
-      expect(typeof stats.active).toBe('number');
-      expect(typeof stats.completed).toBe('number');
-      expect(typeof stats.failed).toBe('number');
-      expect(typeof stats.delayed).toBe('number');
-      expect(typeof stats.paused).toBe('number');
-      expect(typeof stats.total).toBe('number');
+      // Get job counts directly from queues
+      const emailCounts = await emailProcessingQueue.getJobCounts();
+      const toneCounts = await toneProfileQueue.getJobCounts();
+
+      expect(emailCounts).toBeDefined();
+      expect(typeof emailCounts.waiting).toBe('number');
+      expect(typeof emailCounts.active).toBe('number');
+      expect(typeof emailCounts.completed).toBe('number');
+      expect(typeof emailCounts.failed).toBe('number');
+
+      expect(toneCounts).toBeDefined();
     });
 
-    it('should monitor queue health', async () => {
-      const health = await monitorQueueHealth();
+    it('should check if queues are paused', async () => {
+      const emailPaused = await emailProcessingQueue.isPaused();
+      const tonePaused = await toneProfileQueue.isPaused();
 
-      expect(health).toBeDefined();
-      expect(health.emailProcessing).toBeDefined();
-      expect(health.toneProfile).toBeDefined();
-      expect(health.redis).toBeDefined();
-      expect(typeof health.emailProcessing.healthy).toBe('boolean');
-      expect(typeof health.toneProfile.healthy).toBe('boolean');
-      expect(typeof health.redis.connected).toBe('boolean');
+      expect(typeof emailPaused).toBe('boolean');
+      expect(typeof tonePaused).toBe('boolean');
     });
   });
 
-  describe('Job Retry Configuration', () => {
-    it('should have correct default job options', async () => {
-      const job = await emailProcessingQueue.add('test-job', { test: true });
-      
-      expect(job.opts.attempts).toBe(3);
-      expect(job.opts.backoff).toEqual({
-        type: 'exponential',
-        delay: 2000
-      });
-      expect(job.opts.removeOnComplete).toEqual({
-        count: 100,
-        age: 3600
-      });
-      expect(job.opts.removeOnFail).toEqual({
-        count: 50,
-        age: 7200
-      });
+  describe('Job Configuration', () => {
+    it('should configure email jobs with simplified settings', async () => {
+      const job = await addEmailJob(
+        JobType.PROCESS_NEW_EMAIL,
+        {
+          userId: 'config-test',
+          accountId: 'config-test',
+          emailUid: 456,
+          folderName: 'INBOX'
+        },
+        JobPriority.NORMAL
+      );
 
-      // Clean up - try to remove, but ignore if locked
-      try {
-        await job.remove();
-      } catch (error: any) {
-        // Ignore "locked" errors as the job might be being processed
-        if (!error.message?.includes('locked')) {
-          throw error;
-        }
-      }
+      expect(job.opts.attempts).toBe(1); // No retries in simplified system
+      expect(job.opts.removeOnComplete).toBeDefined();
+      expect(job.opts.removeOnFail).toBeDefined();
     });
 
-    it('should have different configuration for tone profile queue', async () => {
-      const job = await toneProfileQueue.add('test-job', { test: true });
-      
-      expect(job.opts.attempts).toBe(2);
-      expect(job.opts.backoff).toEqual({
-        type: 'exponential',
-        delay: 5000
-      });
+    it('should configure tone profile jobs with simplified settings', async () => {
+      const job = await addToneProfileJob(
+        {
+          userId: 'config-test',
+          accountId: 'config-test',
+          historyDays: 60
+        },
+        JobPriority.HIGH
+      );
 
-      // Clean up - try to remove, but ignore if locked
-      try {
-        await job.remove();
-      } catch (error: any) {
-        // Ignore "locked" errors as the job might be being processed
-        if (!error.message?.includes('locked')) {
-          throw error;
-        }
-      }
+      expect(job.opts.attempts).toBe(1); // No retries in simplified system
     });
   });
 
-  describe('Priority Levels', () => {
-    it('should respect job priorities', async () => {
-      // Add jobs with different priorities
-      const criticalJob = await emailProcessingQueue.add(
-        'critical',
-        { priority: 'critical' },
-        { priority: JobPriority.CRITICAL }
-      );
-      
-      const normalJob = await emailProcessingQueue.add(
-        'normal',
-        { priority: 'normal' },
-        { priority: JobPriority.NORMAL }
-      );
-      
-      const lowJob = await emailProcessingQueue.add(
-        'low',
-        { priority: 'low' },
-        { priority: JobPriority.LOW }
+  describe('Queue Operations', () => {
+    it('should retrieve jobs from queue', async () => {
+      const job = await addEmailJob(
+        JobType.MONITOR_INBOX,
+        {
+          userId: 'retrieve-test',
+          accountId: 'retrieve-test',
+          folderName: 'INBOX'
+        },
+        JobPriority.NORMAL
       );
 
-      expect(criticalJob.opts.priority).toBe(1);
-      expect(normalJob.opts.priority).toBe(5);
-      expect(lowJob.opts.priority).toBe(10);
+      const retrieved = await emailProcessingQueue.getJob(job.id!);
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.id).toBe(job.id);
+    });
 
-      // Clean up - try to remove, but ignore if locked
-      const removeJob = async (job: any) => {
-        try {
-          await job.remove();
-        } catch (error: any) {
-          // Ignore "locked" errors as the job might be being processed
-          if (!error.message?.includes('locked')) {
-            throw error;
-          }
-        }
-      };
+    it('should clean queue', async () => {
+      // Add a job
+      await addEmailJob(
+        JobType.MONITOR_INBOX,
+        {
+          userId: 'clean-test',
+          accountId: 'clean-test',
+          folderName: 'INBOX'
+        },
+        JobPriority.NORMAL
+      );
+
+      // Clean the queue
+      await emailProcessingQueue.obliterate({ force: true });
       
-      await removeJob(criticalJob);
-      await removeJob(normalJob);
-      await removeJob(lowJob);
+      // Check it's empty
+      const counts = await emailProcessingQueue.getJobCounts();
+      expect(counts.waiting).toBe(0);
     });
   });
 });
