@@ -111,7 +111,7 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => v
 export function JobsMonitor() {
   const [jobs, setJobs] = useState<Map<string, JobData>>(new Map());
   const [loading, setLoading] = useState(true);
-  const ws = useWebSocket('/ws/unified');
+  const ws = useWebSocket('/ws');
   
   // Load initial jobs from API
   useEffect(() => {

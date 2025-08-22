@@ -24,7 +24,7 @@ router.use(async (req: Request, res: Response, next) => {
 });
 
 // Get all user relationships
-router.get('/relationships', async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const relationships = await userRelationshipService.getAllRelationships(userId);
@@ -37,7 +37,7 @@ router.get('/relationships', async (req: Request, res: Response) => {
 });
 
 // Get distinct relationship types for the user
-router.get('/relationships/types', async (req: Request, res: Response) => {
+router.get('/types', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
@@ -60,7 +60,7 @@ router.get('/relationships/types', async (req: Request, res: Response) => {
 });
 
 // Create a new relationship type
-router.post('/relationships', async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { relationshipType, displayName } = req.body;
@@ -83,7 +83,7 @@ router.post('/relationships', async (req: Request, res: Response) => {
 });
 
 // Update a relationship type
-router.put('/relationships/:type', async (req: Request, res: Response) => {
+router.put('/:type', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { type } = req.params;
@@ -112,7 +112,7 @@ router.put('/relationships/:type', async (req: Request, res: Response) => {
 });
 
 // Delete a relationship type
-router.delete('/relationships/:type', async (req: Request, res: Response) => {
+router.delete('/:type', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { type } = req.params;

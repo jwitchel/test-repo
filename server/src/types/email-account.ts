@@ -15,9 +15,11 @@ export interface EmailAccountResponse {
   imap_secure: boolean;
   imap_username: string;
   is_active: boolean;
+  monitoring_enabled?: boolean;
   last_sync: string | null;
   created_at: string;
   updated_at: string;
+  oauth_provider?: string;
 }
 
 export interface EmailAccountDb {

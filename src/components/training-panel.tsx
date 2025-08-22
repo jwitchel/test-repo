@@ -101,7 +101,7 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: Trai
 
   // Listen for WebSocket progress updates
   const connectWebSocket = () => {
-    const ws = new WebSocket(`ws://localhost:3002/ws/imap-logs`)
+    const ws = new WebSocket(`ws://localhost:3002/ws`)
     
     ws.onopen = () => {
       ws.send(JSON.stringify({ userId }))

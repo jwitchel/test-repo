@@ -31,13 +31,12 @@ describe('Queue Integration Tests', () => {
   });
 
   it('should queue and retrieve jobs correctly', async () => {
-    // Add a process email job
+    // Add a process inbox job
     const emailJob = await addEmailJob(
-      JobType.PROCESS_NEW_EMAIL,
+      JobType.PROCESS_INBOX,
       {
         userId: 'integration-test-user',
         accountId: 'integration-test-account',
-        emailUid: 999,
         folderName: 'INBOX'
       },
       JobPriority.HIGH
@@ -50,6 +49,11 @@ describe('Queue Integration Tests', () => {
     const retrievedJob = await emailProcessingQueue.getJob(emailJob.id!);
     expect(retrievedJob).toBeDefined();
     expect(retrievedJob?.data.userId).toBe('integration-test-user');
+    
+    // Check job state
+    const state = await emailJob.getState();
+    expect(state).toBeDefined();
+    expect(['waiting', 'delayed', 'active', 'completed', 'failed']).toContain(state);
   });
 
   it('should queue tone profile jobs correctly', async () => {
@@ -70,12 +74,17 @@ describe('Queue Integration Tests', () => {
     const retrievedJob = await toneProfileQueue.getJob(toneJob.id!);
     expect(retrievedJob).toBeDefined();
     expect(retrievedJob?.data.historyDays).toBe(30);
+    
+    // Check job state
+    const state = await toneJob.getState();
+    expect(state).toBeDefined();
+    expect(['waiting', 'delayed', 'active', 'completed', 'failed']).toContain(state);
   });
 
   it('should handle different job priorities', async () => {
     // Add jobs with different priorities
     const criticalJob = await addEmailJob(
-      JobType.MONITOR_INBOX,
+      JobType.PROCESS_INBOX,
       {
         userId: 'test',
         accountId: 'test',
@@ -85,7 +94,7 @@ describe('Queue Integration Tests', () => {
     );
 
     const lowJob = await addEmailJob(
-      JobType.MONITOR_INBOX,
+      JobType.PROCESS_INBOX,
       {
         userId: 'test',
         accountId: 'test',
@@ -157,32 +166,35 @@ describe('Queue Integration Tests', () => {
   });
 
   it('should handle job types correctly', async () => {
-    // Test different job types
-    const types = [
-      JobType.MONITOR_INBOX,
-      JobType.PROCESS_NEW_EMAIL,
-      JobType.LEARN_FROM_EDIT
-    ];
+    // Test process inbox job
+    const processJob = await addEmailJob(
+      JobType.PROCESS_INBOX,
+      {
+        userId: 'test',
+        accountId: 'test',
+        folderName: 'INBOX'
+      },
+      JobPriority.NORMAL
+    );
+    expect(processJob.name).toBe(JobType.PROCESS_INBOX);
 
-    for (const type of types) {
-      const job = await addEmailJob(
-        type,
-        {
-          userId: 'test',
-          accountId: 'test',
-          folderName: 'INBOX'
-        },
-        JobPriority.NORMAL
-      );
-
-      expect(job.name).toBe(type);
-    }
+    // Test learn from edit job
+    const learnJob = await addEmailJob(
+      JobType.LEARN_FROM_EDIT,
+      {
+        userId: 'test',
+        originalDraft: 'original',
+        editedDraft: 'edited'
+      },
+      JobPriority.NORMAL
+    );
+    expect(learnJob.name).toBe(JobType.LEARN_FROM_EDIT);
   });
 
   it('should clean jobs from queue', async () => {
     // Add some test jobs
     await addEmailJob(
-      JobType.MONITOR_INBOX,
+      JobType.PROCESS_INBOX,
       { userId: 'test', accountId: 'test', folderName: 'INBOX' },
       JobPriority.NORMAL
     );

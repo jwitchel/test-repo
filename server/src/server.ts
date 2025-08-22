@@ -2,13 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import path from 'path';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth';
 import { createServer } from 'http';
 import { createUnifiedWebSocketServer } from './websocket/unified-websocket';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from root .env file
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 // Validate required environment variables
 if (!process.env.ENCRYPTION_KEY) {
@@ -17,6 +18,8 @@ if (!process.env.ENCRYPTION_KEY) {
   console.error('   Generate one with: openssl rand -base64 32');
   process.exit(1);
 }
+
+// SERVICE_TOKEN is loaded from .env for worker authentication
 
 const app = express();
 const PORT = process.env.PORT || 3002;

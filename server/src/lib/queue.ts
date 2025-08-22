@@ -1,15 +1,14 @@
-import { Queue, Job, QueueEvents } from 'bullmq';
+import { Queue, Job } from 'bullmq';
 import Redis from 'ioredis';
 
 // Redis connection configuration
-// Using port 6380 as configured in docker-compose.yml
 const connection = new Redis({
   host: 'localhost',
   port: 6380,
   maxRetriesPerRequest: null
 });
 
-// Queue configuration with retry and failure handling
+// Simple job options - no retry logic as requested
 const defaultJobOptions = {
   removeOnComplete: {
     count: 100,  // Keep last 100 completed jobs
@@ -19,18 +18,13 @@ const defaultJobOptions = {
     count: 50,   // Keep last 50 failed jobs
     age: 7200    // Remove failed jobs older than 2 hours
   },
-  attempts: 3,
-  backoff: {
-    type: 'exponential',
-    delay: 2000  // Start with 2 second delay
-  }
+  attempts: 1    // No retries
 };
 
-// Job types enum for type safety
+// Job types enum
 export enum JobType {
   BUILD_TONE_PROFILE = 'build-tone-profile',
-  MONITOR_INBOX = 'monitor-inbox',
-  PROCESS_NEW_EMAIL = 'process-new-email',
+  PROCESS_INBOX = 'process-inbox',
   LEARN_FROM_EDIT = 'learn-from-edit'
 }
 
@@ -49,17 +43,11 @@ export interface BuildToneProfileJobData {
   historyDays?: number;
 }
 
-export interface MonitorInboxJobData {
+export interface ProcessInboxJobData {
   userId: string;
   accountId: string;
-  folderName: string;
-}
-
-export interface ProcessNewEmailJobData {
-  userId: string;
-  accountId: string;
-  emailUid: number;
-  folderName: string;
+  folderName?: string; // Default to INBOX
+  since?: Date; // Optional: only process emails after this date
 }
 
 export interface LearnFromEditJobData {
@@ -72,181 +60,29 @@ export interface LearnFromEditJobData {
   };
 }
 
-// Create queues for different job types
+// Create queues
 export const emailProcessingQueue = new Queue('email-processing', {
   connection,
   defaultJobOptions
 });
 
-// Queue for tone profile building (long-running jobs)
 export const toneProfileQueue = new Queue('tone-profile', {
   connection,
-  defaultJobOptions: {
-    ...defaultJobOptions,
-    attempts: 2,  // Fewer retries for long-running jobs
-    backoff: {
-      type: 'exponential',
-      delay: 5000  // Longer delay for heavy jobs
-    }
-  }
+  defaultJobOptions
 });
 
-// Queue events for monitoring
-export const emailQueueEvents = new QueueEvents('email-processing', {
-  connection: connection.duplicate()
-});
-
-export const toneQueueEvents = new QueueEvents('tone-profile', {
-  connection: connection.duplicate()
-});
-
-// Helper function to add jobs with proper typing
+// Helper functions to add jobs
 export async function addEmailJob(
   type: JobType,
-  data: ProcessNewEmailJobData | MonitorInboxJobData | LearnFromEditJobData,
+  data: ProcessInboxJobData | LearnFromEditJobData,
   priority: JobPriority = JobPriority.NORMAL
-) {
-  return emailProcessingQueue.add(type, data, {
-    priority,
-    delay: 0
-  });
+): Promise<Job> {
+  return emailProcessingQueue.add(type, data, { priority });
 }
 
 export async function addToneProfileJob(
   data: BuildToneProfileJobData,
-  priority: JobPriority = JobPriority.LOW
-) {
-  return toneProfileQueue.add(JobType.BUILD_TONE_PROFILE, data, {
-    priority,
-    delay: 0
-  });
+  priority: JobPriority = JobPriority.NORMAL
+): Promise<Job> {
+  return toneProfileQueue.add(JobType.BUILD_TONE_PROFILE, data, { priority });
 }
-
-// Graceful shutdown function
-export async function shutdownQueues() {
-  console.log('Shutting down queues...');
-  
-  await emailProcessingQueue.close();
-  await toneProfileQueue.close();
-  await emailQueueEvents.close();
-  await toneQueueEvents.close();
-  await connection.quit();
-  
-  console.log('Queues shut down successfully');
-}
-
-// Queue monitoring utilities
-export async function getQueueStats(queue: Queue) {
-  const [waiting, active, completed, failed, delayed] = await Promise.all([
-    queue.getWaitingCount(),
-    queue.getActiveCount(),
-    queue.getCompletedCount(),
-    queue.getFailedCount(),
-    queue.getDelayedCount()
-  ]);
-
-  return {
-    waiting,
-    active,
-    completed,
-    failed,
-    delayed,
-    paused: 0,  // getPausedCount not available in current BullMQ version
-    total: waiting + active + delayed
-  };
-}
-
-// Error handling utilities
-export function createJobErrorHandler(jobType: string) {
-  return async (job: Job, error: Error) => {
-    console.error(`Job ${jobType} failed:`, {
-      jobId: job.id,
-      jobName: job.name,
-      attempt: job.attemptsMade,
-      maxAttempts: job.opts.attempts,
-      error: error.message,
-      stack: error.stack,
-      data: job.data
-    });
-
-    // Log to database or monitoring service
-    // This could be extended to send alerts for critical jobs
-    if (job.attemptsMade === job.opts.attempts) {
-      console.error(`Job ${jobType} permanently failed after ${job.opts.attempts} attempts`);
-      // Could trigger alerts here
-    }
-  };
-}
-
-// Job progress reporter
-export function createProgressReporter(job: Job) {
-  return async (progress: number, message?: string) => {
-    await job.updateProgress(progress);
-    console.log(`Job ${job.name} progress: ${progress}%${message ? ` - ${message}` : ''}`);
-  };
-}
-
-// Monitor queue health
-export async function monitorQueueHealth() {
-  const emailStats = await getQueueStats(emailProcessingQueue);
-  const toneStats = await getQueueStats(toneProfileQueue);
-
-  const health = {
-    emailProcessing: {
-      ...emailStats,
-      healthy: emailStats.failed < 10 && emailStats.waiting < 100
-    },
-    toneProfile: {
-      ...toneStats,
-      healthy: toneStats.failed < 5 && toneStats.waiting < 20
-    },
-    redis: {
-      connected: connection.status === 'ready',
-      status: connection.status
-    }
-  };
-
-  return health;
-}
-
-// Setup monitoring listeners
-emailQueueEvents.on('completed', ({ jobId }) => {
-  console.log(`Email job ${jobId} completed successfully`);
-});
-
-emailQueueEvents.on('failed', ({ jobId, failedReason }) => {
-  console.error(`Email job ${jobId} failed: ${failedReason}`);
-});
-
-toneQueueEvents.on('completed', ({ jobId }) => {
-  console.log(`Tone profile job ${jobId} completed successfully`);
-});
-
-toneQueueEvents.on('failed', ({ jobId, failedReason }) => {
-  console.error(`Tone profile job ${jobId} failed: ${failedReason}`);
-});
-
-// Handle process termination gracefully
-process.on('SIGTERM', async () => {
-  await shutdownQueues();
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  await shutdownQueues();
-  process.exit(0);
-});
-
-export default {
-  emailProcessingQueue,
-  toneProfileQueue,
-  emailQueueEvents,
-  toneQueueEvents,
-  addEmailJob,
-  addToneProfileJob,
-  getQueueStats,
-  monitorQueueHealth,
-  shutdownQueues,
-  JobType,
-  JobPriority
-};

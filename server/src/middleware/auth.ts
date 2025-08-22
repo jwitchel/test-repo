@@ -3,7 +3,27 @@ import { auth } from '../lib/auth';
 
 // Protected route middleware
 export const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> => {
+  // Check for service token first
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    
+    if (token === process.env.SERVICE_TOKEN) {
+      // For service token auth, userId must be in the body
+      if (!(req.body as any).userId) {
+        res.status(400).json({ error: 'userId required when using service token' });
+        return;
+      }
+      (req as any).user = { id: (req.body as any).userId };
+      (req as any).isServiceToken = true;
+      next();
+      return;
+    }
+  }
+  
   try {
+    // Regular session-based auth
+    
     // Create a headers object that better-auth expects
     const headers = new Headers();
     Object.entries(req.headers).forEach(([key, value]) => {

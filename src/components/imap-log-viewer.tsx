@@ -52,7 +52,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//localhost:3002/ws/unified`);
+      const ws = new WebSocket(`${protocol}//localhost:3002/ws`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -72,6 +72,22 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
             setLogs(prev => [...(prev || []), data.log]);
           } else if (data.type === 'logs-cleared') {
             setLogs([]);
+          } else if (data.type === 'job-event' && data.data) {
+            // Handle job events from the queue system
+            const jobEvent = data.data;
+            const log: ImapLogEntry = {
+              id: `job-${jobEvent.jobId}-${Date.now()}`,
+              timestamp: data.timestamp || new Date().toISOString(),
+              userId: jobEvent.userId || '',
+              emailAccountId: emailAccountId || '',
+              level: 'info',
+              command: jobEvent.type || 'JOB_EVENT',
+              data: {
+                raw: `[Job ${jobEvent.jobId}] ${jobEvent.type}: ${jobEvent.jobType || ''}`,
+                parsed: jobEvent
+              }
+            };
+            setLogs(prev => [...(prev || []), log]);
           }
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
@@ -115,7 +131,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
       setError('Failed to connect to log server');
       setIsConnecting(false);
     }
-  }, []);
+  }, [emailAccountId]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -335,23 +351,23 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
                         className={cn(
                           "text-[10px] px-1 py-0 h-4",
                           // Job events
-                          log.command.startsWith('JOB_') && "border-indigo-500 text-indigo-600",
+                          log.command?.startsWith('JOB_') && "border-indigo-500 text-indigo-600",
                           log.command === 'JOB_COMPLETED' && "border-green-500 text-green-600",
                           log.command === 'JOB_FAILED' && "border-red-500 text-red-600",
                           // Monitoring events
-                          log.command.includes('MONITORING') && "border-blue-500 text-blue-600",
+                          log.command?.includes('MONITORING') && "border-blue-500 text-blue-600",
                           // IMAP operations
-                          log.command.startsWith('IMAP') && "border-purple-500 text-purple-600",
+                          log.command?.startsWith('IMAP') && "border-purple-500 text-purple-600",
                           log.command === 'CONNECT' && "border-zinc-500 text-zinc-600",
                           log.command === 'IDLE' && "border-amber-500 text-amber-600",
                           // Email processing
-                          log.command.startsWith('email.') && "border-purple-500 text-purple-600",
-                          log.command.startsWith('nlp.') && "border-blue-500 text-blue-600",
-                          log.command.startsWith('relationship.') && "border-green-500 text-green-600",
-                          log.command.startsWith('person.') && "border-yellow-500 text-yellow-600",
-                          log.command.startsWith('vector.') && "border-orange-500 text-orange-600",
-                          log.command.startsWith('style.') && "border-pink-500 text-pink-600",
-                          log.command.startsWith('prompt.') && "border-indigo-500 text-indigo-600",
+                          log.command?.startsWith('email.') && "border-purple-500 text-purple-600",
+                          log.command?.startsWith('nlp.') && "border-blue-500 text-blue-600",
+                          log.command?.startsWith('relationship.') && "border-green-500 text-green-600",
+                          log.command?.startsWith('person.') && "border-yellow-500 text-yellow-600",
+                          log.command?.startsWith('vector.') && "border-orange-500 text-orange-600",
+                          log.command?.startsWith('style.') && "border-pink-500 text-pink-600",
+                          log.command?.startsWith('prompt.') && "border-indigo-500 text-indigo-600",
                           log.command === 'pipeline.complete' && "border-emerald-500 text-emerald-600 font-semibold"
                         )}
                       >
@@ -360,7 +376,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
                     </div>
                     
                     {/* Duration */}
-                    {log.data.duration && (
+                    {log.data?.duration && (
                       <div className="flex-shrink-0 text-zinc-500 w-12 text-right">
                         {log.data.duration}ms
                       </div>
