@@ -12,8 +12,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Mail, Server } from 'lucide-react'
+import { Loader2, Mail, Server, Eye, EyeOff } from 'lucide-react'
 import { EmailAccountResponse } from '@/types/email-account'
 import { FcGoogle } from 'react-icons/fc'
 
@@ -75,6 +76,27 @@ export default function EmailAccountsPage() {
       showError('Network error. Please try again.')
     }
   }
+  
+  const handleToggleMonitoring = async (account: EmailAccountResponse, enabled: boolean) => {
+    try {
+      const response = await fetch(`http://localhost:3002/api/email-accounts/${account.id}/monitoring`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ enabled })
+      })
+
+      if (response.ok) {
+        success(enabled ? 'Monitoring enabled' : 'Monitoring disabled')
+        mutate()
+      } else {
+        const errorData = await response.json()
+        showError(errorData.error || 'Failed to toggle monitoring')
+      }
+    } catch {
+      showError('Network error. Please try again.')
+    }
+  }
 
   if (error) {
     return (
@@ -104,6 +126,7 @@ export default function EmailAccountsPage() {
             onEdit={(account) => setEditingAccount(account)}
             onDelete={handleDelete}
             onTest={handleTest}
+            onToggleMonitoring={handleToggleMonitoring}
             deletingId={deletingId}
           />
         ) : editingAccount ? (
@@ -136,6 +159,7 @@ function AccountList({
   onEdit, 
   onDelete,
   onTest,
+  onToggleMonitoring,
   deletingId 
 }: { 
   accounts: EmailAccountResponse[]
@@ -144,6 +168,7 @@ function AccountList({
   onEdit: (account: EmailAccountResponse) => void
   onDelete: (id: string) => void
   onTest: (account: EmailAccountResponse) => void
+  onToggleMonitoring: (account: EmailAccountResponse, enabled: boolean) => void
   deletingId: string | null
 }) {
   if (isLoading) {
@@ -184,6 +209,7 @@ function AccountList({
               <TableHead>Email</TableHead>
               <TableHead>Server</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Monitoring</TableHead>
               <TableHead>Last Sync</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -216,6 +242,20 @@ function AccountList({
                   }`}>
                     {account.is_active ? 'Active' : 'Inactive'}
                   </span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {account.monitoring_enabled ? (
+                      <Eye className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <EyeOff className="h-4 w-4 text-zinc-400" />
+                    )}
+                    <Switch
+                      checked={account.monitoring_enabled || false}
+                      onCheckedChange={(checked) => onToggleMonitoring(account, checked)}
+                      className="data-[state=checked]:bg-green-600"
+                    />
+                  </div>
                 </TableCell>
                 <TableCell>
                   {account.last_sync

@@ -52,7 +52,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//localhost:3002/ws/imap-logs`);
+      const ws = new WebSocket(`${protocol}//localhost:3002/ws/unified`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -68,7 +68,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
           
           if (data.type === 'initial-logs') {
             setLogs(data.logs || []);
-          } else if (data.type === 'new-log' && data.log) {
+          } else if (data.type === 'log' && data.log) {
             setLogs(prev => [...(prev || []), data.log]);
           } else if (data.type === 'logs-cleared') {
             setLogs([]);
@@ -78,9 +78,10 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
         }
       };
 
-      ws.onerror = (event) => {
-        console.error('WebSocket error:', event);
-        setError(`WebSocket connection error. Make sure you're signed in and the server is running.`);
+      ws.onerror = () => {
+        // WebSocket errors don't provide useful information in the browser
+        // The actual error details will be in the onclose event
+        console.debug('WebSocket error event (check onclose for details)');
       };
 
       ws.onclose = (event) => {
@@ -89,16 +90,22 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
         setIsConnecting(false);
         wsRef.current = null;
 
-        // Handle authentication errors (401)
-        if (event.code === 1002 || event.reason === 'Unauthorized') {
+        // Handle authentication errors
+        if (event.code === 1008 && event.reason === 'Authentication error') {
           setError('Authentication required. Please sign in first.');
           return;
         }
+        
+        // Handle abnormal closures
+        if (event.code === 1006) {
+          setError('WebSocket connection lost. Reconnecting...');
+        }
 
-        // Auto-reconnect after 5 seconds for other errors
-        if (!reconnectTimeoutRef.current) {
+        // Auto-reconnect after 5 seconds for unexpected closures
+        if (event.code !== 1000 && !reconnectTimeoutRef.current) {
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectTimeoutRef.current = null;
+            setError(null);
             connect();
           }, 5000);
         }
@@ -220,7 +227,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
     <Card className={cn("flex flex-col h-full overflow-hidden", className)}>
       <div className="flex items-center justify-between p-2 border-b flex-shrink-0">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">IMAP Logs</h3>
+          <h3 className="text-sm font-semibold">Real-Time Logs</h3>
           <Badge variant={isConnected ? "default" : "secondary"} className="text-xs py-0">
             {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
           </Badge>
@@ -289,7 +296,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
       <div className="flex-1 overflow-y-auto min-h-0 font-mono text-xs" ref={scrollAreaRef}>
         {!logs || logs.length === 0 ? (
           <div className="text-center text-zinc-500 py-8 font-sans">
-            {isConnected ? 'No logs yet. Start some IMAP operations to see logs.' : 'Connect to view logs.'}
+            {isConnected ? 'No logs yet. Waiting for system activity...' : 'Connect to view logs.'}
           </div>
         ) : (
           <div className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -327,6 +334,17 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
                         variant="outline" 
                         className={cn(
                           "text-[10px] px-1 py-0 h-4",
+                          // Job events
+                          log.command.startsWith('JOB_') && "border-indigo-500 text-indigo-600",
+                          log.command === 'JOB_COMPLETED' && "border-green-500 text-green-600",
+                          log.command === 'JOB_FAILED' && "border-red-500 text-red-600",
+                          // Monitoring events
+                          log.command.includes('MONITORING') && "border-blue-500 text-blue-600",
+                          // IMAP operations
+                          log.command.startsWith('IMAP') && "border-purple-500 text-purple-600",
+                          log.command === 'CONNECT' && "border-zinc-500 text-zinc-600",
+                          log.command === 'IDLE' && "border-amber-500 text-amber-600",
+                          // Email processing
                           log.command.startsWith('email.') && "border-purple-500 text-purple-600",
                           log.command.startsWith('nlp.') && "border-blue-500 text-blue-600",
                           log.command.startsWith('relationship.') && "border-green-500 text-green-600",
