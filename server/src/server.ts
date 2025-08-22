@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth';
 import { createServer } from 'http';
-import { createImapLogsWebSocketServer } from './websocket/imap-logs';
+import { createUnifiedWebSocketServer } from './websocket/unified-websocket';
 
 // Load environment variables
 dotenv.config();
@@ -104,12 +104,13 @@ import inboxDraftRoutes from './routes/inbox-draft';
 import monitoringRoutes from './routes/monitoring';
 import queueRoutes from './routes/queue';
 import imapMonitorRoutes from './routes/imap-monitor';
+import jobsRoutes from './routes/jobs';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
 app.use('/api/tone-profile', toneProfileRoutes);
 app.use('/api/imap', imapRoutes);
-app.use('/api', relationshipsRoutes);
+app.use('/api/relationships', relationshipsRoutes);
 app.use('/', styleRoutes);
 app.use('/', analyzeRoutes);
 app.use('/api/llm-providers', llmProvidersRoutes);
@@ -126,6 +127,7 @@ app.use('/api/inbox-draft', inboxDraftRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/queue', queueRoutes);
 app.use('/api/imap-monitor', imapMonitorRoutes);
+app.use('/api/jobs', jobsRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -137,18 +139,22 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // 404 handler
-app.use('*', (_req, res) => {
+app.use('*', (req, res) => {
+  console.log(`❌ 404: ${req.method} ${req.path}`);
   res.status(404).json({ error: 'Route not found' });
 });
 
 // Create HTTP server
 const server = createServer(app);
 
-// Create WebSocket server for IMAP logs
-const wsServer = createImapLogsWebSocketServer(server);
+// Create unified WebSocket server
+const wsServer = createUnifiedWebSocketServer(server);
 
 // Import IMAP pool for cleanup
 import { imapPool } from './lib/imap-pool';
+
+// Initialize queue event listeners (for WebSocket broadcasting)
+import './lib/queue-events';
 
 
 // Catch uncaught errors
@@ -176,7 +182,7 @@ process.on('SIGTERM', async () => {
   await imapPool.closeAll();
   console.log('IMAP connection pool closed');
   
-  // Close WebSocket server first
+  // Close WebSocket server
   await wsServer.close();
   
   // Close database pool
@@ -195,7 +201,7 @@ process.on('SIGINT', async () => {
   await imapPool.closeAll();
   console.log('IMAP connection pool closed');
   
-  // Close WebSocket server first
+  // Close WebSocket server
   await wsServer.close();
   
   // Close database pool

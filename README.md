@@ -74,6 +74,13 @@ An AI-powered email assistant that generates email reply drafts matching your pe
    This runs:
    - Next.js frontend on http://localhost:3001
    - Express.js backend on http://localhost:3002
+   - Background workers for job processing
+   
+   Alternative commands:
+   - `npm run dev:backend` - Start only backend services (server + workers)
+   - `npm run dev` - Start only Next.js frontend
+   - `npm run server` - Start only Express server
+   - `npm run workers` - Start only background workers
 
 7. **Seed demo data**
    ```bash
@@ -112,7 +119,9 @@ test-repo/
 # Development
 npm run dev              # Start Next.js frontend (port 3001)
 npm run server          # Start Express backend (port 3002)
-npm run dev:all         # Start both frontend and backend (kills existing processes first)
+npm run workers         # Start background job workers
+npm run dev:all         # Start frontend, backend, and workers (kills existing processes first)
+npm run dev:backend     # Start backend and workers only
 npm run dev:kill-ports  # Kill processes on ports 3001 and 3002
 
 # Individual Docker Services
