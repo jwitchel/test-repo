@@ -134,7 +134,8 @@ const emailProcessingWorker = new Worker(
   },
   {
     connection,
-    concurrency: 5
+    concurrency: 5,
+    autorun: false  // Don't start automatically - let WorkerManager control this
   }
 );
 

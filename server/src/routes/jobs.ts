@@ -215,9 +215,11 @@ router.get('/stats', requireAuth, async (_req, res): Promise<void> => {
     const tonePaused = await toneProfileQueue.isPaused();
 
     // Combined stats for backward compatibility
+    // Include both 'waiting' and 'prioritized' jobs in the queued count
     const stats = {
       active: emailCounts.active + toneCounts.active,
-      queued: emailCounts.waiting + toneCounts.waiting,
+      queued: (emailCounts.waiting || 0) + (toneCounts.waiting || 0) + 
+              (emailCounts.prioritized || 0) + (toneCounts.prioritized || 0),
       completed: emailCounts.completed + toneCounts.completed,
       failed: emailCounts.failed + toneCounts.failed,
       delayed: emailCounts.delayed + toneCounts.delayed,

@@ -16,7 +16,7 @@ interface JobProgress {
 interface JobData {
   jobId: string;
   type: string;
-  status: 'queued' | 'active' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'waiting' | 'prioritized' | 'active' | 'completed' | 'failed' | 'cancelled';
   progress?: JobProgress;
   result?: {
     profilesCreated?: number;
@@ -46,6 +46,8 @@ function formatTimestamp(timestamp: string): string {
 function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => void }) {
   const statusConfig = {
     queued: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
+    waiting: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
+    prioritized: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
     active: { variant: 'default' as const, icon: Loader2, color: 'text-indigo-600' },
     completed: { variant: 'default' as const, icon: CheckCircle, color: 'text-green-600' },
     failed: { variant: 'destructive' as const, icon: XCircle, color: 'text-red-600' },
@@ -298,8 +300,12 @@ export function JobsMonitor() {
           <div className="h-[120px] overflow-y-auto">
             {sortedJobs.length > 0 ? (
               <div>
-                {sortedJobs.slice(0, 20).map(job => (
-                  <JobCard key={job.jobId} job={job} onRetry={handleRetry} />
+                {sortedJobs.slice(0, 20).map((job, index) => (
+                  <JobCard 
+                    key={`${job.jobId}-${job.timestamp}-${index}`} 
+                    job={job} 
+                    onRetry={handleRetry} 
+                  />
                 ))}
               </div>
             ) : (

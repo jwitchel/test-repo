@@ -63,7 +63,8 @@ const toneWorker = new Worker(
   buildToneProfile,
   {
     connection,
-    concurrency: 2
+    concurrency: 2,
+    autorun: false  // Don't start automatically - let WorkerManager control this
   }
 );
 

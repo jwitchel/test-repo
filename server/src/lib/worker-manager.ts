@@ -68,6 +68,9 @@ export class WorkerManager {
       // Apply initial state to all workers
       if (this.isPaused) {
         await this.pauseAllWorkers(true); // true = don't wait for active jobs on startup
+      } else {
+        // If not paused, start all workers (since they have autorun: false)
+        await this.resumeAllWorkers();
       }
     } catch (error) {
       console.error('[WorkerManager] Error during initialization:', error);
@@ -101,9 +104,14 @@ export class WorkerManager {
   async resumeAllWorkers(): Promise<void> {
     console.log('[WorkerManager] Resuming all workers');
     
-    const resumePromises = Array.from(this.workers.values()).map(worker =>
-      worker.resume()
-    );
+    const resumePromises = Array.from(this.workers.values()).map(async worker => {
+      // First resume the worker (if it was paused)
+      await worker.resume();
+      // Then ensure it's running (in case autorun was false)
+      if (!worker.isRunning()) {
+        await worker.run();
+      }
+    });
     
     await Promise.all(resumePromises);
     this.isPaused = false;
@@ -174,6 +182,10 @@ export class WorkerManager {
     workers: Array<{ name: string; isPaused: boolean; isRunning: boolean }>;
     queues: Array<{ name: string; isPaused: boolean }>;
   }> {
+    // Read actual worker paused state from Redis
+    const storedState = await this.redis.get(WORKER_STATE_KEY);
+    const actualWorkersPaused = storedState === 'true';
+    
     const queuesPaused = await this.areQueuesPaused();
     
     const workerStatuses = await Promise.all(
@@ -192,7 +204,7 @@ export class WorkerManager {
     );
     
     return {
-      workersPaused: this.isPaused,
+      workersPaused: actualWorkersPaused,
       queuesPaused,
       workers: workerStatuses,
       queues: queueStatuses

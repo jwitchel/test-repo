@@ -26,7 +26,10 @@ const toneQueueEvents = new QueueEvents('tone-profile', {
 // Helper to broadcast job events
 async function broadcastJobEvent(eventType: string, jobId: string, queueName: string, additionalData: any = {}) {
   const wsServer = getUnifiedWebSocketServer();
-  if (!wsServer) return;
+  if (!wsServer) {
+    console.log(`WebSocket server not available for ${eventType} event`);
+    return;
+  }
 
   // Get job data to find userId
   let job;
@@ -37,6 +40,7 @@ async function broadcastJobEvent(eventType: string, jobId: string, queueName: st
   }
 
   if (job && job.data.userId) {
+    console.log(`Broadcasting ${eventType} for job ${jobId} to user ${job.data.userId}`);
     wsServer.broadcastJobEvent({
       type: eventType,
       jobId,
@@ -45,8 +49,30 @@ async function broadcastJobEvent(eventType: string, jobId: string, queueName: st
       ...additionalData
     });
   } else {
-    // Broadcast without userId (will not be sent to specific users)
-    console.log(`Broadcasting ${eventType} for job ${jobId} without userId`);
+    // Log detailed info for debugging
+    console.log(`Cannot broadcast ${eventType} for job ${jobId}: job=${!!job}, userId=${job?.data?.userId}`);
+    
+    // Retry once after a short delay in case of timing issues
+    if (!job && eventType === 'JOB_QUEUED') {
+      setTimeout(async () => {
+        const retryJob = queueName === 'email-processing' 
+          ? await emailProcessingQueue.getJob(jobId)
+          : await toneProfileQueue.getJob(jobId);
+        
+        if (retryJob && retryJob.data.userId) {
+          console.log(`Retry successful: Broadcasting ${eventType} for job ${jobId} to user ${retryJob.data.userId}`);
+          wsServer.broadcastJobEvent({
+            type: eventType,
+            jobId,
+            userId: retryJob.data.userId,
+            jobType: retryJob.name,
+            ...additionalData
+          });
+        } else {
+          console.log(`Retry failed: Still cannot get job ${jobId} or userId`);
+        }
+      }, 100);
+    }
   }
 }
 
