@@ -108,6 +108,7 @@ import monitoringRoutes from './routes/monitoring';
 import queueRoutes from './routes/queue';
 import imapMonitorRoutes from './routes/imap-monitor';
 import jobsRoutes from './routes/jobs';
+import workersRoutes from './routes/workers';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -131,6 +132,7 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/queue', queueRoutes);
 app.use('/api/imap-monitor', imapMonitorRoutes);
 app.use('/api/jobs', jobsRoutes);
+app.use('/api/workers', workersRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

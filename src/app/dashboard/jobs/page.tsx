@@ -5,6 +5,7 @@ import { ImapLogViewer } from "@/components/imap-log-viewer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,9 +23,18 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function JobsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [isMonitoring, setIsMonitoring] = useState(false);
-  const [isLoadingMonitoring, setIsLoadingMonitoring] = useState(false);
+  const [workersActive, setWorkersActive] = useState(false);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
+  const [queuesEmergencyPaused, setQueuesEmergencyPaused] = useState(false);
+  const [isLoadingEmergency, setIsLoadingEmergency] = useState(false);
   const [stats, setStats] = useState({ active: 0, queued: 0, completed: 0, failed: 0 });
+  const [queueStats, setQueueStats] = useState<{
+    emailProcessing: { active: number; waiting: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
+    toneProfile: { active: number; waiting: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
+  }>({
+    emailProcessing: { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0, isPaused: false },
+    toneProfile: { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0, isPaused: false }
+  });
   const { success, error } = useToast();
   
   
@@ -32,12 +42,12 @@ export default function JobsPage() {
     setRefreshKey(prev => prev + 1);
     success('Jobs list refreshed');
   };
-  
-  const handleTestJob = async () => {
+
+  const handleQueueEmailJob = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
       
-      // First get the user's email accounts
+      // Get the first email account
       const accountsResponse = await fetch(`${apiUrl}/api/email-accounts`, {
         credentials: 'include'
       });
@@ -53,9 +63,62 @@ export default function JobsPage() {
         return;
       }
       
-      // Use the first account for the test job
       const firstAccount = accounts[0];
       
+      // Queue an email processing job
+      const response = await fetch(`${apiUrl}/api/jobs/queue`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          type: 'process-inbox',
+          data: {
+            accountId: firstAccount.id,
+            folderName: 'INBOX'
+          },
+          priority: 'normal'
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        success(`Email processing job queued: ${data.jobId}`);
+        setRefreshKey(prev => prev + 1);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to queue email job');
+      }
+    } catch (err) {
+      error('Failed to queue email job');
+      console.error('Error queueing email job:', err);
+    }
+  };
+
+  const handleQueueToneJob = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      
+      // Get the first email account
+      const accountsResponse = await fetch(`${apiUrl}/api/email-accounts`, {
+        credentials: 'include'
+      });
+      
+      if (!accountsResponse.ok) {
+        error('Please add an email account first');
+        return;
+      }
+      
+      const accounts = await accountsResponse.json();
+      if (!accounts || accounts.length === 0) {
+        error('Please add an email account first');
+        return;
+      }
+      
+      const firstAccount = accounts[0];
+      
+      // Queue a tone profile job
       const response = await fetch(`${apiUrl}/api/jobs/queue`, {
         method: 'POST',
         headers: {
@@ -66,83 +129,106 @@ export default function JobsPage() {
           type: 'build-tone-profile',
           data: {
             accountId: firstAccount.id,
-            historyDays: 7
+            historyDays: 30
           },
-          priority: 'normal'
+          priority: 'high'
         })
       });
       
       if (response.ok) {
         const data = await response.json();
-        success(`Test job queued: ${data.jobId}`);
+        success(`Tone profile job queued: ${data.jobId}`);
+        setRefreshKey(prev => prev + 1);
       } else {
         const errorData = await response.json();
-        error(errorData.error || 'Failed to queue test job');
+        error(errorData.error || 'Failed to queue tone job');
       }
     } catch (err) {
-      error('Failed to queue test job');
-      console.error('Error queueing test job:', err);
+      error('Failed to queue tone job');
+      console.error('Error queueing tone job:', err);
     }
   };
   
-  const handleMonitoringToggle = async (enabled: boolean) => {
-    setIsLoadingMonitoring(true);
+  const handleWorkersToggle = async (enabled: boolean) => {
+    setIsLoadingWorkers(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
       
-      if (enabled) {
-        const response = await fetch(`${apiUrl}/api/jobs/start-monitoring`, {
-          method: 'POST',
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            success(`Started monitoring ${data.accountsMonitored} accounts`);
-            setIsMonitoring(true);
-          } else {
-            error(data.message || 'Monitoring not started');
-          }
-          setRefreshKey(prev => prev + 1);
-        } else {
-          const errorData = await response.json();
-          error(errorData.error || 'Failed to start monitoring');
-        }
-      } else {
-        // For now, just toggle the state as there's no stop endpoint
-        setIsMonitoring(false);
-        success('Monitoring paused');
-      }
-    } catch (err) {
-      error('Failed to toggle monitoring');
-      console.error('Error toggling monitoring:', err);
-    } finally {
-      setIsLoadingMonitoring(false);
-    }
-  };
-  
-  const handleClearQueue = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      const response = await fetch(`${apiUrl}/api/jobs/clear-queue`, {
+      const endpoint = enabled ? '/api/workers/resume' : '/api/workers/pause';
+      const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
         credentials: 'include'
       });
       
       if (response.ok) {
         const data = await response.json();
-        success(`Cleared ${data.cleared || 0} jobs from queue`);
+        setWorkersActive(!data.status?.workersPaused);
+        success(data.message);
+        setRefreshKey(prev => prev + 1);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to toggle workers');
+      }
+    } catch (err) {
+      error('Failed to toggle workers');
+      console.error('Error toggling workers:', err);
+    } finally {
+      setIsLoadingWorkers(false);
+    }
+  };
+  
+  const handleEmergencyToggle = async () => {
+    setIsLoadingEmergency(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      
+      const endpoint = queuesEmergencyPaused 
+        ? '/api/workers/resume-queues' 
+        : '/api/workers/emergency-pause';
+      
+      const response = await fetch(`${apiUrl}${endpoint}`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setQueuesEmergencyPaused(!queuesEmergencyPaused);
+        success(data.message);
+        setRefreshKey(prev => prev + 1);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to toggle emergency pause');
+      }
+    } catch (err) {
+      error('Failed to toggle emergency pause');
+      console.error('Error toggling emergency pause:', err);
+    } finally {
+      setIsLoadingEmergency(false);
+    }
+  };
+  
+  const handleClearQueue = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const response = await fetch(`${apiUrl}/api/jobs/clear-all-queues`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        success(`Cleared ${data.cleared || 0} jobs from all queues`);
         setRefreshKey(prev => prev + 1);
         // Refresh stats after clearing
         fetchStats();
       } else {
         const errorData = await response.json();
-        error(errorData.error || 'Failed to clear queue');
+        error(errorData.error || 'Failed to clear all queues');
       }
     } catch (err) {
-      error('Failed to clear queue');
-      console.error('Error clearing queue:', err);
+      error('Failed to clear all queues');
+      console.error('Error clearing all queues:', err);
     }
   };
   
@@ -161,29 +247,38 @@ export default function JobsPage() {
           completed: data.completed || 0,
           failed: data.failed || 0
         });
+        
+        // Update queue-specific stats if available
+        if (data.queues) {
+          setQueueStats({
+            emailProcessing: data.queues.emailProcessing || { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0 },
+            toneProfile: data.queues.toneProfile || { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0 }
+          });
+        }
       }
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
   };
 
-  // Check monitoring status and fetch stats on mount
+  // Check worker status and fetch stats on mount
   useEffect(() => {
-    const checkMonitoringStatus = async () => {
+    const checkWorkerStatus = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-        const response = await fetch(`${apiUrl}/api/jobs/monitoring-status`, {
+        const response = await fetch(`${apiUrl}/api/workers/status`, {
           credentials: 'include'
         });
         if (response.ok) {
           const data = await response.json();
-          setIsMonitoring(data.activeMonitoring > 0);
+          setWorkersActive(!data.workersPaused);
+          setQueuesEmergencyPaused(data.queuesPaused);
         }
       } catch (err) {
-        console.error('Error checking monitoring status:', err);
+        console.error('Error checking worker status:', err);
       }
     };
-    checkMonitoringStatus();
+    checkWorkerStatus();
     fetchStats();
   }, []);
   
@@ -232,14 +327,14 @@ export default function JobsPage() {
           {/* Controls */}
           <div className="flex gap-2 items-center">
             <div className="flex items-center gap-2">
-              <label htmlFor="monitoring-toggle" className="text-sm font-medium text-zinc-700">
-                Monitoring
+              <label htmlFor="workers-toggle" className="text-sm font-medium text-zinc-700">
+                Workers
               </label>
               <Switch
-                id="monitoring-toggle"
-                checked={isMonitoring}
-                onCheckedChange={handleMonitoringToggle}
-                disabled={isLoadingMonitoring}
+                id="workers-toggle"
+                checked={workersActive}
+                onCheckedChange={handleWorkersToggle}
+                disabled={isLoadingWorkers}
               />
             </div>
             <Button 
@@ -252,12 +347,35 @@ export default function JobsPage() {
               Refresh
             </Button>
             <Button 
-              onClick={handleTestJob}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              onClick={handleQueueEmailJob}
+              className="bg-purple-600 hover:bg-purple-700"
               size="sm"
+              title="Queue Email Processing Job"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Test Job
+              Email Job
+            </Button>
+            <Button 
+              onClick={handleQueueToneJob}
+              className="bg-indigo-600 hover:bg-indigo-700"
+              size="sm"
+              title="Queue Tone Profile Job"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Tone Job
+            </Button>
+            <Button
+              onClick={handleEmergencyToggle}
+              disabled={isLoadingEmergency}
+              className={queuesEmergencyPaused 
+                ? "bg-green-600 hover:bg-green-700" 
+                : "bg-red-600 hover:bg-red-700"}
+              size="sm"
+              title={queuesEmergencyPaused 
+                ? "Resume all queues" 
+                : "Emergency stop - pause all queues immediately"}
+            >
+              {queuesEmergencyPaused ? "Resume Queues" : "Emergency Stop"}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -267,20 +385,20 @@ export default function JobsPage() {
                   size="sm"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Clear Queue
+                  Clear All Queues
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Clear All Jobs</AlertDialogTitle>
+                  <AlertDialogTitle>Clear All Queues</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to clear all jobs? This will remove all queued, completed, failed, and cancelled jobs from the history. This action cannot be undone.
+                    Are you sure you want to clear all jobs from all queues? This will remove all jobs (waiting, active, completed, failed, delayed, and paused) from both the Email Processing and Tone Profile queues. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={handleClearQueue} className="bg-red-600 hover:bg-red-700">
-                    Clear All Jobs
+                    Clear All Queues
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -289,11 +407,119 @@ export default function JobsPage() {
         </div>
       </div>
       
+      {/* Queue Status Pills Panel */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Email Processing Queue */}
+        <Card className="border-zinc-200">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Email Processing Queue</CardTitle>
+              {queueStats.emailProcessing.isPaused && (
+                <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {queueStats.emailProcessing.active > 0 && (
+                <Badge className="bg-indigo-100 text-indigo-800">
+                  Active: {queueStats.emailProcessing.active}
+                </Badge>
+              )}
+              {queueStats.emailProcessing.waiting > 0 && (
+                <Badge className="bg-zinc-100 text-zinc-800">
+                  Waiting: {queueStats.emailProcessing.waiting}
+                </Badge>
+              )}
+              {queueStats.emailProcessing.delayed > 0 && (
+                <Badge className="bg-orange-100 text-orange-800">
+                  Delayed: {queueStats.emailProcessing.delayed}
+                </Badge>
+              )}
+              {queueStats.emailProcessing.completed > 0 && (
+                <Badge className="bg-green-100 text-green-800">
+                  Completed: {queueStats.emailProcessing.completed}
+                </Badge>
+              )}
+              {queueStats.emailProcessing.failed > 0 && (
+                <Badge className="bg-red-100 text-red-800">
+                  Failed: {queueStats.emailProcessing.failed}
+                </Badge>
+              )}
+              {queueStats.emailProcessing.paused > 0 && (
+                <Badge className="bg-yellow-100 text-yellow-800">
+                  Paused Jobs: {queueStats.emailProcessing.paused}
+                </Badge>
+              )}
+              {queueStats.emailProcessing.active === 0 && 
+               queueStats.emailProcessing.waiting === 0 &&
+               queueStats.emailProcessing.delayed === 0 &&
+               queueStats.emailProcessing.paused === 0 && (
+                <Badge className="bg-zinc-50 text-zinc-600">Empty</Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Tone Profile Queue */}
+        <Card className="border-zinc-200">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Tone Profile Queue</CardTitle>
+              {queueStats.toneProfile.isPaused && (
+                <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {queueStats.toneProfile.active > 0 && (
+                <Badge className="bg-indigo-100 text-indigo-800">
+                  Active: {queueStats.toneProfile.active}
+                </Badge>
+              )}
+              {queueStats.toneProfile.waiting > 0 && (
+                <Badge className="bg-zinc-100 text-zinc-800">
+                  Waiting: {queueStats.toneProfile.waiting}
+                </Badge>
+              )}
+              {queueStats.toneProfile.delayed > 0 && (
+                <Badge className="bg-orange-100 text-orange-800">
+                  Delayed: {queueStats.toneProfile.delayed}
+                </Badge>
+              )}
+              {queueStats.toneProfile.completed > 0 && (
+                <Badge className="bg-green-100 text-green-800">
+                  Completed: {queueStats.toneProfile.completed}
+                </Badge>
+              )}
+              {queueStats.toneProfile.failed > 0 && (
+                <Badge className="bg-red-100 text-red-800">
+                  Failed: {queueStats.toneProfile.failed}
+                </Badge>
+              )}
+              {queueStats.toneProfile.paused > 0 && (
+                <Badge className="bg-yellow-100 text-yellow-800">
+                  Paused Jobs: {queueStats.toneProfile.paused}
+                </Badge>
+              )}
+              {queueStats.toneProfile.active === 0 && 
+               queueStats.toneProfile.waiting === 0 &&
+               queueStats.toneProfile.delayed === 0 &&
+               queueStats.toneProfile.paused === 0 && (
+                <Badge className="bg-zinc-50 text-zinc-600">Empty</Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
       <JobsMonitor key={refreshKey} />
       
       {/* Real-Time Logs Panel */}
       <div className="mt-6">
         <ImapLogViewer 
+          key={`log-viewer-${refreshKey}`}
           emailAccountId="monitoring"
           className="h-[400px]"
         />

@@ -22,7 +22,7 @@ This is an AI Email Assistant application that generates email reply drafts matc
 # Start Docker services
 docker compose up -d
 
-# Start both frontend and backend
+# Start frontend, backend, and workers
 npm run dev:all
 
 # Seed demo data (creates users, styles, emails, etc.)

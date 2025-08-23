@@ -16,10 +16,21 @@ process.env.SKIP_SERVER_START = 'true';
 import emailProcessingWorker from '../lib/workers/email-processing-worker';
 import toneWorker from '../lib/workers/tone-profile-worker';
 import { emailProcessingQueue, toneProfileQueue } from '../lib/queue';
+import { workerManager } from '../lib/worker-manager';
 
-console.log('🚀 Starting Email Processing Workers...\n');
-console.log('Workers are now running and will process jobs from the queue.');
-console.log('Press Ctrl+C to stop the workers.\n');
+async function startWorkers() {
+  console.log('🚀 Starting Email Processing Workers...\n');
+  
+  // Initialize worker manager (restores pause state from Redis)
+  await workerManager.initialize();
+  
+  const status = await workerManager.getStatus();
+  console.log(`Workers initial state: ${status.workersPaused ? 'PAUSED' : 'ACTIVE'}`);
+  console.log('Workers are now running and will process jobs from the queue.');
+  console.log('Press Ctrl+C to stop the workers.\n');
+}
+
+startWorkers().catch(console.error);
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
