@@ -74,8 +74,10 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
           } else if (data.type === 'job-event' && data.data) {
             // Handle job events from the queue system
             const jobEvent = data.data;
+            // Use a more unique ID with random component to avoid duplicates
+            const uniqueId = `job-${jobEvent.jobId}-${jobEvent.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             const log: ImapLogEntry = {
-              id: `job-${jobEvent.jobId}-${Date.now()}`,
+              id: uniqueId,
               timestamp: data.timestamp || new Date().toISOString(),
               userId: jobEvent.userId || '',
               emailAccountId: emailAccountId || '',

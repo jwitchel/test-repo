@@ -519,7 +519,6 @@ export default function JobsPage() {
       {/* Real-Time Logs Panel */}
       <div className="mt-6">
         <ImapLogViewer 
-          key={`log-viewer-${refreshKey}`}
           emailAccountId="monitoring"
           className="h-[400px]"
         />
