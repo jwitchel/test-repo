@@ -53,7 +53,7 @@ describe('Queue Integration Tests', () => {
     // Check job state
     const state = await emailJob.getState();
     expect(state).toBeDefined();
-    expect(['waiting', 'delayed', 'active', 'completed', 'failed']).toContain(state);
+    expect(['waiting', 'prioritized', 'delayed', 'active', 'completed', 'failed']).toContain(state);
   });
 
   it('should queue tone profile jobs correctly', async () => {
@@ -78,7 +78,7 @@ describe('Queue Integration Tests', () => {
     // Check job state
     const state = await toneJob.getState();
     expect(state).toBeDefined();
-    expect(['waiting', 'delayed', 'active', 'completed', 'failed']).toContain(state);
+    expect(['waiting', 'prioritized', 'delayed', 'active', 'completed', 'failed']).toContain(state);
   });
 
   it('should handle different job priorities', async () => {

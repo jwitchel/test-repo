@@ -236,8 +236,14 @@ describe('BullMQ Queue Configuration', () => {
         JobPriority.NORMAL
       );
 
+      // Pause the queue first (required for obliterate)
+      await emailProcessingQueue.pause();
+      
       // Clean the queue
       await emailProcessingQueue.obliterate({ force: true });
+      
+      // Resume the queue for other tests
+      await emailProcessingQueue.resume();
       
       // Check it's empty
       const counts = await emailProcessingQueue.getJobCounts();

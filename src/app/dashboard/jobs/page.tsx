@@ -408,46 +408,39 @@ export default function JobsPage() {
       </div>
       
       {/* Queue Status Pills Panel */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="mb-4 flex gap-3">
         {/* Email Processing Queue */}
-        <Card className="border-zinc-200">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Email Processing Queue</CardTitle>
-              {queueStats.emailProcessing.isPaused && (
-                <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
+        <div className="flex-1 border border-zinc-200 rounded-md px-2.5 py-1 bg-white">
+          <div className="flex items-center gap-2 h-7">
+            <span className="text-xs font-medium text-zinc-600">Email Queue:</span>
+            <div className="flex items-center gap-1.5">
               {queueStats.emailProcessing.active > 0 && (
-                <Badge className="bg-indigo-100 text-indigo-800">
+                <Badge className="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0 h-4">
                   Active: {queueStats.emailProcessing.active}
                 </Badge>
               )}
               {queueStats.emailProcessing.waiting > 0 && (
-                <Badge className="bg-zinc-100 text-zinc-800">
+                <Badge className="bg-zinc-100 text-zinc-800 text-[10px] px-1.5 py-0 h-4">
                   Waiting: {queueStats.emailProcessing.waiting}
                 </Badge>
               )}
               {queueStats.emailProcessing.delayed > 0 && (
-                <Badge className="bg-orange-100 text-orange-800">
+                <Badge className="bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0 h-4">
                   Delayed: {queueStats.emailProcessing.delayed}
                 </Badge>
               )}
               {queueStats.emailProcessing.completed > 0 && (
-                <Badge className="bg-green-100 text-green-800">
+                <Badge className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0 h-4">
                   Completed: {queueStats.emailProcessing.completed}
                 </Badge>
               )}
               {queueStats.emailProcessing.failed > 0 && (
-                <Badge className="bg-red-100 text-red-800">
+                <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0 h-4">
                   Failed: {queueStats.emailProcessing.failed}
                 </Badge>
               )}
               {queueStats.emailProcessing.paused > 0 && (
-                <Badge className="bg-yellow-100 text-yellow-800">
+                <Badge className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0 h-4">
                   Paused Jobs: {queueStats.emailProcessing.paused}
                 </Badge>
               )}
@@ -455,51 +448,44 @@ export default function JobsPage() {
                queueStats.emailProcessing.waiting === 0 &&
                queueStats.emailProcessing.delayed === 0 &&
                queueStats.emailProcessing.paused === 0 && (
-                <Badge className="bg-zinc-50 text-zinc-600">Empty</Badge>
+                <Badge className="bg-zinc-50 text-zinc-600 text-[10px] px-1.5 py-0 h-4">Empty</Badge>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
         
         {/* Tone Profile Queue */}
-        <Card className="border-zinc-200">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Tone Profile Queue</CardTitle>
-              {queueStats.toneProfile.isPaused && (
-                <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
+        <div className="flex-1 border border-zinc-200 rounded-md px-2.5 py-1 bg-white">
+          <div className="flex items-center gap-2 h-7">
+            <span className="text-xs font-medium text-zinc-600">Tone Queue:</span>
+            <div className="flex items-center gap-1.5">
               {queueStats.toneProfile.active > 0 && (
-                <Badge className="bg-indigo-100 text-indigo-800">
+                <Badge className="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0 h-4">
                   Active: {queueStats.toneProfile.active}
                 </Badge>
               )}
               {queueStats.toneProfile.waiting > 0 && (
-                <Badge className="bg-zinc-100 text-zinc-800">
+                <Badge className="bg-zinc-100 text-zinc-800 text-[10px] px-1.5 py-0 h-4">
                   Waiting: {queueStats.toneProfile.waiting}
                 </Badge>
               )}
               {queueStats.toneProfile.delayed > 0 && (
-                <Badge className="bg-orange-100 text-orange-800">
+                <Badge className="bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0 h-4">
                   Delayed: {queueStats.toneProfile.delayed}
                 </Badge>
               )}
               {queueStats.toneProfile.completed > 0 && (
-                <Badge className="bg-green-100 text-green-800">
+                <Badge className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0 h-4">
                   Completed: {queueStats.toneProfile.completed}
                 </Badge>
               )}
               {queueStats.toneProfile.failed > 0 && (
-                <Badge className="bg-red-100 text-red-800">
+                <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0 h-4">
                   Failed: {queueStats.toneProfile.failed}
                 </Badge>
               )}
               {queueStats.toneProfile.paused > 0 && (
-                <Badge className="bg-yellow-100 text-yellow-800">
+                <Badge className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0 h-4">
                   Paused Jobs: {queueStats.toneProfile.paused}
                 </Badge>
               )}
@@ -507,11 +493,11 @@ export default function JobsPage() {
                queueStats.toneProfile.waiting === 0 &&
                queueStats.toneProfile.delayed === 0 &&
                queueStats.toneProfile.paused === 0 && (
-                <Badge className="bg-zinc-50 text-zinc-600">Empty</Badge>
+                <Badge className="bg-zinc-50 text-zinc-600 text-[10px] px-1.5 py-0 h-4">Empty</Badge>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
       
       <JobsMonitor key={refreshKey} />

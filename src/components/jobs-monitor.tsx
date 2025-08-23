@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
@@ -30,14 +29,6 @@ interface JobData {
   priority?: string;
   startedAt?: string;
   completedAt?: string;
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  return `${minutes}m ${seconds}s`;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -82,16 +73,9 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => v
             {job.priority}
           </Badge>
         )}
-        {job.status === 'active' && job.progress && (
-          <div className="flex items-center gap-1.5 ml-2">
-            <Progress value={job.progress.percentage} className="h-1 w-16" />
-            <span className="text-[10px] text-zinc-600">{job.progress.percentage}%</span>
-          </div>
-        )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className="text-[10px] text-zinc-500">{formatTimestamp(job.timestamp)}</span>
-        {job.duration && <span className="text-[10px] text-zinc-500">{formatDuration(job.duration)}</span>}
         {job.status === 'failed' && (
           <Button 
             size="sm" 

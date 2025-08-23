@@ -103,7 +103,7 @@ describe('WritingPatternAnalyzer', () => {
         { type: 'short', percentage: 30, description: 'Brief and concise' }
       ],
       openingPatterns: [
-        { pattern: 'Hi there', frequency: 0.8 }
+        { pattern: 'Hi there', frequency: 0.8, percentage: 80 }
       ],
       valediction: [
         { phrase: 'Best regards', percentage: 90 },
