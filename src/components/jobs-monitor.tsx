@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { useWebSocket } from '@/hooks/use-websocket';
 
 interface JobProgress {
   current: number;
@@ -111,7 +110,8 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => v
 export function JobsMonitor() {
   const [jobs, setJobs] = useState<Map<string, JobData>>(new Map());
   const [loading, setLoading] = useState(true);
-  const ws = useWebSocket('/ws');
+  const wsRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   
   // Load initial jobs from API
   useEffect(() => {
@@ -153,14 +153,23 @@ export function JobsMonitor() {
     loadJobs();
   }, []);
   
-  // Listen for WebSocket updates (optional - will work without it)
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (!ws) {
-      console.log('WebSocket not available - jobs will not update in real-time');
-      return;
-    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') || 'localhost:3002';
+    const wsUrl = `${protocol}//${host}/ws`;
     
-    const handleMessage = (event: MessageEvent) => {
+    console.log('JobsMonitor: Connecting to WebSocket:', wsUrl);
+    
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+    
+    ws.onopen = () => {
+      console.log('JobsMonitor: WebSocket connected');
+      setIsConnected(true);
+    };
+    
+    ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         
@@ -230,12 +239,22 @@ export function JobsMonitor() {
       }
     };
     
-    ws.addEventListener('message', handleMessage);
+    ws.onerror = (error) => {
+      console.error('JobsMonitor: WebSocket error:', error);
+      setIsConnected(false);
+    };
+    
+    ws.onclose = () => {
+      console.log('JobsMonitor: WebSocket disconnected');
+      setIsConnected(false);
+    };
     
     return () => {
-      ws.removeEventListener('message', handleMessage);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
-  }, [ws]);
+  }, []); // Empty dependency array - only connect once on mount
   
   
   const handleRetry = async (jobId: string) => {
@@ -276,8 +295,20 @@ export function JobsMonitor() {
       {/* Job List */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Background Jobs</CardTitle>
-          <CardDescription className="text-xs">Real-time status of all background processing</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Background Jobs</CardTitle>
+              <CardDescription className="text-xs">Real-time status of all background processing</CardDescription>
+            </div>
+            {!loading && (
+              <div className="flex items-center gap-1.5">
+                <div className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-zinc-400'}`} />
+                <span className="text-[10px] text-zinc-500">
+                  {isConnected ? 'Live' : 'Offline'}
+                </span>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="h-[120px] overflow-y-auto">

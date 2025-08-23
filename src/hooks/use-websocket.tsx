@@ -106,5 +106,7 @@ export function useWebSocket(path: string = '/ws') {
     };
   }, [path]);
   
+  // Return the WebSocket instance
+  // Note: This will be null initially and will update when connected
   return wsRef.current;
 }
