@@ -905,48 +905,99 @@ export class ImapOperations {
     try {
       // Select the source folder
       await conn.selectFolder(sourceFolder);
-      
-      // Fetch the message
-      const messages = await conn.fetch(uid.toString(), {
-        bodies: '', // Fetch entire message
-      });
 
-      if (messages.length === 0) {
-        throw new ImapConnectionError('Message not found in source folder', 'MESSAGE_NOT_FOUND');
+      // Fetch Message-ID header (cheap) for verification after move
+      let messageId: string | undefined;
+      try {
+        const headerMsgs = await conn.fetch(uid.toString(), {
+          bodies: 'HEADER.FIELDS (MESSAGE-ID)',
+          envelope: true,
+          flags: true
+        });
+        if (headerMsgs.length > 0) {
+          const midArr = (headerMsgs[0] as any).headers?.messageId;
+          messageId = Array.isArray(midArr) ? midArr[0] : undefined;
+        }
+      } catch {
+        // Non-fatal: continue without verification
       }
 
-      const msg = messages[0];
-      
-      // Ensure body is a string
-      let bodyString: string;
-      if (Buffer.isBuffer(msg.body)) {
-        bodyString = msg.body.toString('utf8');
-      } else if (typeof msg.body === 'string') {
-        bodyString = msg.body;
-      } else {
-        throw new ImapConnectionError('Invalid message body format', 'INVALID_BODY_FORMAT');
+      // If flags are provided (e.g., mark spam as \Seen), apply them before move so they carry over
+      if (flags && flags.length > 0) {
+        await new Promise<void>((resolve, reject) => {
+          (conn as any).imap.addFlags(uid, flags, (err: Error) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
       }
-      
-      // Copy message to destination folder
-      await this.appendMessage(destFolder, bodyString, flags, true); // preserve connection for this sub-operation
-      
-      // Mark original as deleted
-      await new Promise<void>((resolve, reject) => {
-        (conn as any).imap.addFlags(uid, '\\Deleted', (err: Error) => {
-          if (err) reject(err);
-          else resolve();
+
+      // Try server-side MOVE first (if supported by the server/node-imap)
+      const tryMove = async (): Promise<boolean> => {
+        return await new Promise<boolean>((resolve) => {
+          const imap: any = (conn as any).imap;
+          if (typeof imap.move !== 'function') {
+            return resolve(false);
+          }
+          imap.move(uid.toString(), destFolder, (err: Error | null) => {
+            if (err) {
+              // MOVE not supported or failed; fall back
+              return resolve(false);
+            }
+            resolve(true);
+          });
         });
-      });
-      
-      // Expunge to permanently remove from source
-      await new Promise<void>((resolve, reject) => {
-        (conn as any).imap.expunge((err: Error) => {
-          if (err) reject(err);
-          else resolve();
+      };
+
+      const moved = await tryMove();
+      if (!moved) {
+        // Fallback: COPY then mark original as \Deleted and EXPUNGE
+        await new Promise<void>((resolve, reject) => {
+          (conn as any).imap.copy(uid.toString(), destFolder, (err: Error) => {
+            if (err) reject(err);
+            else resolve();
+          });
         });
-      });
-      
-      console.log(`Message moved from ${sourceFolder} to ${destFolder}`);
+
+        await new Promise<void>((resolve, reject) => {
+          (conn as any).imap.addFlags(uid, '\\Deleted', (err: Error) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          (conn as any).imap.expunge((err: Error) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+      }
+
+      console.log(`Message moved from ${sourceFolder} to ${destFolder} (${moved ? 'MOVE' : 'COPY+DELETE'})`);
+
+      // Verify removal from source; if still present by Message-ID, force delete and expunge
+      if (messageId) {
+        try {
+          const remaining = await conn.search(['HEADER', 'Message-ID', messageId]);
+          if (remaining && remaining.length > 0) {
+            await new Promise<void>((resolve, reject) => {
+              (conn as any).imap.addFlags(remaining.join(','), '\\Deleted', (err: Error) => {
+                if (err) reject(err);
+                else resolve();
+              });
+            });
+            await new Promise<void>((resolve, reject) => {
+              (conn as any).imap.expunge((err: Error) => {
+                if (err) reject(err);
+                else resolve();
+              });
+            });
+          }
+        } catch {
+          // Ignore verification failures
+        }
+      }
     } catch (error) {
       console.error('Error moving message:', error);
       throw new ImapConnectionError(
