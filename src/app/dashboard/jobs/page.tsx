@@ -2,7 +2,6 @@
 
 import { JobsMonitor } from "@/components/jobs-monitor";
 import { ImapLogViewer } from "@/components/imap-log-viewer";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {

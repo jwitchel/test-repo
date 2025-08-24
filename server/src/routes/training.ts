@@ -426,6 +426,23 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
             };
           }));
         
+        // Skip this relationship if there are no emails to analyze
+        if (emailsForAnalysis.length === 0) {
+          imapLogger.log(userId, {
+            userId,
+            emailAccountId: 'pattern-training',
+            level: 'info',
+            command: 'patterns.training.skipped',
+            data: {
+              parsed: {
+                relationship,
+                reason: 'No emails with content to analyze'
+              }
+            }
+          });
+          continue; // Skip to next relationship
+        }
+        
         imapLogger.log(userId, {
           userId,
           emailAccountId: 'pattern-training',
