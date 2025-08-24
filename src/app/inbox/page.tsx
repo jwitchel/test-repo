@@ -396,10 +396,9 @@ export default function InboxPage() {
       const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
       
       if (ignoreActions.includes(recommendedAction || '')) {
-        // For silent actions, move the original email
+        // For silent actions, move the original email using UID (no raw message payload)
         await apiPost('/api/imap-draft/move-email', {
           emailAccountId: selectedAccount,
-          rawMessage: currentMessage.rawMessage,
           messageUid: currentMessage.uid,
           sourceFolder: 'INBOX',
           recommendedAction: recommendedAction

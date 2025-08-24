@@ -116,35 +116,15 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       'SELECT preferences FROM "user" WHERE id = $1',
       [userId]
     );
-    
     const preferences = userResult.rows[0]?.preferences || {};
     const folderPrefs = preferences.folderPreferences;
     
-    // Create action router with user's preferences
+    // Resolve destination without verifying/creating folders
     const actionRouter = new EmailActionRouter(folderPrefs);
-    
-    // Get the destination folder based on recommended action
     const routeResult = actionRouter.getActionRoute(recommendedAction || 'reply-all');
     
-    // Create IMAP operations instance
+    // Create IMAP operations instance (we will preserve the connection for the whole request)
     const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
-    
-    // Check if the destination folder exists
-    const folderStatus = await actionRouter.checkFolders(imapOps);
-    
-    if (folderStatus.missing.includes(routeResult.folder)) {
-      // Try to create the missing folders
-      const createResult = await actionRouter.createMissingFolders(imapOps);
-      
-      if (createResult.failed.some(f => f.folder === routeResult.folder)) {
-        res.status(400).json({ 
-          error: `Failed to create destination folder: ${routeResult.folder}`,
-          missingFolders: folderStatus.missing,
-          failedToCreate: createResult.failed
-        });
-        return;
-      }
-    }
     
     // Create email message
     const emailMessage = await createEmailMessage(
@@ -158,8 +138,21 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       references
     );
     
-    // Upload to destination folder with appropriate flags
-    await imapOps.appendMessage(routeResult.folder, emailMessage, routeResult.flags);
+    // Upload to destination folder with appropriate flags (preserve connection)
+    try {
+      await imapOps.appendMessage(routeResult.folder, emailMessage, routeResult.flags, true);
+    } catch (err: any) {
+      // If folder missing or append fails, surface a clear error without creating folders here
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes('append failed') || msg.toLowerCase().includes('no such mailbox') || msg.toLowerCase().includes('trycreate')) {
+        res.status(400).json({ error: `Destination folder not found or unavailable: ${routeResult.folder}` });
+        return;
+      }
+      throw err;
+    } finally {
+      // Release preserved connection
+      imapOps.release();
+    }
     
     res.json({ 
       success: true,
@@ -218,42 +211,45 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
       'SELECT preferences FROM "user" WHERE id = $1',
       [userId]
     );
-    
     const preferences = userResult.rows[0]?.preferences || {};
     const folderPrefs = preferences.folderPreferences;
     
-    // Create action router with user's preferences
+    // Resolve destination folder and flags without checking/creating folders here
     const actionRouter = new EmailActionRouter(folderPrefs);
-    
-    // Get the destination folder based on recommended action
     const routeResult = actionRouter.getActionRoute(recommendedAction);
     
-    // Create IMAP operations instance
+    // Create IMAP operations instance (preserve connection for the whole request)
     const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
-    
-    // Check if the destination folder exists
-    const folderStatus = await actionRouter.checkFolders(imapOps);
-    
-    if (folderStatus.missing.includes(routeResult.folder)) {
-      // Try to create the missing folders
-      const createResult = await actionRouter.createMissingFolders(imapOps);
-      
-      if (createResult.failed.some(f => f.folder === routeResult.folder)) {
-        res.status(400).json({ 
-          error: `Failed to create destination folder: ${routeResult.folder}`,
-          missingFolders: folderStatus.missing,
-          failedToCreate: createResult.failed
-        });
-        return;
-      }
-    }
     
     // If we have a UID and source folder, use moveMessage to remove from inbox
     if (messageUid && sourceFolder) {
-      await imapOps.moveMessage(sourceFolder, routeResult.folder, messageUid, routeResult.flags);
+      try {
+        await imapOps.moveMessage(sourceFolder, routeResult.folder, messageUid, routeResult.flags, true);
+      } catch (err: any) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.toLowerCase().includes('no such mailbox') || msg.toLowerCase().includes('append failed') || msg.toLowerCase().includes('trycreate')) {
+          res.status(400).json({ error: `Destination folder not found or unavailable: ${routeResult.folder}` });
+          return;
+        }
+        throw err;
+      } finally {
+        // Release preserved connection
+        imapOps.release();
+      }
     } else if (rawMessage) {
       // Fallback to append if we only have raw message
-      await imapOps.appendMessage(routeResult.folder, rawMessage, routeResult.flags);
+      try {
+        await imapOps.appendMessage(routeResult.folder, rawMessage, routeResult.flags, true);
+      } catch (err: any) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.toLowerCase().includes('no such mailbox') || msg.toLowerCase().includes('append failed') || msg.toLowerCase().includes('trycreate')) {
+          res.status(400).json({ error: `Destination folder not found or unavailable: ${routeResult.folder}` });
+          return;
+        }
+        throw err;
+      } finally {
+        imapOps.release();
+      }
     } else {
       res.status(400).json({ 
         error: 'Either messageUid/sourceFolder or rawMessage must be provided' 
