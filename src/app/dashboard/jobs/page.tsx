@@ -5,7 +5,6 @@ import { ImapLogViewer } from "@/components/imap-log-viewer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,13 +26,12 @@ export default function JobsPage() {
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
   const [queuesEmergencyPaused, setQueuesEmergencyPaused] = useState(false);
   const [isLoadingEmergency, setIsLoadingEmergency] = useState(false);
-  const [stats, setStats] = useState({ active: 0, queued: 0, completed: 0, failed: 0 });
   const [queueStats, setQueueStats] = useState<{
-    emailProcessing: { active: number; waiting: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
-    toneProfile: { active: number; waiting: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
+    emailProcessing: { active: number; waiting: number; prioritized?: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
+    toneProfile: { active: number; waiting: number; prioritized?: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
   }>({
-    emailProcessing: { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0, isPaused: false },
-    toneProfile: { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0, isPaused: false }
+    emailProcessing: { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0, isPaused: false },
+    toneProfile: { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0, isPaused: false }
   });
   const { success, error } = useToast();
   
@@ -241,18 +239,12 @@ export default function JobsPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        setStats({
-          active: data.active || 0,
-          queued: data.queued || 0,
-          completed: data.completed || 0,
-          failed: data.failed || 0
-        });
         
         // Update queue-specific stats if available
         if (data.queues) {
           setQueueStats({
-            emailProcessing: data.queues.emailProcessing || { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0 },
-            toneProfile: data.queues.toneProfile || { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: 0 }
+            emailProcessing: data.queues.emailProcessing || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 },
+            toneProfile: data.queues.toneProfile || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 }
           });
         }
       }
@@ -295,37 +287,45 @@ export default function JobsPage() {
           <p className="text-zinc-600 mt-1">Monitor and manage background processing tasks</p>
         </div>
         
-        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-          {/* Statistics Cards */}
-          <div className="flex gap-2">
-            <div className="bg-white border border-zinc-200 rounded-md py-1.5 px-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-zinc-600">Active</span>
-                <span className="text-base font-bold text-indigo-600">{stats.active}</span>
-              </div>
-            </div>
-            <div className="bg-white border border-zinc-200 rounded-md py-1.5 px-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-zinc-600">Queued</span>
-                <span className="text-base font-bold text-zinc-600">{stats.queued}</span>
-              </div>
-            </div>
-            <div className="bg-white border border-zinc-200 rounded-md py-1.5 px-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-zinc-600">Completed</span>
-                <span className="text-base font-bold text-green-600">{stats.completed}</span>
-              </div>
-            </div>
-            <div className="bg-white border border-zinc-200 rounded-md py-1.5 px-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-zinc-600">Failed</span>
-                <span className="text-base font-bold text-red-600">{stats.failed}</span>
+        {/* Single row with queue stats and controls */}
+        <div className="flex gap-2 items-center">
+          {/* Email Queue Stats */}
+          <div className="border border-zinc-200 rounded-md px-2 py-1 bg-white">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-zinc-600">Email:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-indigo-600 font-semibold" title="Active - Currently processing">{queueStats.emailProcessing.active}</span>
+                <span className="text-xs text-zinc-400">/</span>
+                <span className="text-xs text-zinc-600" title="Queued - Waiting to process">{(queueStats.emailProcessing.waiting || 0) + (queueStats.emailProcessing.prioritized || 0)}</span>
+                <span className="text-xs text-zinc-400">/</span>
+                <span className="text-xs text-green-600" title="Completed - Successfully processed">{queueStats.emailProcessing.completed}</span>
+                <span className="text-xs text-zinc-400">/</span>
+                <span className="text-xs text-red-600" title="Failed - Encountered errors">{queueStats.emailProcessing.failed}</span>
               </div>
             </div>
           </div>
           
+          {/* Tone Queue Stats */}
+          <div className="border border-zinc-200 rounded-md px-2 py-1 bg-white">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-zinc-600">Tone:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-indigo-600 font-semibold" title="Active - Currently processing">{queueStats.toneProfile.active}</span>
+                <span className="text-xs text-zinc-400">/</span>
+                <span className="text-xs text-zinc-600" title="Queued - Waiting to process">{(queueStats.toneProfile.waiting || 0) + (queueStats.toneProfile.prioritized || 0)}</span>
+                <span className="text-xs text-zinc-400">/</span>
+                <span className="text-xs text-green-600" title="Completed - Successfully processed">{queueStats.toneProfile.completed}</span>
+                <span className="text-xs text-zinc-400">/</span>
+                <span className="text-xs text-red-600" title="Failed - Encountered errors">{queueStats.toneProfile.failed}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Spacer */}
+          <div className="flex-1" />
+          
           {/* Controls */}
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-1 items-center">
             <div className="flex items-center gap-2">
               <label htmlFor="workers-toggle" className="text-sm font-medium text-zinc-700">
                 Workers
@@ -340,52 +340,48 @@ export default function JobsPage() {
             <Button 
               variant="outline" 
               onClick={handleRefresh}
-              className="hover:bg-zinc-50"
-              size="sm"
+              className="hover:bg-zinc-50 h-7 px-2"
+              title="Refresh stats"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
             <Button 
               onClick={handleQueueEmailJob}
-              className="bg-purple-600 hover:bg-purple-700"
-              size="sm"
+              className="bg-purple-600 hover:bg-purple-700 h-7 px-2 text-xs"
               title="Queue Email Processing Job"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Email Job
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Email
             </Button>
             <Button 
               onClick={handleQueueToneJob}
-              className="bg-indigo-600 hover:bg-indigo-700"
-              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700 h-7 px-2 text-xs"
               title="Queue Tone Profile Job"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Tone Job
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Tone
             </Button>
             <Button
               onClick={handleEmergencyToggle}
               disabled={isLoadingEmergency}
               className={queuesEmergencyPaused 
-                ? "bg-green-600 hover:bg-green-700" 
-                : "bg-red-600 hover:bg-red-700"}
-              size="sm"
+                ? "bg-green-600 hover:bg-green-700 h-7 px-2 text-xs" 
+                : "bg-red-600 hover:bg-red-700 h-7 px-2 text-xs"}
               title={queuesEmergencyPaused 
                 ? "Resume all queues" 
                 : "Emergency stop - pause all queues immediately"}
             >
-              {queuesEmergencyPaused ? "Resume Queues" : "Emergency Stop"}
+              {queuesEmergencyPaused ? "Resume" : "Stop"}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button 
                   variant="outline"
-                  className="hover:bg-red-50 border-red-200 text-red-600 hover:text-red-700"
-                  size="sm"
+                  className="hover:bg-red-50 border-red-200 text-red-600 hover:text-red-700 h-7 px-2 text-xs"
+                  title="Clear all jobs from all queues"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear All Queues
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Clear
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -407,99 +403,6 @@ export default function JobsPage() {
         </div>
       </div>
       
-      {/* Queue Status Pills Panel */}
-      <div className="mb-4 flex gap-3">
-        {/* Email Processing Queue */}
-        <div className="flex-1 border border-zinc-200 rounded-md px-2.5 py-1 bg-white">
-          <div className="flex items-center gap-2 h-7">
-            <span className="text-xs font-medium text-zinc-600">Email Queue:</span>
-            <div className="flex items-center gap-1.5">
-              {queueStats.emailProcessing.active > 0 && (
-                <Badge className="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0 h-4">
-                  Active: {queueStats.emailProcessing.active}
-                </Badge>
-              )}
-              {queueStats.emailProcessing.waiting > 0 && (
-                <Badge className="bg-zinc-100 text-zinc-800 text-[10px] px-1.5 py-0 h-4">
-                  Waiting: {queueStats.emailProcessing.waiting}
-                </Badge>
-              )}
-              {queueStats.emailProcessing.delayed > 0 && (
-                <Badge className="bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0 h-4">
-                  Delayed: {queueStats.emailProcessing.delayed}
-                </Badge>
-              )}
-              {queueStats.emailProcessing.completed > 0 && (
-                <Badge className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0 h-4">
-                  Completed: {queueStats.emailProcessing.completed}
-                </Badge>
-              )}
-              {queueStats.emailProcessing.failed > 0 && (
-                <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0 h-4">
-                  Failed: {queueStats.emailProcessing.failed}
-                </Badge>
-              )}
-              {queueStats.emailProcessing.paused > 0 && (
-                <Badge className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0 h-4">
-                  Paused Jobs: {queueStats.emailProcessing.paused}
-                </Badge>
-              )}
-              {queueStats.emailProcessing.active === 0 && 
-               queueStats.emailProcessing.waiting === 0 &&
-               queueStats.emailProcessing.delayed === 0 &&
-               queueStats.emailProcessing.paused === 0 && (
-                <Badge className="bg-zinc-50 text-zinc-600 text-[10px] px-1.5 py-0 h-4">Empty</Badge>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        {/* Tone Profile Queue */}
-        <div className="flex-1 border border-zinc-200 rounded-md px-2.5 py-1 bg-white">
-          <div className="flex items-center gap-2 h-7">
-            <span className="text-xs font-medium text-zinc-600">Tone Queue:</span>
-            <div className="flex items-center gap-1.5">
-              {queueStats.toneProfile.active > 0 && (
-                <Badge className="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0 h-4">
-                  Active: {queueStats.toneProfile.active}
-                </Badge>
-              )}
-              {queueStats.toneProfile.waiting > 0 && (
-                <Badge className="bg-zinc-100 text-zinc-800 text-[10px] px-1.5 py-0 h-4">
-                  Waiting: {queueStats.toneProfile.waiting}
-                </Badge>
-              )}
-              {queueStats.toneProfile.delayed > 0 && (
-                <Badge className="bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0 h-4">
-                  Delayed: {queueStats.toneProfile.delayed}
-                </Badge>
-              )}
-              {queueStats.toneProfile.completed > 0 && (
-                <Badge className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0 h-4">
-                  Completed: {queueStats.toneProfile.completed}
-                </Badge>
-              )}
-              {queueStats.toneProfile.failed > 0 && (
-                <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0 h-4">
-                  Failed: {queueStats.toneProfile.failed}
-                </Badge>
-              )}
-              {queueStats.toneProfile.paused > 0 && (
-                <Badge className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0 h-4">
-                  Paused Jobs: {queueStats.toneProfile.paused}
-                </Badge>
-              )}
-              {queueStats.toneProfile.active === 0 && 
-               queueStats.toneProfile.waiting === 0 &&
-               queueStats.toneProfile.delayed === 0 &&
-               queueStats.toneProfile.paused === 0 && (
-                <Badge className="bg-zinc-50 text-zinc-600 text-[10px] px-1.5 py-0 h-4">Empty</Badge>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-      
       <JobsMonitor key={refreshKey} />
       
       {/* Real-Time Logs Panel */}
@@ -509,52 +412,6 @@ export default function JobsPage() {
           className="h-[400px]"
         />
       </div>
-      
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>About Background Jobs</CardTitle>
-          <CardDescription>Understanding the job processing system</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm text-zinc-600">
-          <div>
-            <h4 className="font-semibold text-zinc-900 mb-1">Job Types</h4>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li><strong>Tone Profile Builder</strong> - Analyzes email history to build writing style profiles</li>
-              <li><strong>Process New Email</strong> - Processes individual emails for draft generation</li>
-              <li><strong>Monitor Inbox</strong> - Checks for new emails in monitored accounts</li>
-              <li><strong>Learn From Edit</strong> - Learns from user edits to improve future drafts</li>
-            </ul>
-          </div>
-          
-          <div>
-            <h4 className="font-semibold text-zinc-900 mb-1">Job Priorities</h4>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li><strong>Critical</strong> - Processed immediately</li>
-              <li><strong>High</strong> - Processed before normal jobs</li>
-              <li><strong>Normal</strong> - Standard processing priority</li>
-              <li><strong>Low</strong> - Processed when system is idle</li>
-            </ul>
-          </div>
-          
-          <div>
-            <h4 className="font-semibold text-zinc-900 mb-1">Job Statuses</h4>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li><strong>Queued</strong> - Waiting to be processed</li>
-              <li><strong>Active</strong> - Currently being processed</li>
-              <li><strong>Completed</strong> - Successfully finished</li>
-              <li><strong>Failed</strong> - Encountered an error</li>
-              <li><strong>Cancelled</strong> - Manually cancelled by user</li>
-            </ul>
-          </div>
-          
-          <div className="mt-4 p-4 bg-indigo-50 rounded-lg">
-            <p className="text-sm text-indigo-700">
-              <strong>Real-time Updates:</strong> This page uses WebSocket connections to show live job progress. 
-              You&apos;ll see jobs update automatically as they move through the processing pipeline.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
