@@ -61,3 +61,8 @@ npm run dev:all
   EXAMPLE_COUNT=5 PIPELINE_BATCH_SIZE=10 npx tsx -e "/* inline script */"
   ````
 - Policy: allowlist only; `deny` is empty. Propose additions via PR if new commands are needed.
+
+## Related Docs & Tools
+- Inspector UI: `http://localhost:3001/inspector` (training panel + live logs)
+- WebSocket logs: `ws://localhost:3002/ws/imap-logs`
+- Deep dives: `server/src/lib/imap/README.md`, `server/src/websocket/README.md`, `server/src/websocket/INTEGRATION.md`, `server/src/lib/pipeline/README.md`, `server/src/lib/pipeline/TONE_LEARNING_E2E.md`, `server/src/lib/vector/README.md`, `server/src/scripts/README.md`, `docs/roundcube-setup.md`
