@@ -4,6 +4,7 @@ import { decryptPassword, decrypt, encrypt } from './crypto';
 import { pool } from '../server';
 import { simpleParser } from 'mailparser';
 import { OAuthTokenService } from './oauth-token-service';
+import { getActiveContext, hasActiveContextFor, setContextConnection } from './imap-context';
 
 export interface EmailAccountConfig {
   id: string;
@@ -103,6 +104,12 @@ export class ImapOperations {
   }
 
   private async getConnection(): Promise<ImapConnection> {
+    // Prefer context-managed connection if present
+    const ctx = getActiveContext();
+    if (ctx && ctx.userId === this.account.userId && ctx.accountId === this.account.id && ctx.connection && ctx.connection.isConnected()) {
+      return ctx.connection;
+    }
+
     if (!this.connection) {
       let config: any = {
         user: this.account.imapUsername,
@@ -168,6 +175,12 @@ export class ImapOperations {
         this.account.userId,
         this.account.id
       );
+
+      // If within context for this account, register the connection so all ops reuse it
+      const active = getActiveContext();
+      if (active && active.userId === this.account.userId && active.accountId === this.account.id) {
+        setContextConnection(this.connection);
+      }
     }
 
     return this.connection;
@@ -763,12 +776,12 @@ export class ImapOperations {
   }
 
   release(): void {
+    // If running inside a managed context for this account, do not release here
+    if (hasActiveContextFor(this.account.userId, this.account.id)) {
+      return;
+    }
     if (this.connection) {
-      imapPool.releaseConnection(
-        this.connection,
-        this.account.userId,
-        this.account.id
-      );
+      imapPool.releaseConnection(this.connection, this.account.userId, this.account.id);
       this.connection = null;
     }
   }

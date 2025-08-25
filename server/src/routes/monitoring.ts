@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { imapPool } from '../lib/imap-pool';
+import { withImapContext } from '../lib/imap-context';
 import { pool } from '../server';
 
 const router = express.Router();
@@ -79,9 +80,10 @@ router.post('/benchmark', requireAuth, async (req, res): Promise<void> => {
     // Test 1: Connection establishment
     const { ImapOperations } = await import('../lib/imap-operations');
     const connectionStart = Date.now();
-    const operations = await ImapOperations.fromAccountId(accountId, userId);
-    const connected = await operations.testConnection();
-    operations.release();
+    const connected = await withImapContext(accountId, userId, async () => {
+      const operations = await ImapOperations.fromAccountId(accountId, userId);
+      return operations.testConnection(true);
+    });
     benchmarks.push({
       test: 'Connection Establishment',
       duration: Date.now() - connectionStart,
@@ -91,12 +93,12 @@ router.post('/benchmark', requireAuth, async (req, res): Promise<void> => {
     // Test 2: Session with multiple operations
     const { ImapSession } = await import('../lib/imap-session');
     const sessionStart = Date.now();
-    const session = await ImapSession.fromAccountId(accountId, userId);
-    
-    try {
-      // Get folder count
-      const folderCountStart = Date.now();
-      await session.getFolderMessageCount('INBOX');
+
+    await withImapContext(accountId, userId, async () => {
+      const session = await ImapSession.fromAccountId(accountId, userId);
+        // Get folder count
+        const folderCountStart = Date.now();
+        await session.getFolderMessageCount('INBOX');
       benchmarks.push({
         test: 'Get Folder Count (Session)',
         duration: Date.now() - folderCountStart,
@@ -135,10 +137,7 @@ router.post('/benchmark', requireAuth, async (req, res): Promise<void> => {
         connectionReused: sessionMetrics.connectionReused,
         avgOperationTime: Math.round(sessionMetrics.avgOperationTime)
       });
-      
-    } finally {
-      await session.close();
-    }
+    });
     
     // Calculate improvements
     const improvements = {

@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { ImapOperations } from '../lib/imap-operations';
+import { withImapContext } from '../lib/imap-context';
 import { ToneLearningOrchestrator } from '../lib/pipeline/tone-learning-orchestrator';
 import { VectorStore } from '../lib/vector/qdrant-client';
 import { imapLogger } from '../lib/imap-logger';
@@ -17,8 +18,6 @@ const emailProcessor = new EmailProcessor(pool);
 
 // Load sent emails into vector DB
 router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> => {
-  let imapOps: ImapOperations | null = null;
-  
   try {
     const userId = (req as any).user.id;
     const { emailAccountId, limit = 1000, startDate } = req.body;
@@ -30,15 +29,16 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
     }
 
     // Initialize services
-    imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
-    const orchestrator = new ToneLearningOrchestrator();
-    
-    // Convert startDate to Date object and add 1 day to make it inclusive
-    const beforeDate = new Date(startDate);
-    beforeDate.setDate(beforeDate.getDate() + 1);
-    
-    // Search for sent emails
-    imapLogger.log(userId, {
+    let imapOps: ImapOperations;
+    await withImapContext(emailAccountId, userId, async () => {
+      imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
+      const orchestrator = new ToneLearningOrchestrator();
+      // Convert startDate to Date object and add 1 day to make it inclusive
+      const beforeDate = new Date(startDate);
+      beforeDate.setDate(beforeDate.getDate() + 1);
+
+      // Search for sent emails
+      imapLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -46,18 +46,18 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       data: { 
         parsed: { limit, startDate, folder: 'Sent' }
       }
-    });
+      });
 
     // Search in Sent folder
-    const sentFolders = ['Sent', 'Sent Items', 'Sent Mail', '[Gmail]/Sent Mail'];
-    let messages: any[] = [];
-    let folderUsed = '';
+      const sentFolders = ['Sent', 'Sent Items', 'Sent Mail', '[Gmail]/Sent Mail'];
+      let messages: any[] = [];
+      let folderUsed = '';
     
     for (const folder of sentFolders) {
       try {
         
         // Search with date criteria
-        const searchResults = await imapOps.searchMessages(folder, {
+        const searchResults = await imapOps!.searchMessages(folder, {
           before: beforeDate
         }, { limit });
         
@@ -73,12 +73,12 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       }
     }
 
-    if (messages.length === 0) {
+      if (messages.length === 0) {
       res.status(404).json({ error: 'No sent emails found' });
-      return;
-    }
+        return;
+      }
 
-    imapLogger.log(userId, {
+      imapLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -86,10 +86,10 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       data: { 
         parsed: { found: messages.length, folder: folderUsed }
       }
-    });
+      });
 
     // First, collect a sample of emails to detect signature
-    imapLogger.log(userId, {
+      imapLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -97,15 +97,15 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       data: { 
         raw: 'Analyzing emails to detect signature pattern...'
       }
-    });
+      });
 
 
 
     // Simple sequential processing
-    let processed = 0;
-    let errors = 0;
-    const startTime = Date.now();
-    const totalMessages = messages.length;
+      let processed = 0;
+      let errors = 0;
+      const startTime = Date.now();
+      const totalMessages = messages.length;
 
     
     // Simple for loop - process one email at a time
@@ -114,7 +114,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       
       try {
         // Fetch full message with body content
-        const fullMessage = await imapOps.getMessage(folderUsed, message.uid);
+        const fullMessage = await imapOps!.getMessage(folderUsed, message.uid);
         
         if (fullMessage.parsed && fullMessage.rawMessage) {
           // Get the ORIGINAL text from the parsed email (before any processing)
@@ -217,15 +217,15 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
     
     
     // Aggregate styles after all emails are processed
-    try {
-      await orchestrator.aggregateStyles(userId);
-    } catch (err) {
-      console.error('Style aggregation error:', err);
-    }
+      try {
+        await orchestrator.aggregateStyles(userId);
+      } catch (err) {
+        console.error('Style aggregation error:', err);
+      }
 
-    const duration = Date.now() - startTime;
+      const duration = Date.now() - startTime;
     
-    imapLogger.log(userId, {
+      imapLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -233,28 +233,23 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       data: { 
         parsed: { processed, errors, duration }
       }
-    });
-
-    // Clean up IMAP connection
-    imapOps.release();
+      });
     
     // Give WebSocket time to send the completion message before responding
     await new Promise(resolve => setTimeout(resolve, 100));
     
     
-    res.json({
+      res.json({
       success: true,
       processed,
       errors,
       duration
+      });
     });
 
   } catch (error) {
     console.error('Training error:', error);
-    // Clean up IMAP connection on error
-    if (imapOps) {
-      imapOps.release();
-    }
+    // Connection lifecycle handled by withImapContext
     res.status(500).json({ 
       error: 'Training failed',
       message: error instanceof Error ? error.message : 'Unknown error'

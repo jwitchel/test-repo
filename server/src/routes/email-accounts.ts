@@ -10,6 +10,7 @@ import {
   ImapConnectionError 
 } from '../types/email-account';
 import { ImapOperations } from '../lib/imap-operations';
+import { withImapContext } from '../lib/imap-context';
 import { imapLogger } from '../lib/imap-logger';
 
 const router = express.Router();
@@ -34,7 +35,10 @@ async function testImapConnection(
   const imapOps = new ImapOperations(tempAccount);
   
   try {
-    const success = await imapOps.testConnection();
+    // Use context to ensure consistent lifecycle
+    const success = await withImapContext(tempAccount.id, userId, async () => {
+      return imapOps.testConnection(true);
+    });
     
     if (!success) {
       throw new ImapConnectionError('Connection test failed', 'CONNECTION_FAILED');
@@ -237,8 +241,10 @@ router.post('/:id/test', requireAuth, async (req, res): Promise<void> => {
     });
     
     try {
-      const imapOps = await ImapOperations.fromAccountId(accountId, userId);
-      const success = await imapOps.testConnection();
+      const success = await withImapContext(accountId, userId, async () => {
+        const imapOps = await ImapOperations.fromAccountId(accountId, userId);
+        return imapOps.testConnection(true);
+      });
       
       if (!success) {
         res.status(400).json({ 

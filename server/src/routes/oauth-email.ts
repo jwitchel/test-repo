@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth';
 import { pool } from '../server';
 import { encrypt } from '../lib/crypto';
 import { ImapOperations } from '../lib/imap-operations';
+import { withImapContext } from '../lib/imap-context';
 
 const router = express.Router();
 
@@ -143,8 +144,11 @@ async function testOAuthConnection(userId: string, email: string): Promise<boole
       return false;
     }
 
-    const imapOps = await ImapOperations.fromAccountId(result.rows[0].id, userId);
-    return await imapOps.testConnection();
+    const accountId = result.rows[0].id as string;
+    return await withImapContext(accountId, userId, async () => {
+      const imapOps = await ImapOperations.fromAccountId(accountId, userId);
+      return await imapOps.testConnection(true);
+    });
   } catch (error) {
     console.error('OAuth connection test error:', error);
     return false;
