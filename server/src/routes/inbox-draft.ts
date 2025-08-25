@@ -190,17 +190,6 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
     // Extract email body - if HTML exists, convert it to plain text
     let emailBody = parsed.text || '';
     
-    // Log to debug encoding issues
-    console.log('[inbox-draft] Parsed text preview:', emailBody.substring(0, 200));
-    console.log('[inbox-draft] Text includes apostrophe:', emailBody.includes("'"));
-    console.log('[inbox-draft] Text includes right single quote:', emailBody.includes("'"));
-    console.log('[inbox-draft] Raw message preview (first 200 chars):', rawMessage.substring(0, 200));
-    
-    // Check if raw message contains quoted-printable encoding
-    if (rawMessage.includes('=92')) {
-      console.log('[inbox-draft] WARNING: Raw message contains quoted-printable =92 which should be decoded to apostrophe');
-      console.log('[inbox-draft] Sample text with =92:', rawMessage.match(/.{0,20}=92.{0,20}/g)?.slice(0, 3));
-    }
     
     if (!emailBody && parsed.html) {
       // Simple HTML to text conversion - remove tags
@@ -270,14 +259,6 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
     // Generate embedding for the email content
     const emailVector = await embeddingService!.embedText(emailBody);
     
-    // Log what we're storing
-    console.log('[inbox-draft] Storing email in Qdrant:', {
-      messageId,
-      userId,
-      userEmail,
-      fromAddress,
-      subject: subject.substring(0, 50) + '...'
-    });
     
     // Check if email has attachments for metadata tracking
     const hasAttachments = EmailAttachmentStripper.hasAttachments(rawMessage);
@@ -299,8 +280,6 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
         attachmentSizeKB: sizeMetrics.reductionKB,
         attachmentCount: parsed.attachments ? parsed.attachments.length : 0
       };
-      
-      console.log(`[inbox-draft] Email has attachments: ${attachmentInfo.attachmentCount} files, ~${attachmentInfo.attachmentSizeKB}KB`);
     }
     
     // Store the incoming email in Qdrant
@@ -392,9 +371,6 @@ router.post('/generate-draft', requireAuth, async (req, res): Promise<void> => {
         if (error.message?.includes('Invalid response structure: missing meta or message') && 
             retryCount < maxRetries) {
           retryCount++;
-          console.log(`[inbox-draft] LLM response structure error, retrying (attempt ${retryCount + 1}/${maxRetries + 1})...`);
-          console.log(`[inbox-draft] Subject: ${subject}`);
-          console.log(`[inbox-draft] From: ${fromAddress}`);
           
           imapLogger.log(userId, {
             userId,

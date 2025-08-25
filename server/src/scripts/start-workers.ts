@@ -24,10 +24,6 @@ async function startWorkers() {
   // Initialize worker manager (restores pause state from Redis)
   await workerManager.initialize();
   
-  const status = await workerManager.getStatus();
-  console.log(`Workers initial state: ${status.workersPaused ? 'PAUSED' : 'ACTIVE'}`);
-  console.log('Workers are now running and will process jobs from the queue.');
-  console.log('Press Ctrl+C to stop the workers.\n');
 }
 
 startWorkers().catch(console.error);
