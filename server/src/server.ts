@@ -35,11 +35,6 @@ async function initializeDatabase() {
     // Test PostgreSQL connection
     await pool.connect();
     console.log('✅ Connected to PostgreSQL');
-    
-    // Better-auth will auto-create its tables on first use
-    // Try to initialize by making a test call
-    console.log('🔄 Initializing better-auth tables...');
-    
     return true;
   } catch (err) {
     console.error('❌ Database initialization error:', err);
