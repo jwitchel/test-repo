@@ -277,10 +277,6 @@ export class TemplateManager {
     );
     
     // Debug logging
-    console.log(`[TemplateManager] Total examples: ${params.examples.length}`);
-    console.log(`[TemplateManager] Looking for relationship: ${params.relationship}`);
-    console.log(`[TemplateManager] Exact matches found: ${exactMatches.length}`);
-    console.log(`[TemplateManager] Other matches found: ${otherMatches.length}`);
     if (params.examples.length > 0) {
       console.log(`[TemplateManager] First example relationship:`, params.examples[0].metadata.relationship);
     }

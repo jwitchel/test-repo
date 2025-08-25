@@ -96,8 +96,6 @@ export class VectorStore {
 
   private async _initialize(): Promise<void> {
     try {
-      console.log('Initializing Qdrant vector store...');
-      
       // Check if collection exists
       const collections = await this.client.getCollections();
       if (!collections || !collections.collections) {
@@ -122,7 +120,6 @@ export class VectorStore {
       }
 
       this.initialized = true;
-      console.log('Qdrant vector store initialized');
     } catch (error) {
       this.initPromise = null;
       throw new Error(`Failed to initialize Qdrant: ${error}`);
@@ -209,16 +206,6 @@ export class VectorStore {
 
     const limit = params.limit || parseInt(process.env.VECTOR_SEARCH_LIMIT || '50');
     const scoreThreshold = params.scoreThreshold || parseFloat(process.env.VECTOR_SCORE_THRESHOLD || '0.3');
-    
-    console.log(`[VectorStore searchSimilar] Called with:`, {
-      userId: params.userId,
-      hasVector: params.queryVector ? 'yes' : 'no',
-      vectorLength: params.queryVector?.length,
-      relationship: params.relationship,
-      recipientEmail: params.recipientEmail,
-      limit,
-      scoreThreshold
-    });
 
     // Build filter conditions
     const must: any[] = [
@@ -275,12 +262,6 @@ export class VectorStore {
 
       const results = await this.client.search(this.collectionName, searchParams);
       
-      console.log(`[VectorStore searchSimilar] Results:`, {
-        count: results.length,
-        scores: results.map(r => r.score),
-        firstFewIds: results.slice(0, 3).map(r => (r.payload as any).emailId)
-      });
-
       return results.map(result => ({
         id: (result.payload as any).originalId || String(result.id),
         vector: [], // Not returning vectors to save memory

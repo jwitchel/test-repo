@@ -401,16 +401,6 @@ export class WritingPatternAnalyzer {
       throw new Error('No active LLM provider found');
     }
 
-    console.log('Retrieved provider from database:', {
-      id: provider.id,
-      name: provider.provider_name,
-      type: provider.provider_type,
-      hasApiKey: !!provider.api_key,
-      apiKeyLength: provider.api_key ? provider.api_key.length : 0,
-      isActive: provider.is_active,
-      isDefault: provider.is_default
-    });
-
     // Check if API key exists
     if (!provider.api_key) {
       console.error('LLM provider has no API key:', provider.provider_name);
@@ -425,14 +415,6 @@ export class WritingPatternAnalyzer {
       console.error('Failed to decrypt API key:', error);
       throw new Error('Failed to decrypt LLM provider API key');
     }
-
-    console.log('WritingPatternAnalyzer: Using LLM provider:', {
-      id: provider.id,
-      name: provider.provider_name,
-      type: provider.provider_type,
-      model: provider.model_name,
-      hasApiKey: !!decryptedApiKey
-    });
 
     this.modelName = provider.model_name || '';
     this.llmClient = new LLMClient({

@@ -49,9 +49,7 @@ export class ExampleSelector {
       recipientEmail: params.recipientEmail
     });
     
-    console.log(`[ExampleSelector] Detected relationship: ${relationship.relationship} (confidence: ${relationship.confidence})`);
-    console.log(`[ExampleSelector] UserId: ${params.userId}`);
-    
+
     // Debug: Check what's in the vector store for this user
     await this.vectorStore.debugUserEmails(params.userId, 5);
     
@@ -66,12 +64,6 @@ export class ExampleSelector {
       () => this.embeddingService.embedText(params.incomingEmail)
     );
     
-    console.log(`[ExampleSelector] Generated embedding:`, {
-      hasVector: vector ? 'yes' : 'no',
-      vectorLength: vector?.length,
-      vectorSample: vector ? vector.slice(0, 5) : null
-    });
-    
     // Step 4: Two-phase selection
     const desiredCount = params.desiredCount || parseInt(process.env.EXAMPLE_COUNT || '25');
     const maxDirectPercentage = parseFloat(process.env.DIRECT_EMAIL_MAX_PERCENTAGE || '0.6');
@@ -79,7 +71,6 @@ export class ExampleSelector {
     
     // Phase 1: Search for direct correspondence with this specific recipient
     // These emails show how the writer specifically communicates with this person
-    console.log(`[ExampleSelector] Phase 1: Searching for direct emails to ${params.recipientEmail}`);
     const directEmails = await withRetry(
       () => this.vectorStore.searchSimilar({
         userId: params.userId,
@@ -89,8 +80,6 @@ export class ExampleSelector {
         scoreThreshold: 0  // Get all results, sorted by similarity
       })
     );
-    
-    console.log(`[ExampleSelector] Found ${directEmails.length} direct emails with ${params.recipientEmail}`);
     
     // Calculate how many direct emails to use (up to the maximum percentage)
     const directEmailsToUse = Math.min(directEmails.length, maxDirectEmails);
@@ -103,7 +92,6 @@ export class ExampleSelector {
     // These show the writer's general pattern for this type of relationship
     let categoryEmails: EmailVector[] = [];
     if (remainingSlots > 0) {
-      console.log(`[ExampleSelector] Phase 2: Searching for ${relationship.relationship} relationship emails`);
       categoryEmails = await withRetry(
         () => this.vectorStore.searchSimilar({
           userId: params.userId,
@@ -114,13 +102,10 @@ export class ExampleSelector {
         })
       );
       
-      console.log(`[ExampleSelector] Raw category search returned ${categoryEmails.length} emails`);
-      
       // Filter out any emails we already have from direct correspondence
       const directEmailIds = new Set(directEmails.map(e => e.id));
       categoryEmails = categoryEmails.filter(e => !directEmailIds.has(e.id));
       
-      console.log(`[ExampleSelector] After filtering duplicates: ${categoryEmails.length} additional ${relationship.relationship} emails`);
     }
     
     // Combine the two sets, preserving similarity order within each phase
@@ -132,15 +117,6 @@ export class ExampleSelector {
     // Step 5: Use similarity-based selection
     // The two-phase approach already ensures we get relevant examples
     const selected = this.selectBySimilarity(examples, desiredCount);
-    
-    console.log(`Final selection: ${selected.length} examples total`);
-    
-    // Debug relationship types
-    if (selected.length > 0) {
-      console.log(`[ExampleSelector] First selected example relationship:`, selected[0].metadata.relationship);
-      const uniqueRelationships = [...new Set(selected.map(e => e.metadata.relationship?.type))];
-      console.log(`[ExampleSelector] Unique relationship types in selection:`, uniqueRelationships);
-    }
     
     return {
       relationship: relationship.relationship,

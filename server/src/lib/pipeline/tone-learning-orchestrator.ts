@@ -309,12 +309,6 @@ Email Details:
         throw new Error('LLM client not initialized. Please configure an LLM provider.');
       }
       
-      // Debug log the spam check prompt
-      console.log(chalk.yellow('\n🚫 SPAM CHECK PROMPT:'));
-      console.log(chalk.gray('─'.repeat(80)));
-      console.log(spamCheckPrompt.substring(0, 500) + '...');
-      console.log(chalk.gray('─'.repeat(80)));
-      
       // Perform spam check with retry logic
       let spamCheckResult;
       retryCount = 0;
@@ -419,12 +413,6 @@ Email Details:
       throw new Error('LLM client not initialized. Please configure an LLM provider.');
     }
     
-    // Debug log the meta-context analysis prompt
-    console.log(chalk.yellow('\n🔍 META-CONTEXT ANALYSIS PROMPT:'));
-    console.log(chalk.gray('─'.repeat(80)));
-    console.log(metaContextPrompt);
-    console.log(chalk.gray('─'.repeat(80)));
-    
     // Perform meta-context analysis with retry logic
     let metaContextAnalysis;
     retryCount = 0;
@@ -473,12 +461,6 @@ Email Details:
         date: incomingEmail.date
       }
     });
-    
-    // Debug log the action analysis prompt
-    console.log(chalk.yellow('\n🎯 ACTION ANALYSIS PROMPT:'));
-    console.log(chalk.gray('─'.repeat(80)));
-    console.log(actionPrompt);
-    console.log(chalk.gray('─'.repeat(80)));
     
     // Perform action analysis with retry logic
     let actionAnalysis;
@@ -618,45 +600,7 @@ Email Details:
       createdAt: new Date()
     };
     
-    if (verbose) {
-      console.log(chalk.green('\n✅ Draft generated successfully!\n'));
-      if (needsResponse) {
-        if (spamCheckPrompt) {
-          console.log(chalk.bold('Spam Check Prompt:'));
-          console.log(chalk.gray('─'.repeat(80)));
-          console.log(spamCheckPrompt.substring(0, 300) + '...');
-          console.log(chalk.gray('─'.repeat(80)));
-        }
-        console.log(chalk.bold('\nMeta-Context Analysis Prompt:'));
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(metaContextPrompt.substring(0, 400) + '...');
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(chalk.bold('\nAction Analysis Prompt:'));
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(actionPrompt.substring(0, 400) + '...');
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(chalk.bold('\nResponse Generation Prompt:'));
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(responsePrompt.substring(0, 400) + '...');
-        console.log(chalk.gray('─'.repeat(80)));
-      } else {
-        if (spamCheckPrompt) {
-          console.log(chalk.bold('Spam Check Prompt:'));
-          console.log(chalk.gray('─'.repeat(80)));
-          console.log(spamCheckPrompt.substring(0, 300) + '...');
-          console.log(chalk.gray('─'.repeat(80)));
-        }
-        console.log(chalk.bold('\nMeta-Context Analysis Prompt:'));
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(metaContextPrompt.substring(0, 400) + '...');
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(chalk.bold('\nAction Analysis Prompt:'));
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(actionPrompt.substring(0, 400) + '...');
-        console.log(chalk.gray('─'.repeat(80)));
-      }
-    }
-    
+      console.log(chalk.green('\n✅ Draft generated successfully!\n'));    
     return draft;
   }
   

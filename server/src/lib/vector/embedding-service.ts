@@ -32,13 +32,9 @@ export class EmbeddingService {
 
   private async _initialize(): Promise<void> {
     try {
-      console.log(`Initializing embedding model: ${this.modelName}`);
-      const startTime = Date.now();
-      
       this.pipeline = await pipeline('feature-extraction', this.modelName);
       
       this.isInitialized = true;
-      console.log(`Embedding model initialized in ${Date.now() - startTime}ms`);
     } catch (error) {
       this.initPromise = null;
       throw new Error(`Failed to initialize embedding model: ${error}`);
