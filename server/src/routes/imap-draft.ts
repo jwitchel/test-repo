@@ -2,6 +2,7 @@ import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { pool } from '../server';
 import { ImapOperations } from '../lib/imap-operations';
+import { withImapContext } from '../lib/imap-context';
 import { v4 as uuidv4 } from 'uuid';
 import * as nodemailer from 'nodemailer';
 import { EmailActionRouter } from '../lib/email-action-router';
@@ -119,46 +120,34 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
     const preferences = userResult.rows[0]?.preferences || {};
     const folderPrefs = preferences.folderPreferences;
     
-    // Resolve destination without verifying/creating folders
-    const actionRouter = new EmailActionRouter(folderPrefs);
-    const routeResult = actionRouter.getActionRoute(recommendedAction || 'reply-all');
-    
-    // Create IMAP operations instance (we will preserve the connection for the whole request)
-    const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
-    
-    // Create email message
-    const emailMessage = await createEmailMessage(
-      fromEmail,
-      to,
-      subject,
-      body,
-      req.body.bodyHtml,
-      cc,
-      inReplyTo,
-      references
-    );
-    
-    // Upload to destination folder with appropriate flags (preserve connection)
-    try {
-      await imapOps.appendMessage(routeResult.folder, emailMessage, routeResult.flags, true);
-    } catch (err: any) {
-      // If folder missing or append fails, surface a clear error without creating folders here
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes('append failed') || msg.toLowerCase().includes('no such mailbox') || msg.toLowerCase().includes('trycreate')) {
-        res.status(400).json({ error: `Destination folder not found or unavailable: ${routeResult.folder}` });
-        return;
-      }
-      throw err;
-    } finally {
-      // Release preserved connection
-      imapOps.release();
-    }
+        // Determine saved Drafts folder path from user preferences (treated as invariant)
+    const draftsFolderPath = (folderPrefs as any).draftsFolderPath as string;
+
+    await withImapContext(emailAccountId, userId, async () => {
+      // Create IMAP operations instance (connection managed by context)
+      const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
+
+      // Create email message
+      const emailMessage = await createEmailMessage(
+        fromEmail,
+        to,
+        subject,
+        body,
+        req.body.bodyHtml,
+        cc,
+        inReplyTo,
+        references
+      );
+      
+      // Upload to saved Drafts folder with Draft flag; any error bubbles to outer catch
+      await imapOps.appendMessage(draftsFolderPath, emailMessage, ['\\Draft'], true);
+    });
     
     res.json({ 
       success: true,
-      message: `Email uploaded to ${routeResult.displayName}`,
-      folder: routeResult.folder,
-      action: recommendedAction || 'reply-all'
+      message: `Email uploaded to ${draftsFolderPath}`,
+      folder: draftsFolderPath,
+      action: recommendedAction
     });
   } catch (error) {
     console.error('Error uploading draft:', error);
@@ -192,7 +181,6 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
     const userId = (req as any).user.id;
     const {
       emailAccountId,
-      rawMessage,
       messageUid,
       sourceFolder,
       recommendedAction
@@ -214,49 +202,21 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
     const preferences = userResult.rows[0]?.preferences || {};
     const folderPrefs = preferences.folderPreferences;
     
-    // Resolve destination folder and flags without checking/creating folders here
+    // Resolve destination folder and flags
     const actionRouter = new EmailActionRouter(folderPrefs);
     const routeResult = actionRouter.getActionRoute(recommendedAction);
     
-    // Create IMAP operations instance (preserve connection for the whole request)
-    const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
-    
-    // If we have a UID and source folder, use moveMessage to remove from inbox
-    if (messageUid && sourceFolder) {
-      try {
-        await imapOps.moveMessage(sourceFolder, routeResult.folder, messageUid, routeResult.flags, true);
-      } catch (err: any) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.toLowerCase().includes('no such mailbox') || msg.toLowerCase().includes('append failed') || msg.toLowerCase().includes('trycreate')) {
-          res.status(400).json({ error: `Destination folder not found or unavailable: ${routeResult.folder}` });
-          return;
-        }
-        throw err;
-      } finally {
-        // Release preserved connection
-        imapOps.release();
+    await withImapContext(emailAccountId, userId, async () => {
+      const imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
+      if (!messageUid || !sourceFolder) {
+        const missing: string[] = [];
+        if (!messageUid) missing.push('messageUid');
+        if (!sourceFolder) missing.push('sourceFolder');
+        res.status(400).json({ error: `Missing required field(s): ${missing.join(', ')}` });
+        return;
       }
-    } else if (rawMessage) {
-      // Fallback to append if we only have raw message
-      try {
-        await imapOps.appendMessage(routeResult.folder, rawMessage, routeResult.flags, true);
-      } catch (err: any) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.toLowerCase().includes('no such mailbox') || msg.toLowerCase().includes('append failed') || msg.toLowerCase().includes('trycreate')) {
-          res.status(400).json({ error: `Destination folder not found or unavailable: ${routeResult.folder}` });
-          return;
-        }
-        throw err;
-      } finally {
-        imapOps.release();
-      }
-    } else {
-      res.status(400).json({ 
-        error: 'Either messageUid/sourceFolder or rawMessage must be provided' 
-      });
-      return;
-    }
-    
+      await imapOps.moveMessage(sourceFolder, routeResult.folder, messageUid, routeResult.flags, true);
+    });
     res.json({ 
       success: true,
       message: `Email moved to ${routeResult.displayName}`,

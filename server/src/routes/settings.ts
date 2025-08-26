@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth';
 import { pool } from '../server';
 import { EmailActionRouter } from '../lib/email-action-router';
 import { ImapOperations } from '../lib/imap-operations';
+import { withImapContext } from '../lib/imap-context';
 
 const router = express.Router();
 
@@ -42,11 +43,11 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
-// Update profile preferences
+// Update profile preferences (folderPreferences no longer user-configurable)
 router.post('/profile', requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user.id;
-    const { name, nicknames, signatureBlock, folderPreferences } = req.body;
+    const { name, nicknames, signatureBlock } = req.body;
     
     // Update preferences JSONB with new profile data
     const result = await pool.query(
@@ -65,12 +66,10 @@ router.post('/profile', requireAuth, async (req, res) => {
            '{signatureBlock}',
            $4::jsonb
          ),
-         '{folderPreferences}',
-         $5::jsonb
        )
        WHERE id = $1
        RETURNING preferences`,
-      [userId, JSON.stringify(name), JSON.stringify(nicknames), JSON.stringify(signatureBlock), JSON.stringify(folderPreferences || {})]
+      [userId, JSON.stringify(name), JSON.stringify(nicknames), JSON.stringify(signatureBlock)]
     );
     
     if (result.rows.length === 0) {
@@ -159,7 +158,7 @@ router.post('/typed-name', requireAuth, async (req, res) => {
   }
 });
 
-// Test and create email folders
+// Test and create email folders (uses saved configuration; no user input)
 router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
@@ -175,14 +174,12 @@ router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
       return;
     }
     
-    // Get user's folder preferences
+    // Get saved folder preferences (during setup)
     const userResult = await pool.query(
-      'SELECT preferences FROM "user" WHERE id = $1',
+      'SELECT preferences->\'folderPreferences\' as folder_prefs FROM "user" WHERE id = $1',
       [userId]
     );
-    
-    const preferences = userResult.rows[0]?.preferences || {};
-    const folderPrefs = preferences.folderPreferences;
+    const folderPrefs = userResult.rows[0]?.folder_prefs || EmailActionRouter.getDefaultFolders();
     
     // Create router with user's preferences
     const router = new EmailActionRouter(folderPrefs);
@@ -193,13 +190,28 @@ router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
     
     for (const account of accountsResult.rows) {
       try {
-        // Get IMAP operations for this account
-        const imapOps = await ImapOperations.fromAccountId(account.id, userId);
-        
-        try {
-          // Check which folders exist
+        await withImapContext(account.id, userId, async () => {
+          const imapOps = await ImapOperations.fromAccountId(account.id, userId);
           const folderStatus = await router.checkFolders(imapOps);
-          
+
+          // Detect the provider's actual Drafts folder path and persist it
+          try {
+            const draftsPath = await imapOps.findDraftFolder(true);
+            await pool.query(
+              `UPDATE "user"
+               SET preferences = jsonb_set(
+                 COALESCE(preferences, '{}'::jsonb),
+                 '{folderPreferences,draftsFolderPath}',
+                 $2::jsonb,
+                 true
+               )
+               WHERE id = $1`,
+              [userId, JSON.stringify(draftsPath)]
+            );
+          } catch (e) {
+            // Ignore detection failure; report in results only
+          }
+
           results.push({
             accountId: account.id,
             email: account.email_address,
@@ -207,9 +219,7 @@ router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
             existing: folderStatus.existing,
             missing: folderStatus.missing
           });
-        } finally {
-          imapOps.release();
-        }
+        });
       } catch (error) {
         results.push({
           accountId: account.id,
@@ -235,7 +245,7 @@ router.post('/test-folders', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// Create missing folders
+// Create missing folders (based on saved configuration)
 router.post('/create-folders', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
@@ -251,14 +261,12 @@ router.post('/create-folders', requireAuth, async (req, res): Promise<void> => {
       return;
     }
     
-    // Get user's folder preferences
+    // Get saved folder preferences
     const userResult = await pool.query(
-      'SELECT preferences FROM "user" WHERE id = $1',
+      'SELECT preferences->\'folderPreferences\' as folder_prefs FROM "user" WHERE id = $1',
       [userId]
     );
-    
-    const preferences = userResult.rows[0]?.preferences || {};
-    const folderPrefs = preferences.folderPreferences;
+    const folderPrefs = userResult.rows[0]?.folder_prefs || EmailActionRouter.getDefaultFolders();
     
     // Create router with user's preferences
     const router = new EmailActionRouter(folderPrefs);
@@ -268,13 +276,9 @@ router.post('/create-folders', requireAuth, async (req, res): Promise<void> => {
     
     for (const account of accountsResult.rows) {
       try {
-        // Get IMAP operations for this account
-        const imapOps = await ImapOperations.fromAccountId(account.id, userId);
-        
-        try {
-          // Create missing folders
+        await withImapContext(account.id, userId, async () => {
+          const imapOps = await ImapOperations.fromAccountId(account.id, userId);
           const result = await router.createMissingFolders(imapOps);
-          
           results.push({
             accountId: account.id,
             email: account.email_address,
@@ -282,9 +286,7 @@ router.post('/create-folders', requireAuth, async (req, res): Promise<void> => {
             created: result.created,
             failed: result.failed
           });
-        } finally {
-          imapOps.release();
-        }
+        });
       } catch (error) {
         results.push({
           accountId: account.id,

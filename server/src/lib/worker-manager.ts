@@ -57,12 +57,10 @@ export class WorkerManager {
       if (storedState !== null) {
         // Use stored state
         this.isPaused = storedState === 'true';
-        console.log(`[WorkerManager] Restored state from Redis: ${this.isPaused ? 'PAUSED' : 'ACTIVE'}`);
       } else {
         // Use env variable or default to paused
         this.isPaused = defaultPaused !== false; // Default to true (paused) if not specified
         await this.redis.set(WORKER_STATE_KEY, String(this.isPaused));
-        console.log(`[WorkerManager] Initial state: ${this.isPaused ? 'PAUSED' : 'ACTIVE'} (from env: WORKERS_START_PAUSED=${process.env.WORKERS_START_PAUSED})`);
       }
 
       // Apply initial state to all workers
@@ -73,7 +71,6 @@ export class WorkerManager {
         await this.resumeAllWorkers();
       }
     } catch (error) {
-      console.error('[WorkerManager] Error during initialization:', error);
       // Default to paused state on error
       this.isPaused = true;
       await this.pauseAllWorkers(true); // true = don't wait on startup
