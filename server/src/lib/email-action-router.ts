@@ -11,7 +11,6 @@ export interface ActionRouteResult {
 export class EmailActionRouter {
   // Read defaults from environment variables or use fallback values
   private static readonly DEFAULT_ROOT_FOLDER = process.env.DEFAULT_ROOT_FOLDER || '';
-  private static readonly DEFAULT_DRAFTS_FOLDER = process.env.DEFAULT_DRAFTS_FOLDER || 'Drafts';
   private static readonly DEFAULT_NO_ACTION_FOLDER = process.env.DEFAULT_NO_ACTION_FOLDER || 't2j-no-action';
   private static readonly DEFAULT_SPAM_FOLDER = process.env.DEFAULT_SPAM_FOLDER || 't2j-spam';
   
@@ -19,21 +18,21 @@ export class EmailActionRouter {
   static getDefaultFolders(): FolderPreferences {
     return {
       rootFolder: EmailActionRouter.DEFAULT_ROOT_FOLDER,
-      draftsFolder: EmailActionRouter.DEFAULT_DRAFTS_FOLDER,
       noActionFolder: EmailActionRouter.DEFAULT_NO_ACTION_FOLDER,
       spamFolder: EmailActionRouter.DEFAULT_SPAM_FOLDER
     };
   }
 
   private folderPrefs: FolderPreferences;
+  private draftsFolderPath: string | undefined;
 
-  constructor(preferences?: Partial<FolderPreferences>) {
+  constructor(preferences?: Partial<FolderPreferences>, draftsFolderPath?: string) {
     this.folderPrefs = {
       rootFolder: preferences?.rootFolder !== undefined ? preferences.rootFolder : EmailActionRouter.DEFAULT_ROOT_FOLDER,
-      draftsFolder: preferences?.draftsFolder || EmailActionRouter.DEFAULT_DRAFTS_FOLDER,
       noActionFolder: preferences?.noActionFolder || EmailActionRouter.DEFAULT_NO_ACTION_FOLDER,
       spamFolder: preferences?.spamFolder || EmailActionRouter.DEFAULT_SPAM_FOLDER
     };
+    this.draftsFolderPath = draftsFolderPath;
   }
 
   /**
@@ -48,9 +47,9 @@ export class EmailActionRouter {
       case 'forward':
       case 'forward-with-comment':
         return {
-          folder: `${rootPath}${this.folderPrefs.draftsFolder}`,
+          folder: this!.draftsFolderPath!,
           flags: ['\\Draft'],  // Drafts should not be marked as Seen
-          displayName: this.folderPrefs.draftsFolder
+          displayName: this!.draftsFolderPath!
         };
 
       case 'silent-fyi-only':
@@ -70,12 +69,7 @@ export class EmailActionRouter {
         };
 
       default:
-        // Default to drafts for unknown actions
-        return {
-          folder: `${rootPath}${this.folderPrefs.draftsFolder}`,
-          flags: ['\\Draft'],  // Drafts should not be marked as Seen
-          displayName: this.folderPrefs.draftsFolder
-        };
+        throw new Error(`Unknown action: ${recommendedAction}`);
     }
   }
 
@@ -90,13 +84,11 @@ export class EmailActionRouter {
       // Add root folder
       folders.push(rootPath);
       
-      // Add subfolders with root path
-      folders.push(`${rootPath}/${this.folderPrefs.draftsFolder}`);
+      // Add subfolders with root path (excluding drafts - it's system managed)
       folders.push(`${rootPath}/${this.folderPrefs.noActionFolder}`);
       folders.push(`${rootPath}/${this.folderPrefs.spamFolder}`);
     } else {
-      // Add folders at root level
-      folders.push(this.folderPrefs.draftsFolder);
+      // Add folders at root level (excluding drafts - it's system managed)
       folders.push(this.folderPrefs.noActionFolder);
       folders.push(this.folderPrefs.spamFolder);
     }

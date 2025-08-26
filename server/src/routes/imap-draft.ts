@@ -201,9 +201,10 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
     );
     const preferences = userResult.rows[0]?.preferences || {};
     const folderPrefs = preferences.folderPreferences;
+    const draftsFolderPath = folderPrefs?.draftsFolderPath;
     
     // Resolve destination folder and flags
-    const actionRouter = new EmailActionRouter(folderPrefs);
+    const actionRouter = new EmailActionRouter(folderPrefs, draftsFolderPath);
     const routeResult = actionRouter.getActionRoute(recommendedAction);
     
     await withImapContext(emailAccountId, userId, async () => {

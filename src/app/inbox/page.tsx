@@ -106,10 +106,10 @@ export default function InboxPage() {
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   const [userFolderPrefs, setUserFolderPrefs] = useState<{
     rootFolder?: string;
-    draftsFolder?: string;
     noActionFolder?: string;
     spamFolder?: string;
   } | null>(null);
+  const [draftsFolderPath, setDraftsFolderPath] = useState<string | null>(null);
   const [jumpToInput, setJumpToInput] = useState('');
   const [needsReauth, setNeedsReauth] = useState(false);
 
@@ -129,7 +129,7 @@ export default function InboxPage() {
     }
     
     // Ensure all required folder names are present
-    if (!userFolderPrefs.draftsFolder || !userFolderPrefs.noActionFolder || !userFolderPrefs.spamFolder) {
+    if (!userFolderPrefs.noActionFolder || !userFolderPrefs.spamFolder) {
       return {
         folder: '[Incomplete configuration]',
         displayName: '[Not configured]',
@@ -145,9 +145,17 @@ export default function InboxPage() {
       case 'reply-all':
       case 'forward':
       case 'forward-with-comment':
+        if (!draftsFolderPath) {
+          return {
+            folder: '[Draft folder not detected]',
+            displayName: '[Not detected]',
+            buttonLabel: 'Draft Folder Not Found',
+            error: true
+          };
+        }
         return {
-          folder: `${rootPath}${userFolderPrefs.draftsFolder}`,
-          displayName: userFolderPrefs.draftsFolder,
+          folder: draftsFolderPath,
+          displayName: draftsFolderPath,
           buttonLabel: 'Send to Drafts',
           error: false
         };
@@ -172,10 +180,10 @@ export default function InboxPage() {
       
       default:
         return {
-          folder: `${rootPath}${userFolderPrefs.draftsFolder}`,
-          displayName: userFolderPrefs.draftsFolder,
-          buttonLabel: 'Send to Drafts',
-          error: false
+          folder: '[Unknown action]',
+          displayName: '[Unknown]',
+          buttonLabel: 'Unknown Action',
+          error: true
         };
     }
   };
@@ -322,12 +330,14 @@ export default function InboxPage() {
     try {
       const data = await apiGet<{ preferences: { folderPreferences?: {
         rootFolder?: string;
-        draftsFolder?: string;
         noActionFolder?: string;
         spamFolder?: string;
+        draftsFolderPath?: string;
       } } }>('/api/settings/profile');
       if (data.preferences?.folderPreferences) {
-        setUserFolderPrefs(data.preferences.folderPreferences);
+        const { draftsFolderPath, ...otherPrefs } = data.preferences.folderPreferences;
+        setUserFolderPrefs(otherPrefs);
+        setDraftsFolderPath(draftsFolderPath || null);
       }
     } catch (err) {
       console.error('Failed to load folder preferences:', err);

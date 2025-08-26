@@ -213,6 +213,7 @@ function AccountList({
   onToggleMonitoring: (account: EmailAccountResponse, enabled: boolean) => void
   deletingId: string | null
 }) {
+  const { error: showError } = useToast();
   if (isLoading) {
     return (
       <Card>

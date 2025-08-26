@@ -23,7 +23,6 @@ export default function SettingsPage() {
   const [signatureBlock, setSignatureBlock] = useState('')
   const [folderPreferences, setFolderPreferences] = useState({
     rootFolder: '',
-    draftsFolder: '',
     noActionFolder: '',
     spamFolder: ''
   })
@@ -53,7 +52,6 @@ export default function SettingsPage() {
       try {
         const data = await apiGet<{ preferences: { name?: string; nicknames?: string; signatureBlock?: string; folderPreferences?: {
           rootFolder?: string;
-          draftsFolder?: string;
           noActionFolder?: string;
           spamFolder?: string;
         } } }>('/api/settings/profile')
@@ -86,8 +84,7 @@ export default function SettingsPage() {
       await apiPost('/api/settings/profile', {
         name,
         nicknames,
-        signatureBlock,
-        folderPreferences
+        signatureBlock
       })
       success('Profile updated successfully')
     } catch (err) {
@@ -315,26 +312,12 @@ export default function SettingsPage() {
                   <Input
                     id="rootFolder"
                     value={folderPreferences.rootFolder}
-                    onChange={(e) => setFolderPreferences({ ...folderPreferences, rootFolder: e.target.value })}
                     placeholder="Leave empty for root level"
-                    disabled={isLoading}
+                    disabled={true}
+                    readOnly
                   />
                   <p className="text-sm text-muted-foreground">
                     Leave empty to create folders at the root level
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="draftsFolder">Drafts Folder</Label>
-                  <Input
-                    id="draftsFolder"
-                    value={folderPreferences.draftsFolder}
-                    onChange={(e) => setFolderPreferences({ ...folderPreferences, draftsFolder: e.target.value })}
-                    placeholder="e.g., Drafts"
-                    disabled={isLoading}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    For: reply, reply-all, forward actions
                   </p>
                 </div>
                 
@@ -343,9 +326,9 @@ export default function SettingsPage() {
                   <Input
                     id="noActionFolder"
                     value={folderPreferences.noActionFolder}
-                    onChange={(e) => setFolderPreferences({ ...folderPreferences, noActionFolder: e.target.value })}
-                    placeholder="e.g., t2j-no-action"
-                    disabled={isLoading}
+                    placeholder="e.g., AI-No-Action"
+                    disabled={true}
+                    readOnly
                   />
                   <p className="text-sm text-muted-foreground">
                     For: FYI only, large lists, unsubscribe candidates
@@ -357,9 +340,9 @@ export default function SettingsPage() {
                   <Input
                     id="spamFolder"
                     value={folderPreferences.spamFolder}
-                    onChange={(e) => setFolderPreferences({ ...folderPreferences, spamFolder: e.target.value })}
-                    placeholder="e.g., t2j-spam"
-                    disabled={isLoading}
+                    placeholder="e.g., AI-Spam"
+                    disabled={true}
+                    readOnly
                   />
                   <p className="text-sm text-muted-foreground">
                     For: emails identified as spam
@@ -367,12 +350,7 @@ export default function SettingsPage() {
                 </div>
                 
                 <div className="flex gap-2">
-                  <Button onClick={handleSave} disabled={isSaving || isLoading}>
-                    {isSaving ? 'Saving...' : 'Save Folder Preferences'}
-                  </Button>
-                  
                   <Button 
-                    variant="outline" 
                     onClick={handleTestFolders}
                     disabled={isTestingFolders || isLoading}
                   >
