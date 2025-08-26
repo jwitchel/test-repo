@@ -13,6 +13,8 @@ import { ChevronLeft, ChevronRight, Mail, Paperclip, FileText, Send, Loader2, Br
 import { useToast } from '@/hooks/use-toast';
 import PostalMime from 'postal-mime';
 import { apiGet, apiPost } from '@/lib/api';
+import Link from 'next/link';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface EmailAccount {
   id: string;
@@ -109,6 +111,9 @@ export default function InboxPage() {
     spamFolder?: string;
   } | null>(null);
   const [jumpToInput, setJumpToInput] = useState('');
+  const [needsReauth, setNeedsReauth] = useState(false);
+
+  const selectedAccountEmail = accounts.find(a => a.id === selectedAccount)?.email;
   
   // Helper function to get destination folder based on recommended action
   const getDestinationFolder = (recommendedAction?: string) => {
@@ -236,9 +241,13 @@ export default function InboxPage() {
         setParsedMessage(null);
         setTotalMessages(0);
       }
-    } catch (err) {
-      error('Failed to load message');
-      console.error(err);
+    } catch (err: any) {
+      if (err?.code === 'OAUTH_REAUTH_REQUIRED') {
+        setNeedsReauth(true);
+      } else {
+        error('Failed to load message');
+        console.error(err);
+      }
     } finally {
       setLoading(false);
     }
@@ -395,17 +404,24 @@ export default function InboxPage() {
       const recommendedAction = generatedDraft.meta?.recommendedAction;
       const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
       
+      let destFolder: string | undefined;
       if (ignoreActions.includes(recommendedAction || '')) {
         // For silent actions, move the original email using UID (no raw message payload)
-        await apiPost('/api/imap-draft/move-email', {
+        const res = await apiPost<{ success: boolean; folder: string; message: string }>(
+          '/api/imap-draft/move-email',
+          {
           emailAccountId: selectedAccount,
           messageUid: currentMessage.uid,
           sourceFolder: 'INBOX',
           recommendedAction: recommendedAction
-        });
+        }
+        );
+        destFolder = res.folder;
       } else {
         // For other actions, create a draft reply
-        await apiPost('/api/imap-draft/upload-draft', {
+        const res = await apiPost<{ success: boolean; folder: string; message: string; action?: string }>(
+          '/api/imap-draft/upload-draft',
+          {
           emailAccountId: selectedAccount,
           to: generatedDraft.to,
           cc: generatedDraft.cc,
@@ -415,15 +431,21 @@ export default function InboxPage() {
           inReplyTo: generatedDraft.inReplyTo,
           references: generatedDraft.references,
           recommendedAction: recommendedAction
-        });
+        }
+        );
+        destFolder = res.folder;
       }
       
-      const destination = getDestinationFolder(recommendedAction);
-      if (destination.error) {
-        error('Folder configuration missing. Please configure folders in Settings.');
-        return;
+      if (destFolder) {
+        success(`Email sent to ${destFolder}!`);
+      } else {
+        const destination = getDestinationFolder(recommendedAction);
+        if (destination.error) {
+          error('Folder configuration missing. Please configure folders in Settings.');
+          return;
+        }
+        success(`Email sent to ${destination.folder}!`);
       }
-      success(`Email sent to ${destination.folder}!`);
     } catch (err) {
       console.error('Failed to process email:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to process email';
@@ -441,6 +463,22 @@ export default function InboxPage() {
   
   return (
     <div className="container mx-auto p-6 max-w-6xl">
+      {needsReauth && (
+        <div className="mb-4">
+          <Alert className="py-2 border-amber-300 bg-amber-50 dark:bg-amber-950">
+            <AlertDescription className="flex items-center justify-between">
+              <span className="text-xs">
+                {selectedAccountEmail
+                  ? (<span><strong>{selectedAccountEmail}</strong> requires re-authorization. Please reconnect to continue.</span>)
+                  : 'This email account requires re-authorization. Please reconnect to continue.'}
+              </span>
+              <Link href={`/settings/email-accounts?reauth=${encodeURIComponent(selectedAccount)}`}>
+                <Button size="sm">Reconnect</Button>
+              </Link>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-4">Inbox</h1>
         

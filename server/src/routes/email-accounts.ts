@@ -260,6 +260,13 @@ router.post('/:id/test', requireAuth, async (req, res): Promise<void> => {
       });
     } catch (error: any) {
       console.error('IMAP test connection error:', error);
+      if (error?.code === 'AUTH_REFRESH_FAILED') {
+        res.status(401).json({
+          error: 'OAUTH_REAUTH_REQUIRED',
+          message: 'Email provider session expired or revoked. Please reconnect your account.'
+        });
+        return;
+      }
       res.status(400).json({ 
         error: `Connection failed: ${error.message}`,
         details: error.code || 'UNKNOWN_ERROR'

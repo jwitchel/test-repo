@@ -330,7 +330,7 @@ export default function SettingsPage() {
                     id="draftsFolder"
                     value={folderPreferences.draftsFolder}
                     onChange={(e) => setFolderPreferences({ ...folderPreferences, draftsFolder: e.target.value })}
-                    placeholder="e.g., t2j-draft"
+                    placeholder="e.g., Drafts"
                     disabled={isLoading}
                   />
                   <p className="text-sm text-muted-foreground">

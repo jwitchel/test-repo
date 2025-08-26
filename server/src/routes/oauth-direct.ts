@@ -218,8 +218,7 @@ router.post('/complete', requireAuth, async (req, res): Promise<void> => {
              oauth_access_token = $3,
              oauth_token_expires_at = $4,
              oauth_user_id = $5,
-             imap_password_encrypted = NULL,
-             updated_at = NOW()
+             imap_password_encrypted = NULL
          WHERE id = $6`,
         [
           'google',

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -17,6 +18,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Loader2, Mail, Server, Eye, EyeOff } from 'lucide-react'
 import { EmailAccountResponse } from '@/types/email-account'
 import { FcGoogle } from 'react-icons/fc'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then(res => res.json())
 
@@ -30,11 +32,15 @@ const emailAccountSchema = z.object({
 })
 
 export default function EmailAccountsPage() {
+  const searchParams = useSearchParams()
+  const reauthId = searchParams.get('reauth')
   const [isAddingAccount, setIsAddingAccount] = useState(false)
   const [editingAccount, setEditingAccount] = useState<EmailAccountResponse | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { data: accounts, error, mutate } = useSWR<EmailAccountResponse[]>('http://localhost:3002/api/email-accounts', fetcher)
   const { success, error: showError } = useToast()
+
+  const reauthAccount = useMemo(() => (accounts || []).find(a => a.id === reauthId), [accounts, reauthId])
 
   const handleDelete = async (accountId: string) => {
     setDeletingId(accountId)
@@ -101,7 +107,7 @@ export default function EmailAccountsPage() {
   if (error) {
     return (
       <ProtectedRoute>
-        <div className="container max-w-4xl py-8">
+        <div className="container mx-auto py-6 px-4 md:px-6">
           <div className="text-center text-red-600">Failed to load email accounts</div>
         </div>
       </ProtectedRoute>
@@ -110,7 +116,43 @@ export default function EmailAccountsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container max-w-4xl py-8 px-8">
+      <div className="container mx-auto py-6 px-4 md:px-6">
+        {reauthAccount && (
+          <div className="mb-4">
+            <Alert className="py-2 border-amber-300 bg-amber-50 dark:bg-amber-950">
+              <AlertDescription className="flex items-center justify-between">
+                <span className="text-xs">
+                  <strong>{reauthAccount.email_address}</strong> requires re-authorization. Click reconnect to resume syncing.
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ provider: reauthAccount.oauth_provider || 'google' })
+                      })
+                      if (!response.ok) {
+                        const err = await response.json()
+                        showError(err.error || 'Failed to start OAuth flow')
+                        return
+                      }
+                      const { authUrl } = await response.json()
+                      window.location.href = authUrl
+                    } catch {
+                      showError('Failed to start OAuth flow')
+                    }
+                  }}
+                >
+                  Reconnect
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Email Accounts</h1>
           <p className="text-muted-foreground">
@@ -265,6 +307,33 @@ function AccountList({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
+                    {account.oauth_provider && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              body: JSON.stringify({ provider: account.oauth_provider })
+                            })
+                            if (!response.ok) {
+                              const err = await response.json()
+                              showError(err.error || 'Failed to start OAuth flow')
+                              return
+                            }
+                            const { authUrl } = await response.json()
+                            window.location.href = authUrl
+                          } catch {
+                            showError('Failed to start OAuth flow')
+                          }
+                        }}
+                      >
+                        Reconnect OAuth
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"

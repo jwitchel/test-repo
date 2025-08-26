@@ -24,7 +24,17 @@ export async function apiFetch(
   });
   
   if (requireAuth && response.status === 401) {
-    // Redirect to login if not authenticated
+    try {
+      const cloned = response.clone();
+      const data = await cloned.json();
+      // Do not redirect on provider OAuth expiry; let caller handle reauth UX
+      if (data && data.error === 'OAUTH_REAUTH_REQUIRED') {
+        return response;
+      }
+    } catch {
+      // ignore parse error; fall through to redirect
+    }
+    // For all other 401s, redirect to login
     window.location.href = '/login';
   }
   
@@ -35,8 +45,20 @@ export async function apiGet<T = unknown>(endpoint: string): Promise<T> {
   const response = await apiFetch(endpoint);
   
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || `API error: ${response.status}`);
+    const bodyText = await response.text();
+    let code: string | undefined;
+    let message: string | undefined;
+    try {
+      const data = JSON.parse(bodyText);
+      code = data.error;
+      message = data.message || data.error;
+    } catch {
+      // not JSON; fall through with raw text
+    }
+    const err: any = new Error(message || bodyText || `API error: ${response.status}`);
+    if (code) err.code = code;
+    err.status = response.status;
+    throw err;
   }
   
   return response.json();
@@ -52,8 +74,20 @@ export async function apiPost<T = unknown>(
   });
   
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || `API error: ${response.status}`);
+    const bodyText = await response.text();
+    let code: string | undefined;
+    let message: string | undefined;
+    try {
+      const data = JSON.parse(bodyText);
+      code = data.error;
+      message = data.message || data.error;
+    } catch {
+      // not JSON
+    }
+    const err: any = new Error(message || bodyText || `API error: ${response.status}`);
+    if (code) err.code = code;
+    err.status = response.status;
+    throw err;
   }
   
   return response.json();
