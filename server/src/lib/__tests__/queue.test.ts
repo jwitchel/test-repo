@@ -239,7 +239,10 @@ describe('BullMQ Queue Configuration', () => {
       );
 
       // Pause the queue first (required for obliterate)
-      await emailProcessingQueue.pause(true);
+      await emailProcessingQueue.pause();
+      
+      // Wait a moment to ensure pause is effective
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Clean the queue
       await emailProcessingQueue.obliterate({ force: true });

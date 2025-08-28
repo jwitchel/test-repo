@@ -126,6 +126,10 @@ describe('Queue Integration Tests', () => {
   });
 
   it('should check queue health', async () => {
+    // Ensure queues are resumed before checking (in case previous test paused them)
+    await emailProcessingQueue.resume();
+    await toneProfileQueue.resume();
+    
     // Check if queues are paused
     const emailPaused = await emailProcessingQueue.isPaused();
     const tonePaused = await toneProfileQueue.isPaused();
@@ -203,8 +207,15 @@ describe('Queue Integration Tests', () => {
     );
 
     // Pause then clean the queue (required by BullMQ)
-    await emailProcessingQueue.pause(true);
+    await emailProcessingQueue.pause();
+    
+    // Wait a moment to ensure pause is effective
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     await emailProcessingQueue.obliterate({ force: true });
+
+    // Resume the queue after obliteration
+    await emailProcessingQueue.resume();
 
     // Check that queue is empty
     const counts = await emailProcessingQueue.getJobCounts();
