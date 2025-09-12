@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as nodemailer from 'nodemailer';
 import { EmailActionRouter } from '../lib/email-action-router';
 import { LLMMetadata } from '../lib/llm-client';
+import { EmailActionTracker } from '../lib/email-action-tracker';
 
 const router = express.Router();
 
@@ -143,6 +144,11 @@ router.post('/upload-draft', requireAuth, async (req, res): Promise<void> => {
       await imapOps.appendMessage(draftsFolderPath, emailMessage, ['\\Draft'], true);
     });
     
+    // Record that a draft was created for this email (if replying to a message)
+    if (inReplyTo) {
+      await EmailActionTracker.recordAction(userId, emailAccountId, inReplyTo, 'draft_created');
+    }
+    
     res.json({ 
       success: true,
       message: `Email uploaded to ${draftsFolderPath}`,
@@ -182,6 +188,7 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
     const {
       emailAccountId,
       messageUid,
+      messageId,
       sourceFolder,
       recommendedAction
     } = req.body;
@@ -218,6 +225,16 @@ router.post('/move-email', requireAuth, async (req, res): Promise<void> => {
       }
       await imapOps.moveMessage(sourceFolder, routeResult.folder, messageUid, routeResult.flags, true);
     });
+    
+    // Record the action taken (map recommended action to action type)
+    if (messageId) {
+      let actionType: 'manually_handled' | 'draft_created' = 'manually_handled';
+      if (['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'].includes(recommendedAction)) {
+        actionType = 'manually_handled'; // Silent actions mean the email was handled without a draft
+      }
+      await EmailActionTracker.recordAction(userId, emailAccountId, messageId, actionType);
+    }
+    
     res.json({ 
       success: true,
       message: `Email moved to ${routeResult.displayName}`,

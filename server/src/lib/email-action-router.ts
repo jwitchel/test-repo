@@ -46,10 +46,13 @@ export class EmailActionRouter {
       case 'reply-all':
       case 'forward':
       case 'forward-with-comment':
+        if (!this.draftsFolderPath) {
+          throw new Error('Draft folder path not configured');
+        }
         return {
-          folder: this!.draftsFolderPath!,
+          folder: this.draftsFolderPath,
           flags: ['\\Draft'],  // Drafts should not be marked as Seen
-          displayName: this!.draftsFolderPath!
+          displayName: this.draftsFolderPath
         };
 
       case 'silent-fyi-only':

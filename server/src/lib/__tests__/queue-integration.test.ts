@@ -210,7 +210,15 @@ describe('Queue Integration Tests', () => {
     await emailProcessingQueue.pause();
     
     // Wait a moment to ensure pause is effective
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Verify the queue is actually paused
+    const isPaused = await emailProcessingQueue.isPaused();
+    if (!isPaused) {
+      console.warn('Queue not paused, attempting pause again');
+      await emailProcessingQueue.pause();
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
     
     await emailProcessingQueue.obliterate({ force: true });
 

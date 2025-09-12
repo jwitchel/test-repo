@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -31,7 +31,7 @@ const emailAccountSchema = z.object({
   imap_secure: z.boolean()
 })
 
-export default function EmailAccountsPage() {
+function EmailAccountsContent() {
   const searchParams = useSearchParams()
   const reauthId = searchParams.get('reauth')
   const [isAddingAccount, setIsAddingAccount] = useState(false)
@@ -960,5 +960,31 @@ function EditAccountForm({ account, onSuccess, onCancel }: {
         </Form>
       </CardContent>
     </Card>
+  )
+}
+
+// Loading fallback component
+function EmailAccountsLoading() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Email Accounts</CardTitle>
+        <CardDescription>Loading email accounts...</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Main export with Suspense boundary
+export default function EmailAccountsPage() {
+  return (
+    <Suspense fallback={<EmailAccountsLoading />}>
+      <EmailAccountsContent />
+    </Suspense>
   )
 }

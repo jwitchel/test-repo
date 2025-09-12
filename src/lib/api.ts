@@ -55,7 +55,7 @@ export async function apiGet<T = unknown>(endpoint: string): Promise<T> {
     } catch {
       // not JSON; fall through with raw text
     }
-    const err: any = new Error(message || bodyText || `API error: ${response.status}`);
+    const err = new Error(message || bodyText || `API error: ${response.status}`) as Error & { code?: string; status: number };
     if (code) err.code = code;
     err.status = response.status;
     throw err;
@@ -84,7 +84,7 @@ export async function apiPost<T = unknown>(
     } catch {
       // not JSON
     }
-    const err: any = new Error(message || bodyText || `API error: ${response.status}`);
+    const err = new Error(message || bodyText || `API error: ${response.status}`) as Error & { code?: string; status: number };
     if (code) err.code = code;
     err.status = response.status;
     throw err;
