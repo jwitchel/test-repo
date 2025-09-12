@@ -40,7 +40,7 @@ async function broadcastJobEvent(eventType: string, jobId: string, queueName: st
   }
 
   if (job && job.data.userId) {
-    console.log(`Broadcasting ${eventType} for job ${jobId} to user ${job.data.userId}`);
+    // console.log(`Broadcasting ${eventType} for job ${jobId} to user ${job.data.userId}`);
     wsServer.broadcastJobEvent({
       type: eventType,
       jobId,

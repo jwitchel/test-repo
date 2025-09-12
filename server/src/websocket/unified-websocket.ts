@@ -108,9 +108,7 @@ export class UnifiedWebSocketServer extends EventEmitter {
           this.clients.set(userId, new Set());
         }
         this.clients.get(userId)!.add(ws);
-
-        console.log(`Unified WebSocket client connected for user ${userId}`);
-
+        
         // Send initial logs
         this.sendInitialLogs(ws, userId);
 
