@@ -15,6 +15,7 @@ interface JobProgress {
 
 interface JobData {
   jobId: string;
+  queueName: string;
   type: string;
   status: 'queued' | 'waiting' | 'prioritized' | 'active' | 'completed' | 'failed' | 'cancelled';
   progress?: JobProgress;
@@ -31,6 +32,25 @@ interface JobData {
   completedAt?: string;
 }
 
+interface ApiJobData {
+  jobId: string;
+  queueName: string;
+  type: string;
+  status: 'queued' | 'waiting' | 'prioritized' | 'active' | 'completed' | 'failed' | 'cancelled';
+  progress?: JobProgress;
+  result?: {
+    profilesCreated?: number;
+    emailsAnalyzed?: number;
+    emailsProcessed?: number;
+  };
+  error?: string;
+  createdAt: string;
+  duration?: number;
+  priority?: string;
+  processedAt?: string | null;
+  completedAt?: string | null;
+}
+
 function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
@@ -43,7 +63,23 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
 }
 
-function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => void }) {
+function convertApiJobToJobData(apiJob: ApiJobData): JobData {
+  return {
+    jobId: apiJob.jobId,
+    queueName: apiJob.queueName,
+    type: apiJob.type,
+    status: apiJob.status,
+    progress: apiJob.progress,
+    result: apiJob.result,
+    error: apiJob.error,
+    timestamp: apiJob.createdAt,
+    duration: apiJob.duration,
+    startedAt: apiJob.processedAt || undefined,
+    completedAt: apiJob.completedAt || undefined
+  };
+}
+
+function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string, queueName: string) => void }) {
   const statusConfig = {
     queued: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
     waiting: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
@@ -59,8 +95,7 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => v
   
   const jobTypeDisplay = {
     'build-tone-profile': 'Tone Profile Builder',
-    'process-new-email': 'Process New Email',
-    'monitor-inbox': 'Inbox Monitor',
+    'process-inbox': 'Process Inbox',
     'learn-from-edit': 'Learn From Edit'
   }[job.type] || job.type;
   
@@ -82,7 +117,7 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => v
           <Button 
             size="sm" 
             variant="ghost" 
-            onClick={() => onRetry(job.jobId)}
+            onClick={() => onRetry(job.jobId, job.queueName)}
             className="h-5 px-1.5 text-[10px] hover:bg-zinc-100"
           >
             <RefreshCw className="h-3 w-3" />
@@ -95,17 +130,19 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => v
 
 interface JobsMonitorProps {
   refreshTrigger?: number;
+  forceRefresh?: boolean;
 }
 
-export function JobsMonitor({ refreshTrigger }: JobsMonitorProps) {
+export function JobsMonitor({ refreshTrigger, forceRefresh }: JobsMonitorProps) {
   const [jobs, setJobs] = useState<Map<string, JobData>>(new Map());
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const loadJobsRef = useRef<() => Promise<void>>();
+  const loadJobsRef = useRef<((forceReplace?: boolean) => Promise<void>) | undefined>(undefined);
+  const pendingLoadJobs = useRef<Set<string>>(new Set()); // Track pending loadJobs calls
   
   // Load jobs from API - memoized to be called from multiple places
-  const loadJobs = async () => {
+  const loadJobs = async (forceReplace: boolean = false) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
       const response = await fetch(`${apiUrl}/api/jobs/list`, {
@@ -114,24 +151,43 @@ export function JobsMonitor({ refreshTrigger }: JobsMonitorProps) {
       
       if (response.ok) {
         const data = await response.json();
-        const jobsMap = new Map<string, JobData>();
+        console.log(`[JobsMonitor] loadJobs - received ${data.jobs.length} jobs:`, 
+          data.jobs.map((j: ApiJobData) => `${j.type}(${j.queueName}):${j.status}[${j.jobId}]`));
         
-        for (const job of data.jobs) {
-          jobsMap.set(job.jobId, {
-            jobId: job.jobId,
-            type: job.type,
-            status: job.status,
-            progress: job.progress,
-            result: job.result,
-            error: job.error,
-            timestamp: job.createdAt,
-            duration: job.duration,
-            startedAt: job.startedAt,
-            completedAt: job.completedAt
+        if (forceReplace) {
+          // Replace all jobs with API data (used for refresh after clear operations)
+          console.log(`[JobsMonitor] loadJobs - force replacing all jobs with API data`);
+          const newJobs = new Map<string, JobData>();
+          
+          for (const apiJob of data.jobs) {
+            const jobKey = `${apiJob.queueName}:${apiJob.jobId}`;
+            const jobData = convertApiJobToJobData(apiJob);
+            newJobs.set(jobKey, jobData);
+          }
+          
+          setJobs(newJobs);
+          console.log(`[JobsMonitor] loadJobs - replaced with ${newJobs.size} jobs from API`);
+        } else {
+          // Merge API data with existing WebSocket state (normal operation)
+          setJobs(prevJobs => {
+            const newJobs = new Map(prevJobs);
+            
+            for (const apiJob of data.jobs) {
+              // Use composite key: queueName:jobId to handle job ID reuse across queues
+              const jobKey = `${apiJob.queueName}:${apiJob.jobId}`;
+              const existing = newJobs.get(jobKey);
+              const jobData = convertApiJobToJobData(apiJob);
+              
+              // Prefer existing WebSocket data for active jobs, API data for others
+              if (!existing || existing.status === 'queued' || apiJob.status !== 'queued') {
+                newJobs.set(jobKey, jobData);
+              }
+            }
+            
+            console.log(`[JobsMonitor] loadJobs - merged state, now have ${newJobs.size} total jobs`);
+            return newJobs;
           });
         }
-        
-        setJobs(jobsMap);
       }
     } catch (error) {
       console.error('Failed to load jobs:', error);
@@ -145,8 +201,8 @@ export function JobsMonitor({ refreshTrigger }: JobsMonitorProps) {
   
   // Load initial jobs from API and when refresh is triggered
   useEffect(() => {
-    loadJobs();
-  }, [refreshTrigger]);
+    loadJobs(forceRefresh);
+  }, [refreshTrigger, forceRefresh]);
   
   // Set up WebSocket connection for real-time updates
   useEffect(() => {
@@ -171,48 +227,65 @@ export function JobsMonitor({ refreshTrigger }: JobsMonitorProps) {
         // Handle job events from unified WebSocket
         if (data.type === 'job-event' && data.data) {
           const event = data.data;
+          console.log(`[JobsMonitor] WebSocket event:`, event.type, event.jobId, event.queueName, event.jobType);
+          
           setJobs(prev => {
             const newJobs = new Map(prev);
-            const existingJob = newJobs.get(event.jobId) || {} as JobData;
+            // Use composite key: queueName:jobId to handle job ID reuse across queues
+            const jobKey = `${event.queueName}:${event.jobId}`;
+            const existingJob = newJobs.get(jobKey) || {} as JobData;
             
             switch (event.type) {
               case 'JOB_QUEUED':
+                console.log(`[JobsMonitor] JOB_QUEUED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
                 // Always update the job in our state immediately
-                newJobs.set(event.jobId, {
+                newJobs.set(jobKey, {
                   ...existingJob,
                   jobId: event.jobId,
+                  queueName: event.queueName || existingJob.queueName,
                   type: event.jobType || existingJob.type,
                   status: 'queued',
                   timestamp: event.timestamp || new Date().toISOString(),
                   priority: event.priority
                 });
                 
-                // For completely new jobs, also fetch full details from API
-                if (!existingJob.jobId && loadJobsRef.current) {
+                // For completely new jobs, also fetch full details from API (with deduplication)
+                if (!existingJob.jobId && loadJobsRef.current && !pendingLoadJobs.current.has(jobKey)) {
+                  console.log(`[JobsMonitor] Scheduling loadJobs for new job:`, jobKey);
+                  pendingLoadJobs.current.add(jobKey);
+                  
                   // Delay slightly to ensure job is fully persisted in Redis
-                  setTimeout(() => loadJobsRef.current!(), 200);
+                  setTimeout(() => {
+                    console.log(`[JobsMonitor] Calling loadJobs for job:`, jobKey);
+                    pendingLoadJobs.current.delete(jobKey);
+                    loadJobsRef.current!();
+                  }, 200);
                 }
                 break;
                 
               case 'JOB_ACTIVE':
-                newJobs.set(event.jobId, {
+                newJobs.set(jobKey, {
                   ...existingJob,
+                  queueName: event.queueName || existingJob.queueName,
                   status: 'active',
                   startedAt: event.startedAt || new Date().toISOString()
                 });
                 break;
                 
               case 'JOB_PROGRESS':
-                newJobs.set(event.jobId, {
+                newJobs.set(jobKey, {
                   ...existingJob,
+                  queueName: event.queueName || existingJob.queueName,
                   status: 'active',
                   progress: event.progress
                 });
                 break;
                 
               case 'JOB_COMPLETED':
-                newJobs.set(event.jobId, {
+                console.log(`[JobsMonitor] JOB_COMPLETED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
+                newJobs.set(jobKey, {
                   ...existingJob,
+                  queueName: event.queueName || existingJob.queueName,
                   status: 'completed',
                   result: event.result,
                   completedAt: new Date().toISOString()
@@ -220,8 +293,10 @@ export function JobsMonitor({ refreshTrigger }: JobsMonitorProps) {
                 break;
                 
               case 'JOB_FAILED':
-                newJobs.set(event.jobId, {
+                console.log(`[JobsMonitor] JOB_FAILED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
+                newJobs.set(jobKey, {
                   ...existingJob,
+                  queueName: event.queueName || existingJob.queueName,
                   status: 'failed',
                   error: event.error,
                   completedAt: event.failedAt || new Date().toISOString()
@@ -259,10 +334,10 @@ export function JobsMonitor({ refreshTrigger }: JobsMonitorProps) {
   }, []); // Empty dependency array - only connect once on mount
   
   
-  const handleRetry = async (jobId: string) => {
+  const handleRetry = async (jobId: string, queueName: string) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      const response = await fetch(`${apiUrl}/api/jobs/${jobId}/retry`, {
+      const response = await fetch(`${apiUrl}/api/jobs/${queueName}/${jobId}/retry`, {
         method: 'POST',
         credentials: 'include'
       });

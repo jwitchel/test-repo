@@ -57,8 +57,12 @@ router.post('/queue', requireAuth, async (req, res): Promise<void> => {
         return;
     }
 
+    // Determine which queue the job was added to
+    const queueName = type === JobType.BUILD_TONE_PROFILE ? 'tone-profile' : 'email-processing';
+    
     res.json({
       jobId: job.id,
+      queueName,
       type,
       status: await job.getState(),
       priority,
@@ -73,17 +77,23 @@ router.post('/queue', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// Get job status directly from BullMQ
-router.get('/status/:jobId', requireAuth, async (req, res): Promise<void> => {
+// Get job status from specific queue
+router.get('/:queueName/:jobId/status', requireAuth, async (req, res): Promise<void> => {
   try {
-    const { jobId } = req.params;
+    const { queueName, jobId } = req.params;
 
-    // Try both queues
-    let job = await emailProcessingQueue.getJob(jobId);
-    if (!job) {
-      job = await toneProfileQueue.getJob(jobId);
+    // Get the appropriate queue
+    let queue;
+    if (queueName === 'email-processing') {
+      queue = emailProcessingQueue;
+    } else if (queueName === 'tone-profile') {
+      queue = toneProfileQueue;
+    } else {
+      res.status(400).json({ error: 'Invalid queue name. Must be "email-processing" or "tone-profile"' });
+      return;
     }
 
+    const job = await queue.getJob(jobId);
     if (!job) {
       res.status(404).json({ error: 'Job not found' });
       return;
@@ -93,6 +103,7 @@ router.get('/status/:jobId', requireAuth, async (req, res): Promise<void> => {
     
     res.json({
       jobId: job.id,
+      queueName,
       type: job.name,
       status: state,
       progress: job.progress,
@@ -117,15 +128,19 @@ router.get('/list', requireAuth, async (req, res): Promise<void> => {
   try {
     const { status = 'all', limit = 20, offset = 0 } = req.query;
 
-    // Get jobs from both queues
+    // Get jobs from both queues - include 'prioritized' state
+    const jobStates = status === 'all' 
+      ? ['waiting', 'prioritized', 'active', 'completed', 'failed', 'delayed', 'paused'] 
+      : [status as any];
+    
     const emailJobs = await emailProcessingQueue.getJobs(
-      status === 'all' ? ['waiting', 'active', 'completed', 'failed', 'delayed', 'paused'] : [status as any],
+      jobStates,
       Number(offset),
       Number(offset) + Number(limit) - 1
     );
 
     const toneJobs = await toneProfileQueue.getJobs(
-      status === 'all' ? ['waiting', 'active', 'completed', 'failed', 'delayed', 'paused'] : [status as any],
+      jobStates,
       Number(offset),
       Number(offset) + Number(limit) - 1
     );
@@ -135,19 +150,26 @@ router.get('/list', requireAuth, async (req, res): Promise<void> => {
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, Number(limit));
 
-    // Format jobs for response
-    const formattedJobs = await Promise.all(allJobs.map(async (job) => ({
-      jobId: job.id,
-      type: job.name,
-      status: await job.getState(),
-      progress: job.progress,
-      result: job.returnvalue,
-      error: job.failedReason,
-      createdAt: new Date(job.timestamp).toISOString(),
-      processedAt: job.processedOn ? new Date(job.processedOn).toISOString() : null,
-      completedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
-      duration: job.finishedOn && job.processedOn ? job.finishedOn - job.processedOn : null
-    })));
+    // Format jobs for response - include queue information
+    const formattedJobs = await Promise.all(allJobs.map(async (job) => {
+      // Determine queue name based on which queue the job came from
+      const isEmailJob = emailJobs.includes(job);
+      const queueName = isEmailJob ? 'email-processing' : 'tone-profile';
+      
+      return {
+        jobId: job.id,
+        queueName,
+        type: job.name,
+        status: await job.getState(),
+        progress: job.progress,
+        result: job.returnvalue,
+        error: job.failedReason,
+        createdAt: new Date(job.timestamp).toISOString(),
+        processedAt: job.processedOn ? new Date(job.processedOn).toISOString() : null,
+        completedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
+        duration: job.finishedOn && job.processedOn ? job.finishedOn - job.processedOn : null
+      };
+    }));
 
     res.json({
       jobs: formattedJobs,
@@ -164,33 +186,33 @@ router.get('/list', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// Cancel a job
-router.delete('/:jobId', requireAuth, async (req, res): Promise<void> => {
+// Cancel a job from specific queue
+router.delete('/:queueName/:jobId', requireAuth, async (req, res): Promise<void> => {
   try {
-    const { jobId } = req.params;
+    const { queueName, jobId } = req.params;
 
-    // Try both queues
-    let job = await emailProcessingQueue.getJob(jobId);
-    let removed = false;
-    
-    if (job) {
-      await job.remove();
-      removed = true;
+    // Get the appropriate queue
+    let queue;
+    if (queueName === 'email-processing') {
+      queue = emailProcessingQueue;
+    } else if (queueName === 'tone-profile') {
+      queue = toneProfileQueue;
     } else {
-      job = await toneProfileQueue.getJob(jobId);
-      if (job) {
-        await job.remove();
-        removed = true;
-      }
+      res.status(400).json({ error: 'Invalid queue name. Must be "email-processing" or "tone-profile"' });
+      return;
     }
 
-    if (!removed) {
+    const job = await queue.getJob(jobId);
+    if (!job) {
       res.status(404).json({ error: 'Job not found' });
       return;
     }
 
+    await job.remove();
+
     res.json({
       jobId,
+      queueName,
       status: 'cancelled',
       removed: true
     });
@@ -198,6 +220,66 @@ router.delete('/:jobId', requireAuth, async (req, res): Promise<void> => {
     console.error('Error cancelling job:', error);
     res.status(500).json({
       error: 'Failed to cancel job',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Retry a failed job from specific queue
+router.post('/:queueName/:jobId/retry', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const { queueName, jobId } = req.params;
+
+    // Get the appropriate queue
+    let queue;
+    if (queueName === 'email-processing') {
+      queue = emailProcessingQueue;
+    } else if (queueName === 'tone-profile') {
+      queue = toneProfileQueue;
+    } else {
+      res.status(400).json({ error: 'Invalid queue name. Must be "email-processing" or "tone-profile"' });
+      return;
+    }
+
+    const job = await queue.getJob(jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+
+    const state = await job.getState();
+    if (state !== 'failed') {
+      res.status(400).json({ error: 'Job is not in failed state and cannot be retried' });
+      return;
+    }
+
+    // Create a new job with the same data and type
+    let newJob;
+    if (queueName === 'email-processing') {
+      newJob = await addEmailJob(
+        job.name as JobType,
+        job.data,
+        JobPriority.NORMAL
+      );
+    } else {
+      newJob = await addToneProfileJob(
+        job.data,
+        JobPriority.NORMAL
+      );
+    }
+
+    res.json({
+      originalJobId: jobId,
+      newJobId: newJob.id,
+      queueName,
+      type: newJob.name,
+      status: await newJob.getState(),
+      createdAt: new Date(newJob.timestamp).toISOString()
+    });
+  } catch (error) {
+    console.error('Error retrying job:', error);
+    res.status(500).json({
+      error: 'Failed to retry job',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -249,10 +331,75 @@ router.get('/stats', requireAuth, async (_req, res): Promise<void> => {
   }
 });
 
+// Clear pending jobs (queued/prioritized) from all queues
+router.post('/clear-pending-jobs', requireAuth, async (_req, res): Promise<void> => {
+  try {
+    console.log('Clearing pending jobs from all queues...');
+    
+    // Job states to clear (jobs that haven't started processing)
+    const statesToClear = ['waiting', 'prioritized', 'delayed'];
+    
+    let totalCleared = 0;
+    
+    // Clear pending jobs from email processing queue
+    for (const state of statesToClear) {
+      const emailJobs = await emailProcessingQueue.getJobs([state as any]);
+      for (const job of emailJobs) {
+        try {
+          await job.remove();
+          totalCleared++;
+          console.log(`Removed ${state} email job ${job.id}`);
+        } catch (e) {
+          console.log(`Could not remove email job ${job.id}:`, e);
+        }
+      }
+    }
+    
+    // Clear pending jobs from tone profile queue
+    for (const state of statesToClear) {
+      const toneJobs = await toneProfileQueue.getJobs([state as any]);
+      for (const job of toneJobs) {
+        try {
+          await job.remove();
+          totalCleared++;
+          console.log(`Removed ${state} tone job ${job.id}`);
+        } catch (e) {
+          console.log(`Could not remove tone job ${job.id}:`, e);
+        }
+      }
+    }
+    
+    // Broadcast queue cleared event to update UI
+    const { getUnifiedWebSocketServer } = await import('../websocket/unified-websocket');
+    const wsServer = getUnifiedWebSocketServer();
+    if (wsServer) {
+      wsServer.broadcastJobEvent({
+        type: 'QUEUE_CLEARED',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    console.log(`Cleared ${totalCleared} pending jobs`);
+    
+    res.json({
+      success: true,
+      message: `Cleared ${totalCleared} pending jobs (queued/prioritized)`,
+      cleared: totalCleared,
+      statesCleared: statesToClear
+    });
+  } catch (error) {
+    console.error('Error clearing pending jobs:', error);
+    res.status(500).json({
+      error: 'Failed to clear pending jobs',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Clear all jobs from all queues - complete unconditional cleanup
 router.post('/clear-all-queues', requireAuth, async (_req, res): Promise<void> => {
   try {
-    console.log('Starting complete queue cleanup...');
+    console.log('Starting complete queue obliteration...');
     
     // Get counts before clearing
     const emailCounts = await emailProcessingQueue.getJobCounts();
@@ -264,35 +411,25 @@ router.post('/clear-all-queues', requireAuth, async (_req, res): Promise<void> =
       toneCounts.waiting + toneCounts.active + toneCounts.completed + toneCounts.failed + 
       toneCounts.delayed + toneCounts.paused + toneCounts.prioritized;
     
-    // First, try to move any stuck active jobs back to waiting
-    try {
-      const emailActive = await emailProcessingQueue.getJobs(['active']);
-      const toneActive = await toneProfileQueue.getJobs(['active']);
-      
-      for (const job of emailActive) {
-        try {
-          await job.remove();
-          console.log(`Removed stuck active email job ${job.id}`);
-        } catch (e) {
-          console.log(`Could not remove email job ${job.id}:`, e);
-        }
-      }
-      
-      for (const job of toneActive) {
-        try {
-          await job.remove();
-          console.log(`Removed stuck active tone job ${job.id}`);
-        } catch (e) {
-          console.log(`Could not remove tone job ${job.id}:`, e);
-        }
-      }
-    } catch (error) {
-      console.log('Error removing active jobs (will continue with obliterate):', error);
-    }
-    
     // Clean both queues using BullMQ's obliterate (removes ALL jobs and data unconditionally)
+    console.log('Obliterating all queues (lock renewal errors after this are expected and harmless)...');
     await emailProcessingQueue.obliterate({ force: true });
     await toneProfileQueue.obliterate({ force: true });
+    console.log('Queues obliterated successfully');
+    
+    // Note: Workers may log "could not renew lock" errors after obliteration
+    // This is expected and harmless - workers are trying to renew locks on jobs that no longer exist
+    console.log('Note: Any subsequent lock renewal errors are expected and can be ignored');
+    
+    // Broadcast queue cleared event to update UI
+    const { getUnifiedWebSocketServer } = await import('../websocket/unified-websocket');
+    const wsServer = getUnifiedWebSocketServer();
+    if (wsServer) {
+      wsServer.broadcastJobEvent({
+        type: 'QUEUE_CLEARED',
+        timestamp: new Date().toISOString()
+      });
+    }
     
     // Verify cleanup
     const emailCountsAfter = await emailProcessingQueue.getJobCounts();
@@ -340,6 +477,16 @@ router.post('/clear-queue', requireAuth, async (_req, res): Promise<void> => {
     // Clean both queues using BullMQ's obliterate
     await emailProcessingQueue.obliterate({ force: true });
     await toneProfileQueue.obliterate({ force: true });
+    
+    // Broadcast queue cleared event to update UI
+    const { getUnifiedWebSocketServer } = await import('../websocket/unified-websocket');
+    const wsServer = getUnifiedWebSocketServer();
+    if (wsServer) {
+      wsServer.broadcastJobEvent({
+        type: 'QUEUE_CLEARED',
+        timestamp: new Date().toISOString()
+      });
+    }
     
     res.json({
       success: true,

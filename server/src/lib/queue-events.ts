@@ -38,6 +38,7 @@ async function broadcastJobEvent(eventType: string, jobId: string, queueName: st
     wsServer.broadcastJobEvent({
       type: eventType,
       jobId,
+      queueName,
       userId: job.data.userId,
       jobType: job.name,
       timestamp: new Date().toISOString(),

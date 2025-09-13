@@ -91,14 +91,14 @@ router.post('/benchmark', requireAuth, async (req, res): Promise<void> => {
     });
     
     // Test 2: Session with multiple operations
-    const { ImapSession } = await import('../lib/imap-session');
     const sessionStart = Date.now();
 
     await withImapContext(accountId, userId, async () => {
-      const session = await ImapSession.fromAccountId(accountId, userId);
-        // Get folder count
-        const folderCountStart = Date.now();
-        await session.getFolderMessageCount('INBOX');
+      const imapOps = await ImapOperations.fromAccountId(accountId, userId);
+      
+      // Get folder count
+      const folderCountStart = Date.now();
+      await imapOps.getFolderMessageCount('INBOX');
       benchmarks.push({
         test: 'Get Folder Count (Session)',
         duration: Date.now() - folderCountStart,
@@ -107,7 +107,7 @@ router.post('/benchmark', requireAuth, async (req, res): Promise<void> => {
       
       // Search messages
       const searchStart = Date.now();
-      const messages = await session.searchMessages('INBOX', { unseen: true }, { limit: 10 });
+      const messages = await imapOps.searchMessages('INBOX', { unseen: true }, { limit: 10 });
       benchmarks.push({
         test: 'Search 10 Unseen Messages (Session)',
         duration: Date.now() - searchStart,
@@ -119,7 +119,7 @@ router.post('/benchmark', requireAuth, async (req, res): Promise<void> => {
       if (messages.length > 0) {
         const batchStart = Date.now();
         const uids = messages.slice(0, 5).map(m => m.uid);
-        await session.getMessagesRaw('INBOX', uids);
+        await imapOps.getMessagesRaw('INBOX', uids);
         benchmarks.push({
           test: `Batch Fetch ${uids.length} Messages (Session)`,
           duration: Date.now() - batchStart,
@@ -128,24 +128,17 @@ router.post('/benchmark', requireAuth, async (req, res): Promise<void> => {
         });
       }
       
-      const sessionMetrics = session.getMetrics();
       benchmarks.push({
         test: 'Full Session',
         duration: Date.now() - sessionStart,
-        success: true,
-        operations: sessionMetrics.operationCount,
-        connectionReused: sessionMetrics.connectionReused,
-        avgOperationTime: Math.round(sessionMetrics.avgOperationTime)
+        success: true
       });
     });
     
     // Calculate improvements
     const improvements = {
       connectionOverheadReduction: '70-80% (1 connection vs N connections)',
-      batchFetchImprovement: '60-70% faster than sequential fetches',
-      estimatedTimeReduction: benchmarks.length > 0 
-        ? `${Math.round((benchmarks[0].duration / benchmarks[benchmarks.length - 1].avgOperationTime) * 100 - 100)}%`
-        : 'N/A'
+      batchFetchImprovement: '60-70% faster than sequential fetches'
     };
     
     res.json({

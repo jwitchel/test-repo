@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function JobsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [forceRefresh, setForceRefresh] = useState(false);
   const [workersActive, setWorkersActive] = useState(false);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
   const [queuesEmergencyPaused, setQueuesEmergencyPaused] = useState(false);
@@ -41,10 +42,10 @@ export default function JobsPage() {
   const handleApiRequest = async (config: {
     endpoint: string;
     method?: string;
-    body?: any;
+    body?: unknown;
     loadingStateSetter?: (loading: boolean) => void;
-    onSuccess?: (data: any) => void;
-    onError?: (errorData: any) => void;
+    onSuccess?: (data: Record<string, unknown>) => void;
+    onError?: (errorData: Record<string, unknown>) => void;
     defaultErrorMessage: string;
     logPrefix: string;
     refreshAfter?: boolean;
@@ -104,13 +105,14 @@ export default function JobsPage() {
   };
   
   const handleRefresh = () => {
+    setForceRefresh(true);
     setRefreshKey(prev => prev + 1);
     success('Jobs list refreshed');
   };
 
   const queueJob = async (jobConfig: {
     type: string;
-    data: Record<string, any>;
+    data: Record<string, unknown>;
     priority: string;
     successMessage: string;
     errorMessage: string;
@@ -200,8 +202,8 @@ export default function JobsPage() {
       endpoint,
       loadingStateSetter: setIsLoadingWorkers,
       onSuccess: (data) => {
-        setWorkersActive(!data.status?.workersPaused);
-        success(data.message);
+        setWorkersActive(!(data.status as any)?.workersPaused);
+        success(data.message as string);
       },
       defaultErrorMessage: 'Failed to toggle workers',
       logPrefix: 'Error toggling workers'
@@ -218,7 +220,7 @@ export default function JobsPage() {
       loadingStateSetter: setIsLoadingEmergency,
       onSuccess: (data) => {
         setQueuesEmergencyPaused(!queuesEmergencyPaused);
-        success(data.message);
+        success(data.message as string);
       },
       defaultErrorMessage: 'Failed to toggle emergency pause',
       logPrefix: 'Error toggling emergency pause'
@@ -227,14 +229,27 @@ export default function JobsPage() {
   
   const handleClearQueue = async () => {
     await handleApiRequest({
-      endpoint: '/api/jobs/clear-all-queues',
+      endpoint: '/api/jobs/clear-pending-jobs',
       onSuccess: (data) => {
-        success(`Cleared ${data.cleared || 0} jobs from all queues`);
+        success(`Cleared ${data.cleared || 0} pending jobs (queued/prioritized)`);
         // Refresh stats after clearing
         fetchStats();
       },
-      defaultErrorMessage: 'Failed to clear all queues',
-      logPrefix: 'Error clearing all queues'
+      defaultErrorMessage: 'Failed to clear pending jobs',
+      logPrefix: 'Error clearing pending jobs'
+    });
+  };
+
+  const handleObliterateQueue = async () => {
+    await handleApiRequest({
+      endpoint: '/api/jobs/clear-all-queues',
+      onSuccess: (data) => {
+        success(`Obliterated ${data.cleared || 0} jobs from all queues`);
+        // Refresh stats after clearing
+        fetchStats();
+      },
+      defaultErrorMessage: 'Failed to obliterate all queues',
+      logPrefix: 'Error obliterating all queues'
     });
   };
   
@@ -246,9 +261,10 @@ export default function JobsPage() {
       onSuccess: (data) => {
         // Update queue-specific stats if available
         if (data.queues) {
+          const queues = data.queues as any;
           setQueueStats({
-            emailProcessing: data.queues.emailProcessing || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 },
-            toneProfile: data.queues.toneProfile || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 }
+            emailProcessing: queues.emailProcessing || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 },
+            toneProfile: queues.toneProfile || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 }
           });
         }
       },
@@ -268,8 +284,8 @@ export default function JobsPage() {
         endpoint: '/api/workers/status',
         method: 'GET',
         onSuccess: (data) => {
-          setWorkersActive(!data.workersPaused);
-          setQueuesEmergencyPaused(data.queuesPaused);
+          setWorkersActive(!(data.workersPaused as boolean));
+          setQueuesEmergencyPaused(data.queuesPaused as boolean);
         },
         onError: () => {
           // Silent error handling for status check - don't show toast
@@ -287,6 +303,16 @@ export default function JobsPage() {
   useEffect(() => {
     fetchStats();
   }, [refreshKey]);
+  
+  // Reset forceRefresh flag after it's been used
+  useEffect(() => {
+    if (forceRefresh) {
+      const timer = setTimeout(() => {
+        setForceRefresh(false);
+      }, 100); // Reset after a short delay to ensure JobsMonitor processes it
+      return () => clearTimeout(timer);
+    }
+  }, [forceRefresh]);
   
   return (
     <div className="container mx-auto py-6 px-4 md:px-6">
@@ -387,7 +413,7 @@ export default function JobsPage() {
                 <Button 
                   variant="outline"
                   className="hover:bg-red-50 border-red-200 text-red-600 hover:text-red-700 h-7 px-2 text-xs"
-                  title="Clear all jobs from all queues"
+                  title="Clear pending jobs (queued/prioritized) from all queues"
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1" />
                   Clear
@@ -395,15 +421,53 @@ export default function JobsPage() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Clear All Queues</AlertDialogTitle>
+                  <AlertDialogTitle>Clear Pending Jobs</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to clear all jobs from all queues? This will remove all jobs (waiting, active, completed, failed, delayed, and paused) from both the Email Processing and Tone Profile queues. This action cannot be undone.
+                    Are you sure you want to clear pending jobs from all queues? This will remove jobs that haven&apos;t started processing yet (queued, prioritized, and delayed) from both the Email Processing and Tone Profile queues. Active, completed, and failed jobs will remain. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={handleClearQueue} className="bg-red-600 hover:bg-red-700">
-                    Clear All Queues
+                    Clear Pending Jobs
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="outline"
+                  className="hover:bg-red-100 border-red-300 text-red-700 hover:text-red-800 h-7 px-2 text-xs font-semibold"
+                  title="Obliterate ALL jobs from all queues (nuclear option)"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Obliterate
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-red-600">⚠️ Obliterate All Jobs</AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-2">
+                      <div className="font-semibold text-red-700">DANGER: This is the nuclear option!</div>
+                      <div>This will completely obliterate ALL jobs from ALL queues, including:</div>
+                      <ul className="list-disc list-inside text-sm space-y-1 ml-2">
+                        <li>Waiting and prioritized jobs</li>
+                        <li>Active jobs (currently processing)</li>
+                        <li>Completed jobs (history)</li>
+                        <li>Failed jobs (debugging info)</li>
+                        <li>Delayed and paused jobs</li>
+                      </ul>
+                      <div className="font-semibold text-red-700">This action cannot be undone and will clear all job history!</div>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleObliterateQueue} className="bg-red-700 hover:bg-red-800">
+                    💥 Obliterate Everything
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -412,7 +476,7 @@ export default function JobsPage() {
         </div>
       </div>
       
-      <JobsMonitor refreshTrigger={refreshKey} />
+      <JobsMonitor refreshTrigger={refreshKey} forceRefresh={forceRefresh} />
       
       {/* Real-Time Logs Panel */}
       <div className="mt-6">
