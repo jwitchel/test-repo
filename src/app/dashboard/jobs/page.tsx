@@ -34,16 +34,89 @@ export default function JobsPage() {
   });
   const { success, error } = useToast();
   
+  // API URL used throughout the component
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+  
+  // Shared method for consistent API request handling
+  const handleApiRequest = async (config: {
+    endpoint: string;
+    method?: string;
+    body?: any;
+    loadingStateSetter?: (loading: boolean) => void;
+    onSuccess?: (data: any) => void;
+    onError?: (errorData: any) => void;
+    defaultErrorMessage: string;
+    logPrefix: string;
+    refreshAfter?: boolean;
+  }) => {
+    const { 
+      endpoint, 
+      method = 'POST', 
+      body, 
+      loadingStateSetter, 
+      onSuccess, 
+      onError,
+      defaultErrorMessage, 
+      logPrefix,
+      refreshAfter = true 
+    } = config;
+
+    if (loadingStateSetter) loadingStateSetter(true);
+    
+    try {
+      const requestOptions: RequestInit = {
+        method,
+        credentials: 'include'
+      };
+      
+      if (body) {
+        requestOptions.headers = { 'Content-Type': 'application/json' };
+        requestOptions.body = JSON.stringify(body);
+      }
+      
+      const response = await fetch(`${apiUrl}${endpoint}`, requestOptions);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (onSuccess) {
+          onSuccess(data);
+        } else {
+          success(data.message || 'Operation completed successfully');
+        }
+        if (refreshAfter) {
+          setRefreshKey(prev => prev + 1);
+        }
+      } else {
+        const errorData = await response.json();
+        const errorMessage = errorData.error || defaultErrorMessage;
+        if (onError) {
+          onError(errorData);
+        } else {
+          error(errorMessage);
+        }
+      }
+    } catch (err) {
+      error(defaultErrorMessage);
+      console.error(`${logPrefix}:`, err);
+    } finally {
+      if (loadingStateSetter) loadingStateSetter(false);
+    }
+  };
   
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
     success('Jobs list refreshed');
   };
 
-  const handleQueueEmailJob = async () => {
+  const queueJob = async (jobConfig: {
+    type: string;
+    data: Record<string, any>;
+    priority: string;
+    successMessage: string;
+    errorMessage: string;
+    logMessage: string;
+  }) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      
       // Get the first email account
       const accountsResponse = await fetch(`${apiUrl}/api/email-accounts`, {
         credentials: 'include'
@@ -62,7 +135,7 @@ export default function JobsPage() {
       
       const firstAccount = accounts[0];
       
-      // Queue an email processing job
+      // Queue the job
       const response = await fetch(`${apiUrl}/api/jobs/queue`, {
         method: 'POST',
         headers: {
@@ -70,175 +143,107 @@ export default function JobsPage() {
         },
         credentials: 'include',
         body: JSON.stringify({
-          type: 'process-inbox',
+          type: jobConfig.type,
           data: {
             accountId: firstAccount.id,
-            folderName: 'INBOX'
+            ...jobConfig.data
           },
-          priority: 'normal'
+          priority: jobConfig.priority
         })
       });
       
       if (response.ok) {
         const data = await response.json();
-        success(`Email processing job queued: ${data.jobId}`);
-        setRefreshKey(prev => prev + 1);
+        success(`${jobConfig.successMessage}: ${data.jobId}`);
+        // Trigger refresh to show the new job
+        setTimeout(() => setRefreshKey(prev => prev + 1), 300);
       } else {
         const errorData = await response.json();
-        error(errorData.error || 'Failed to queue email job');
+        error(errorData.error || jobConfig.errorMessage);
       }
     } catch (err) {
-      error('Failed to queue email job');
-      console.error('Error queueing email job:', err);
+      error(jobConfig.errorMessage);
+      console.error(jobConfig.logMessage, err);
     }
   };
 
+  const handleQueueEmailJob = async () => {
+    await queueJob({
+      type: 'process-inbox',
+      data: {
+        folderName: 'INBOX'
+      },
+      priority: 'normal',
+      successMessage: 'Email processing job queued',
+      errorMessage: 'Failed to queue email job',
+      logMessage: 'Error queueing email job:'
+    });
+  };
+
   const handleQueueToneJob = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      
-      // Get the first email account
-      const accountsResponse = await fetch(`${apiUrl}/api/email-accounts`, {
-        credentials: 'include'
-      });
-      
-      if (!accountsResponse.ok) {
-        error('Please add an email account first');
-        return;
-      }
-      
-      const accounts = await accountsResponse.json();
-      if (!accounts || accounts.length === 0) {
-        error('Please add an email account first');
-        return;
-      }
-      
-      const firstAccount = accounts[0];
-      
-      // Queue a tone profile job
-      const response = await fetch(`${apiUrl}/api/jobs/queue`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          type: 'build-tone-profile',
-          data: {
-            accountId: firstAccount.id,
-            historyDays: 30
-          },
-          priority: 'high'
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        success(`Tone profile job queued: ${data.jobId}`);
-        setRefreshKey(prev => prev + 1);
-      } else {
-        const errorData = await response.json();
-        error(errorData.error || 'Failed to queue tone job');
-      }
-    } catch (err) {
-      error('Failed to queue tone job');
-      console.error('Error queueing tone job:', err);
-    }
+    await queueJob({
+      type: 'build-tone-profile',
+      data: {
+        historyDays: 30
+      },
+      priority: 'high',
+      successMessage: 'Tone profile job queued',
+      errorMessage: 'Failed to queue tone job',
+      logMessage: 'Error queueing tone job:'
+    });
   };
   
   const handleWorkersToggle = async (enabled: boolean) => {
-    setIsLoadingWorkers(true);
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      
-      const endpoint = enabled ? '/api/workers/resume' : '/api/workers/pause';
-      const response = await fetch(`${apiUrl}${endpoint}`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
+    const endpoint = enabled ? '/api/workers/resume' : '/api/workers/pause';
+    
+    await handleApiRequest({
+      endpoint,
+      loadingStateSetter: setIsLoadingWorkers,
+      onSuccess: (data) => {
         setWorkersActive(!data.status?.workersPaused);
         success(data.message);
-        setRefreshKey(prev => prev + 1);
-      } else {
-        const errorData = await response.json();
-        error(errorData.error || 'Failed to toggle workers');
-      }
-    } catch (err) {
-      error('Failed to toggle workers');
-      console.error('Error toggling workers:', err);
-    } finally {
-      setIsLoadingWorkers(false);
-    }
+      },
+      defaultErrorMessage: 'Failed to toggle workers',
+      logPrefix: 'Error toggling workers'
+    });
   };
   
   const handleEmergencyToggle = async () => {
-    setIsLoadingEmergency(true);
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      
-      const endpoint = queuesEmergencyPaused 
-        ? '/api/workers/resume-queues' 
-        : '/api/workers/emergency-pause';
-      
-      const response = await fetch(`${apiUrl}${endpoint}`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
+    const endpoint = queuesEmergencyPaused 
+      ? '/api/workers/resume-queues' 
+      : '/api/workers/emergency-pause';
+    
+    await handleApiRequest({
+      endpoint,
+      loadingStateSetter: setIsLoadingEmergency,
+      onSuccess: (data) => {
         setQueuesEmergencyPaused(!queuesEmergencyPaused);
         success(data.message);
-        setRefreshKey(prev => prev + 1);
-      } else {
-        const errorData = await response.json();
-        error(errorData.error || 'Failed to toggle emergency pause');
-      }
-    } catch (err) {
-      error('Failed to toggle emergency pause');
-      console.error('Error toggling emergency pause:', err);
-    } finally {
-      setIsLoadingEmergency(false);
-    }
+      },
+      defaultErrorMessage: 'Failed to toggle emergency pause',
+      logPrefix: 'Error toggling emergency pause'
+    });
   };
   
   const handleClearQueue = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      const response = await fetch(`${apiUrl}/api/jobs/clear-all-queues`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
+    await handleApiRequest({
+      endpoint: '/api/jobs/clear-all-queues',
+      onSuccess: (data) => {
         success(`Cleared ${data.cleared || 0} jobs from all queues`);
-        setRefreshKey(prev => prev + 1);
         // Refresh stats after clearing
         fetchStats();
-      } else {
-        const errorData = await response.json();
-        error(errorData.error || 'Failed to clear all queues');
-      }
-    } catch (err) {
-      error('Failed to clear all queues');
-      console.error('Error clearing all queues:', err);
-    }
+      },
+      defaultErrorMessage: 'Failed to clear all queues',
+      logPrefix: 'Error clearing all queues'
+    });
   };
   
   // Fetch stats
   const fetchStats = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      const response = await fetch(`${apiUrl}/api/jobs/stats`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        
+    await handleApiRequest({
+      endpoint: '/api/jobs/stats',
+      method: 'GET',
+      onSuccess: (data) => {
         // Update queue-specific stats if available
         if (data.queues) {
           setQueueStats({
@@ -246,28 +251,33 @@ export default function JobsPage() {
             toneProfile: data.queues.toneProfile || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 }
           });
         }
-      }
-    } catch (err) {
-      console.error('Error fetching stats:', err);
-    }
+      },
+      onError: () => {
+        // Silent error handling for stats - don't show toast
+      },
+      defaultErrorMessage: 'Failed to fetch stats',
+      logPrefix: 'Error fetching stats',
+      refreshAfter: false
+    });
   };
 
   // Check worker status and fetch stats on mount
   useEffect(() => {
     const checkWorkerStatus = async () => {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-        const response = await fetch(`${apiUrl}/api/workers/status`, {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
+      await handleApiRequest({
+        endpoint: '/api/workers/status',
+        method: 'GET',
+        onSuccess: (data) => {
           setWorkersActive(!data.workersPaused);
           setQueuesEmergencyPaused(data.queuesPaused);
-        }
-      } catch (err) {
-        console.error('Error checking worker status:', err);
-      }
+        },
+        onError: () => {
+          // Silent error handling for status check - don't show toast
+        },
+        defaultErrorMessage: 'Failed to check worker status',
+        logPrefix: 'Error checking worker status',
+        refreshAfter: false
+      });
     };
     checkWorkerStatus();
     fetchStats();
@@ -402,7 +412,7 @@ export default function JobsPage() {
         </div>
       </div>
       
-      <JobsMonitor key={refreshKey} />
+      <JobsMonitor refreshTrigger={refreshKey} />
       
       {/* Real-Time Logs Panel */}
       <div className="mt-6">

@@ -23,111 +23,73 @@ const toneQueueEvents = new QueueEvents('tone-profile', {
   })
 });
 
-// Helper to broadcast job events
+// Helper to broadcast job events via WebSocket
 async function broadcastJobEvent(eventType: string, jobId: string, queueName: string, additionalData: any = {}) {
   const wsServer = getUnifiedWebSocketServer();
   if (!wsServer) {
-    console.log(`WebSocket server not available for ${eventType} event`);
-    return;
+    return; // WebSocket not available, skip silently
   }
 
   // Get job data to find userId
-  let job;
-  if (queueName === 'email-processing') {
-    job = await emailProcessingQueue.getJob(jobId);
-  } else if (queueName === 'tone-profile') {
-    job = await toneProfileQueue.getJob(jobId);
-  }
+  const queue = queueName === 'email-processing' ? emailProcessingQueue : toneProfileQueue;
+  const job = await queue.getJob(jobId);
 
-  if (job && job.data.userId) {
-    // console.log(`Broadcasting ${eventType} for job ${jobId} to user ${job.data.userId}`);
+  if (job?.data?.userId) {
     wsServer.broadcastJobEvent({
       type: eventType,
       jobId,
       userId: job.data.userId,
       jobType: job.name,
+      timestamp: new Date().toISOString(),
       ...additionalData
     });
-  } else {
-    // Log detailed info for debugging
-    console.log(`Cannot broadcast ${eventType} for job ${jobId}: job=${!!job}, userId=${job?.data?.userId}`);
-    
-    // Retry once after a short delay in case of timing issues
-    if (!job && eventType === 'JOB_QUEUED') {
-      setTimeout(async () => {
-        const retryJob = queueName === 'email-processing' 
-          ? await emailProcessingQueue.getJob(jobId)
-          : await toneProfileQueue.getJob(jobId);
-        
-        if (retryJob && retryJob.data.userId) {
-          console.log(`Retry successful: Broadcasting ${eventType} for job ${jobId} to user ${retryJob.data.userId}`);
-          wsServer.broadcastJobEvent({
-            type: eventType,
-            jobId,
-            userId: retryJob.data.userId,
-            jobType: retryJob.name,
-            ...additionalData
-          });
-        } else {
-          console.log(`Retry failed: Still cannot get job ${jobId} or userId`);
-        }
-      }, 100);
-    }
   }
+  // If job or userId not found, skip silently - this is just for UI updates
 }
 
-// Set up event listeners for email queue
-emailQueueEvents.on('added', ({ jobId }) => {
-  console.log(`Job ${jobId} added to email queue`);
-  broadcastJobEvent('JOB_QUEUED', jobId, 'email-processing');
-});
+// Queue configuration for consistent event listener setup
+const queueConfigs = [
+  {
+    queueEvents: emailQueueEvents,
+    queueName: 'email-processing'
+  },
+  {
+    queueEvents: toneQueueEvents,
+    queueName: 'tone-profile'
+  }
+];
 
-emailQueueEvents.on('active', ({ jobId }) => {
-  console.log(`Job ${jobId} is now active`);
-  broadcastJobEvent('JOB_ACTIVE', jobId, 'email-processing');
-});
+// Generic event handler setup function
+function setupQueueEventListeners(queueEvents: QueueEvents, queueName: string) {
+  queueEvents.on('added', async ({ jobId }) => {
+    await broadcastJobEvent('JOB_QUEUED', jobId, queueName);
+  });
 
-emailQueueEvents.on('progress', ({ jobId, data }) => {
-  broadcastJobEvent('JOB_PROGRESS', jobId, 'email-processing', { progress: data });
-});
+  queueEvents.on('active', ({ jobId }) => {
+    broadcastJobEvent('JOB_ACTIVE', jobId, queueName);
+  });
 
-emailQueueEvents.on('completed', ({ jobId, returnvalue }) => {
-  console.log(`Job ${jobId} completed`);
-  broadcastJobEvent('JOB_COMPLETED', jobId, 'email-processing', { result: returnvalue });
-});
+  queueEvents.on('progress', ({ jobId, data }) => {
+    broadcastJobEvent('JOB_PROGRESS', jobId, queueName, { progress: data });
+  });
 
-emailQueueEvents.on('failed', ({ jobId, failedReason }) => {
-  console.error(`Job ${jobId} failed:`, failedReason);
-  broadcastJobEvent('JOB_FAILED', jobId, 'email-processing', { error: failedReason });
-});
+  queueEvents.on('completed', ({ jobId, returnvalue }) => {
+    broadcastJobEvent('JOB_COMPLETED', jobId, queueName, { result: returnvalue });
+  });
 
-// Set up event listeners for tone profile queue
-toneQueueEvents.on('added', ({ jobId }) => {
-  console.log(`Job ${jobId} added to tone queue`);
-  broadcastJobEvent('JOB_QUEUED', jobId, 'tone-profile');
-});
+  queueEvents.on('failed', ({ jobId, failedReason }) => {
+    broadcastJobEvent('JOB_FAILED', jobId, queueName, { error: failedReason });
+  });
+}
 
-toneQueueEvents.on('active', ({ jobId }) => {
-  console.log(`Job ${jobId} is now active`);
-  broadcastJobEvent('JOB_ACTIVE', jobId, 'tone-profile');
-});
-
-toneQueueEvents.on('progress', ({ jobId, data }) => {
-  broadcastJobEvent('JOB_PROGRESS', jobId, 'tone-profile', { progress: data });
-});
-
-toneQueueEvents.on('completed', ({ jobId, returnvalue }) => {
-  console.log(`Job ${jobId} completed`);
-  broadcastJobEvent('JOB_COMPLETED', jobId, 'tone-profile', { result: returnvalue });
-});
-
-toneQueueEvents.on('failed', ({ jobId, failedReason }) => {
-  console.error(`Job ${jobId} failed:`, failedReason);
-  broadcastJobEvent('JOB_FAILED', jobId, 'tone-profile', { error: failedReason });
+// Set up event listeners for all queues consistently
+queueConfigs.forEach(({ queueEvents, queueName }) => {
+  setupQueueEventListeners(queueEvents, queueName);
 });
 
 // Export for cleanup
 export function cleanupQueueEvents() {
-  emailQueueEvents.close();
-  toneQueueEvents.close();
+  queueConfigs.forEach(({ queueEvents }) => {
+    queueEvents.close();
+  });
 }

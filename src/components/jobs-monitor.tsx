@@ -93,51 +93,60 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string) => v
   );
 }
 
-export function JobsMonitor() {
+interface JobsMonitorProps {
+  refreshTrigger?: number;
+}
+
+export function JobsMonitor({ refreshTrigger }: JobsMonitorProps) {
   const [jobs, setJobs] = useState<Map<string, JobData>>(new Map());
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const loadJobsRef = useRef<() => Promise<void>>();
   
-  // Load initial jobs from API
-  useEffect(() => {
-    async function loadJobs() {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-        const response = await fetch(`${apiUrl}/api/jobs/list`, {
-          credentials: 'include'
-        });
+  // Load jobs from API - memoized to be called from multiple places
+  const loadJobs = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const response = await fetch(`${apiUrl}/api/jobs/list`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const jobsMap = new Map<string, JobData>();
         
-        if (response.ok) {
-          const data = await response.json();
-          const jobsMap = new Map<string, JobData>();
-          
-          for (const job of data.jobs) {
-            jobsMap.set(job.jobId, {
-              jobId: job.jobId,
-              type: job.type,
-              status: job.status,
-              progress: job.progress,
-              result: job.result,
-              error: job.error,
-              timestamp: job.createdAt,
-              duration: job.duration,
-              startedAt: job.startedAt,
-              completedAt: job.completedAt
-            });
-          }
-          
-          setJobs(jobsMap);
+        for (const job of data.jobs) {
+          jobsMap.set(job.jobId, {
+            jobId: job.jobId,
+            type: job.type,
+            status: job.status,
+            progress: job.progress,
+            result: job.result,
+            error: job.error,
+            timestamp: job.createdAt,
+            duration: job.duration,
+            startedAt: job.startedAt,
+            completedAt: job.completedAt
+          });
         }
-      } catch (error) {
-        console.error('Failed to load jobs:', error);
-      } finally {
-        setLoading(false);
+        
+        setJobs(jobsMap);
       }
+    } catch (error) {
+      console.error('Failed to load jobs:', error);
+    } finally {
+      setLoading(false);
     }
-    
+  };
+  
+  // Store loadJobs ref for use in WebSocket handler
+  loadJobsRef.current = loadJobs;
+  
+  // Load initial jobs from API and when refresh is triggered
+  useEffect(() => {
     loadJobs();
-  }, []);
+  }, [refreshTrigger]);
   
   // Set up WebSocket connection for real-time updates
   useEffect(() => {
@@ -168,6 +177,7 @@ export function JobsMonitor() {
             
             switch (event.type) {
               case 'JOB_QUEUED':
+                // Always update the job in our state immediately
                 newJobs.set(event.jobId, {
                   ...existingJob,
                   jobId: event.jobId,
@@ -176,6 +186,12 @@ export function JobsMonitor() {
                   timestamp: event.timestamp || new Date().toISOString(),
                   priority: event.priority
                 });
+                
+                // For completely new jobs, also fetch full details from API
+                if (!existingJob.jobId && loadJobsRef.current) {
+                  // Delay slightly to ensure job is fully persisted in Redis
+                  setTimeout(() => loadJobsRef.current!(), 200);
+                }
                 break;
                 
               case 'JOB_ACTIVE':
