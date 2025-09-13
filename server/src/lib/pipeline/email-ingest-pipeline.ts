@@ -126,13 +126,6 @@ export class EmailIngestPipeline {
     // Handle emails without userReply - set placeholder for forwarded emails
     let userReplyToProcess = email.userReply;
     if (!userReplyToProcess) {
-      // console.log(`[Email Ingestion] Forwarded email without comment - using placeholder
-// Email Details:
-// - Message ID: ${email.messageId}
-// - From: ${email.from.map(f => f.address).join(', ')}
-// - To: ${email.to.map(t => t.address).join(', ')}
-// - Subject: ${email.subject}`);
-      
       userReplyToProcess = '[ForwardedWithoutComment]';
     }
     
@@ -140,16 +133,58 @@ export class EmailIngestPipeline {
     const redactionResult = nameRedactor.redactNames(userReplyToProcess);
     const redactedUserReply = redactionResult.text;
     
-    // Log redaction if names were found
-    // if (redactionResult.namesFound.length > 0) {
-    //   console.log(`[Email Ingestion] Redacted ${redactionResult.namesFound.length} names from email ${email.messageId}`);
-    // }
+    // Get all unique recipients (TO, CC, and BCC)
+    const allRecipients = [
+      ...(email.to || []),
+      ...(email.cc || []),
+      ...(email.bcc || [])
+    ];
+    
+    // Remove duplicates based on email address
+    const uniqueRecipients = Array.from(
+      new Map(allRecipients.map(r => [r.address.toLowerCase(), r])).values()
+    );
+    
+    if (uniqueRecipients.length === 0) {
+      throw new Error(`[Email Ingestion] No recipients found for email ${email.messageId}`);
+    }
+    
+    // Process the email for each unique recipient
+    const results = await Promise.allSettled(
+      uniqueRecipients.map(recipient => 
+        this.processEmailForRecipient(userId, email, recipient, redactedUserReply, redactionResult)
+      )
+    );
+    
+    // Collect successful relationships
+    const relationships = results
+      .filter(r => r.status === 'fulfilled')
+      .map(r => (r as PromiseFulfilledResult<any>).value.relationship);
+    
+    // Log any failures
+    const failures = results.filter(r => r.status === 'rejected');
+    if (failures.length > 0) {
+      console.warn(`[Email Ingestion] Failed to process ${failures.length}/${uniqueRecipients.length} recipients for email ${email.messageId}`);
+    }
+    
+    // Return the first relationship for backward compatibility
+    // In the future, we might want to return all relationships
+    return { relationship: relationships[0] || 'professional' };
+  }
+  
+  private async processEmailForRecipient(
+    userId: string,
+    email: ProcessedEmail,
+    recipient: { address: string; name?: string },
+    redactedUserReply: string,
+    redactionResult: any
+  ) {
     
     // Extract NLP features from the redacted user reply ONLY
     // We ONLY analyze what the user actually wrote, not quoted content
     const features = extractEmailFeatures(redactedUserReply, {
-      email: email.to[0]?.address || '',
-      name: email.to[0]?.name || ''
+      email: recipient.address || '',
+      name: recipient.name || ''
     });
     
     // Detect relationship - use existing relationship if provided (e.g., from test data)
@@ -167,7 +202,7 @@ export class EmailIngestPipeline {
       try {
         relationship = await this.relationshipDetector.detectRelationship({
           userId,
-          recipientEmail: email.to[0]?.address || '',
+          recipientEmail: recipient.address || '',
           subject: email.subject,
           historicalContext: {
             familiarityLevel: features.relationshipHints.familiarityLevel,
@@ -183,11 +218,14 @@ Email Details:
 - Message ID: ${email.messageId}
 - From: ${email.from.map(f => f.address).join(', ')}
 - To: ${email.to.map(t => t.address).join(', ')}
+- CC: ${email.cc.map(c => c.address).join(', ') || 'none'}
+- BCC: ${email.bcc.map(b => b.address).join(', ') || 'none'}
+- Current Recipient: ${recipient.address}
 - Subject: ${email.subject}
 - Preview (first 50 words): ${emailPreview}...
         `.trim();
         
-        console.error(`[Email Ingestion] Failed to detect relationship\n${errorContext}`);
+        console.error(`[Email Ingestion] Failed to detect relationship for ${recipient.address}\n${errorContext}`);
         throw new Error(`${error instanceof Error ? error.message : 'Failed to detect relationship'}\n${errorContext}`);
       }
     }
@@ -203,10 +241,13 @@ Email Details:
       }
     );
     
+    // Create unique ID for this email-recipient combination
+    const vectorId = `${email.messageId}-${recipient.address}`;
+    
     // Store in vector database with retry
     await withRetry(
       () => this.vectorStore.upsertEmail({
-      id: email.messageId,
+      id: vectorId, // Unique ID per recipient
       userId,
       vector,
       metadata: {
@@ -217,7 +258,7 @@ Email Details:
         respondedTo: email.respondedTo, // The quoted content the user was responding to
         redactedNames: redactionResult.namesFound, // Store names that were redacted
         redactedEmails: redactionResult.emailsFound, // Store emails that were redacted
-        recipientEmail: email.to[0]?.address || '',
+        recipientEmail: recipient.address || '',
         subject: email.subject,
         sentDate: email.date.toISOString(),
         features,

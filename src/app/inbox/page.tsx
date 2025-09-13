@@ -32,6 +32,8 @@ interface EmailMessage {
   flags: string[];
   size: number;
   rawMessage: string;
+  actionTaken?: 'none' | 'replied' | 'forwarded' | 'draft_created' | 'manually_handled';
+  updatedAt?: Date;  // When the action was taken
 }
 
 interface ParsedEmail {
@@ -112,6 +114,7 @@ export default function InboxPage() {
   const [draftsFolderPath, setDraftsFolderPath] = useState<string | null>(null);
   const [jumpToInput, setJumpToInput] = useState('');
   const [needsReauth, setNeedsReauth] = useState(false);
+  const [showAllEmails, setShowAllEmails] = useState(false);
 
   const selectedAccountEmail = accounts.find(a => a.id === selectedAccount)?.email;
   
@@ -202,7 +205,7 @@ export default function InboxPage() {
       fetchMessage();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount, currentIndex]);
+  }, [selectedAccount, currentIndex, showAllEmails]);
   
   // Parse message when raw message changes
   useEffect(() => {
@@ -236,7 +239,7 @@ export default function InboxPage() {
         total: number;
         offset: number;
         limit: number;
-      }>(`/api/inbox/emails/${selectedAccount}?offset=${currentIndex}&limit=1`);
+      }>(`/api/inbox/emails/${selectedAccount}?offset=${currentIndex}&limit=1&showAll=${showAllEmails}`);
       
       if (data.messages.length > 0) {
         setCurrentMessage(data.messages[0]);
@@ -249,8 +252,9 @@ export default function InboxPage() {
         setParsedMessage(null);
         setTotalMessages(0);
       }
-    } catch (err: any) {
-      if (err?.code === 'OAUTH_REAUTH_REQUIRED') {
+    } catch (err) {
+      const errWithCode = err as Error & { code?: string };
+      if (errWithCode.code === 'OAUTH_REAUTH_REQUIRED') {
         setNeedsReauth(true);
       } else {
         error('Failed to load message');
@@ -422,6 +426,7 @@ export default function InboxPage() {
           {
           emailAccountId: selectedAccount,
           messageUid: currentMessage.uid,
+          messageId: currentMessage.messageId,
           sourceFolder: 'INBOX',
           recommendedAction: recommendedAction
         }
@@ -471,6 +476,22 @@ export default function InboxPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
   
+  const handleForceEvaluation = async () => {
+    if (!currentMessage || !selectedAccount) return;
+    
+    try {
+      await apiPost(`/api/inbox/emails/${selectedAccount}/reset-action`, {
+        messageId: currentMessage.messageId
+      });
+      success('Email marked for re-evaluation');
+      // Refresh the current message to update the UI
+      await fetchMessage();
+    } catch (err) {
+      console.error('Failed to reset email action:', err);
+      error('Failed to reset email action');
+    }
+  };
+  
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       {needsReauth && (
@@ -509,6 +530,23 @@ export default function InboxPage() {
               ))}
             </SelectContent>
           </Select>
+          
+          {/* Show All Emails toggle */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="showAll"
+              checked={showAllEmails}
+              onChange={(e) => {
+                setShowAllEmails(e.target.checked);
+                setCurrentIndex(0); // Reset to first message when toggling filter
+              }}
+              className="h-4 w-4"
+            />
+            <label htmlFor="showAll" className="text-sm">
+              Show All Emails
+            </label>
+          </div>
           
           <div className="flex items-center gap-2 ml-auto">
             <Button
@@ -606,7 +644,14 @@ export default function InboxPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <CardTitle className="text-lg">{parsedMessage.subject || '(No subject)'}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">{parsedMessage.subject || '(No subject)'}</CardTitle>
+                  {currentMessage.actionTaken && currentMessage.actionTaken !== 'none' && (
+                    <Badge variant="secondary" className="text-xs">
+                      {currentMessage.actionTaken.replace('_', ' ')}
+                    </Badge>
+                  )}
+                </div>
                 <div className="text-sm text-muted-foreground mt-1">
                   <div>From: {parsedMessage.from.name ? `${parsedMessage.from.name} <${parsedMessage.from.address}>` : parsedMessage.from.address}</div>
                   <div>To: {parsedMessage.to.map(addr => 
@@ -634,6 +679,16 @@ export default function InboxPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                )}
+                {currentMessage.actionTaken && currentMessage.actionTaken !== 'none' && (
+                  <Button 
+                    onClick={handleForceEvaluation}
+                    variant="outline"
+                    size="sm"
+                    title="Reset action taken and allow re-evaluation"
+                  >
+                    Force Evaluation
+                  </Button>
                 )}
                 <Button 
                   onClick={handleGenerateDraft}

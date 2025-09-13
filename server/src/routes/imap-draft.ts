@@ -169,10 +169,12 @@ router.get('/folders/:accountId', requireAuth, async (req, res): Promise<void> =
     const userId = (req as any).user.id;
     const { accountId } = req.params;
     
-    const imapOps = await ImapOperations.fromAccountId(accountId, userId);
-    const folders = await imapOps.getFolders();
-    
-    res.json({ folders });
+    await withImapContext(accountId, userId, async () => {
+      const imapOps = await ImapOperations.fromAccountId(accountId, userId);
+      const folders = await imapOps.getFolders();
+      
+      res.json({ folders });
+    });
   } catch (error) {
     console.error('Error fetching folders:', error);
     res.status(500).json({ 
