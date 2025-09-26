@@ -6,7 +6,7 @@
 
 import { EventEmitter } from 'events';
 import { ImapOperations } from './imap-operations';
-import { addEmailJob, JobType, JobPriority } from './queue';
+import { addInboxJob, JobPriority } from './queue';
 import { pool } from '../server';
 import { imapLogger } from './imap-logger';
 
@@ -303,8 +303,7 @@ class MonitorInstance {
 
       // Queue each message for processing
       for (const message of messages) {
-        const job = await addEmailJob(
-          JobType.PROCESS_INBOX,
+        const job = await addInboxJob(
           {
             userId: this.userId,
             accountId: this.accountId,

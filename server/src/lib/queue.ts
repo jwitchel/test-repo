@@ -23,8 +23,10 @@ const defaultJobOptions = {
 
 // Job types enum
 export enum JobType {
-  BUILD_TONE_PROFILE = 'build-tone-profile',
+  // Inbox jobs
   PROCESS_INBOX = 'process-inbox',
+  // Training jobs
+  BUILD_TONE_PROFILE = 'build-tone-profile',
   LEARN_FROM_EDIT = 'learn-from-edit'
 }
 
@@ -61,28 +63,56 @@ export interface LearnFromEditJobData {
 }
 
 // Create queues
-export const emailProcessingQueue = new Queue('email-processing', {
+export const inboxQueue = new Queue('inbox', {
   connection,
   defaultJobOptions
 });
 
-export const toneProfileQueue = new Queue('tone-profile', {
+export const trainingQueue = new Queue('training', {
   connection,
   defaultJobOptions
 });
 
 // Helper functions to add jobs
-export async function addEmailJob(
+export async function addInboxJob(
+  data: ProcessInboxJobData,
+  priority: JobPriority = JobPriority.NORMAL
+): Promise<Job> {
+  return inboxQueue.add(JobType.PROCESS_INBOX, data, { priority });
+}
+
+export async function addTrainingJob(
+  type: JobType.BUILD_TONE_PROFILE | JobType.LEARN_FROM_EDIT,
+  data: BuildToneProfileJobData | LearnFromEditJobData,
+  priority: JobPriority = JobPriority.NORMAL
+): Promise<Job> {
+  return trainingQueue.add(type, data, { priority });
+}
+
+// Deprecated exports for backward compatibility
+/** @deprecated Use inboxQueue instead */
+export const emailProcessingQueue = inboxQueue;
+/** @deprecated Use trainingQueue instead */
+export const toneProfileQueue = trainingQueue;
+/** @deprecated Use addInboxJob or addTrainingJob instead */
+export const addEmailJob = async (
   type: JobType,
   data: ProcessInboxJobData | LearnFromEditJobData,
   priority: JobPriority = JobPriority.NORMAL
-): Promise<Job> {
-  return emailProcessingQueue.add(type, data, { priority });
-}
-
-export async function addToneProfileJob(
+): Promise<Job> => {
+  // Route to the appropriate queue based on job type
+  if (type === JobType.PROCESS_INBOX) {
+    return addInboxJob(data as ProcessInboxJobData, priority);
+  } else if (type === JobType.LEARN_FROM_EDIT) {
+    return addTrainingJob(JobType.LEARN_FROM_EDIT, data as LearnFromEditJobData, priority);
+  } else {
+    throw new Error(`Invalid job type for addEmailJob: ${type}`);
+  }
+};
+/** @deprecated Use addTrainingJob instead */
+export const addToneProfileJob = async (
   data: BuildToneProfileJobData,
   priority: JobPriority = JobPriority.NORMAL
-): Promise<Job> {
-  return toneProfileQueue.add(JobType.BUILD_TONE_PROFILE, data, { priority });
-}
+): Promise<Job> => {
+  return addTrainingJob(JobType.BUILD_TONE_PROFILE, data, priority);
+};

@@ -29,12 +29,12 @@ describe('BullMQ Queue Configuration', () => {
   describe('Queue Creation', () => {
     it('should create email processing queue', () => {
       expect(emailProcessingQueue).toBeDefined();
-      expect(emailProcessingQueue.name).toBe('email-processing');
+      expect(emailProcessingQueue.name).toBe('inbox');
     });
 
     it('should create tone profile queue', () => {
       expect(toneProfileQueue).toBeDefined();
-      expect(toneProfileQueue.name).toBe('tone-profile');
+      expect(toneProfileQueue.name).toBe('training');
     });
   });
 

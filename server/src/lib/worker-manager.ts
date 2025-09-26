@@ -5,9 +5,9 @@
 
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
-import emailProcessingWorker from './workers/email-processing-worker';
-import toneProfileWorker from './workers/tone-profile-worker';
-import { emailProcessingQueue, toneProfileQueue } from './queue';
+import inboxWorker from './workers/inbox-worker';
+import trainingWorker from './workers/training-worker';
+import { inboxQueue, trainingQueue } from './queue';
 
 // Redis keys for storing worker state
 const WORKER_STATE_KEY = 'worker:manager:paused';
@@ -28,12 +28,12 @@ export class WorkerManager {
     });
 
     // Register workers
-    this.workers.set('email-processing', emailProcessingWorker);
-    this.workers.set('tone-profile', toneProfileWorker);
+    this.workers.set('inbox', inboxWorker);
+    this.workers.set('training', trainingWorker);
 
     // Register queues
-    this.queues.set('email-processing', emailProcessingQueue);
-    this.queues.set('tone-profile', toneProfileQueue);
+    this.queues.set('inbox', inboxQueue);
+    this.queues.set('training', trainingQueue);
   }
 
   static getInstance(): WorkerManager {

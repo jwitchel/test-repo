@@ -6,18 +6,18 @@
 import { QueueEvents } from 'bullmq';
 import Redis from 'ioredis';
 import { getUnifiedWebSocketServer } from '../websocket/unified-websocket';
-import { emailProcessingQueue, toneProfileQueue } from './queue';
+import { inboxQueue, trainingQueue } from './queue';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
 
 // Create queue event listeners with proper Redis config
-const emailQueueEvents = new QueueEvents('email-processing', {
+const inboxQueueEvents = new QueueEvents('inbox', {
   connection: new Redis(REDIS_URL, {
     maxRetriesPerRequest: null
   })
 });
 
-const toneQueueEvents = new QueueEvents('tone-profile', {
+const trainingQueueEvents = new QueueEvents('training', {
   connection: new Redis(REDIS_URL, {
     maxRetriesPerRequest: null
   })
@@ -31,7 +31,7 @@ async function broadcastJobEvent(eventType: string, jobId: string, queueName: st
   }
 
   // Get job data to find userId
-  const queue = queueName === 'email-processing' ? emailProcessingQueue : toneProfileQueue;
+  const queue = queueName === 'inbox' ? inboxQueue : trainingQueue;
   const job = await queue.getJob(jobId);
 
   if (job?.data?.userId) {
@@ -51,12 +51,12 @@ async function broadcastJobEvent(eventType: string, jobId: string, queueName: st
 // Queue configuration for consistent event listener setup
 const queueConfigs = [
   {
-    queueEvents: emailQueueEvents,
-    queueName: 'email-processing'
+    queueEvents: inboxQueueEvents,
+    queueName: 'inbox'
   },
   {
-    queueEvents: toneQueueEvents,
-    queueName: 'tone-profile'
+    queueEvents: trainingQueueEvents,
+    queueName: 'training'
   }
 ];
 

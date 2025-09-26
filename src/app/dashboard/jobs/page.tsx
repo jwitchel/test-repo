@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function JobsPage() {
@@ -26,6 +26,14 @@ export default function JobsPage() {
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
   const [queuesEmergencyPaused, setQueuesEmergencyPaused] = useState(false);
   const [isLoadingEmergency, setIsLoadingEmergency] = useState(false);
+  const [schedulers, setSchedulers] = useState<Array<{
+    id: string;
+    enabled: boolean;
+    interval: number;
+    description: string;
+    nextRun?: string;
+  }>>([]);
+  const [isLoadingSchedulers, setIsLoadingSchedulers] = useState(false);
   const [queueStats, setQueueStats] = useState<{
     emailProcessing: { active: number; waiting: number; prioritized?: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
     toneProfile: { active: number; waiting: number; prioritized?: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
@@ -202,7 +210,8 @@ export default function JobsPage() {
       endpoint,
       loadingStateSetter: setIsLoadingWorkers,
       onSuccess: (data) => {
-        setWorkersActive(!(data.status as any)?.workersPaused);
+        const statusData = data.status as { workersPaused?: boolean };
+        setWorkersActive(!statusData?.workersPaused);
         success(data.message as string);
       },
       defaultErrorMessage: 'Failed to toggle workers',
@@ -254,14 +263,17 @@ export default function JobsPage() {
   };
   
   // Fetch stats
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     await handleApiRequest({
       endpoint: '/api/jobs/stats',
       method: 'GET',
       onSuccess: (data) => {
         // Update queue-specific stats if available
         if (data.queues) {
-          const queues = data.queues as any;
+          const queues = data.queues as {
+            emailProcessing?: { active: number; waiting: number; prioritized?: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
+            toneProfile?: { active: number; waiting: number; prioritized?: number; completed: number; failed: number; delayed: number; paused: number; isPaused?: boolean };
+          };
           setQueueStats({
             emailProcessing: queues.emailProcessing || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 },
             toneProfile: queues.toneProfile || { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0 }
@@ -273,6 +285,51 @@ export default function JobsPage() {
       },
       defaultErrorMessage: 'Failed to fetch stats',
       logPrefix: 'Error fetching stats',
+      refreshAfter: false
+    });
+  }, [handleApiRequest]);
+
+  // Fetch scheduler status
+  const fetchSchedulers = useCallback(async () => {
+    await handleApiRequest({
+      endpoint: '/api/schedulers',
+      method: 'GET',
+      onSuccess: (data) => {
+        const schedulerData = data as { schedulers?: Array<{
+          id: string;
+          enabled: boolean;
+          interval: number;
+          description: string;
+          nextRun?: string;
+        }> };
+        setSchedulers(schedulerData.schedulers || []);
+      },
+      onError: () => {
+        // Silent error handling for schedulers - don't show toast
+      },
+      defaultErrorMessage: 'Failed to fetch schedulers',
+      logPrefix: 'Error fetching schedulers',
+      refreshAfter: false
+    });
+  }, [handleApiRequest]);
+
+  // Handle scheduler toggle
+  const handleSchedulerToggle = async (schedulerId: string, enabled: boolean) => {
+    await handleApiRequest({
+      endpoint: `/api/schedulers/${schedulerId}`,
+      method: 'PUT',
+      body: { enabled },
+      loadingStateSetter: setIsLoadingSchedulers,
+      onSuccess: (data) => {
+        success(data.message as string);
+        fetchSchedulers(); // Refresh scheduler list
+        if (enabled) {
+          // Refresh jobs to show newly scheduled ones
+          setTimeout(() => setRefreshKey(prev => prev + 1), 500);
+        }
+      },
+      defaultErrorMessage: `Failed to ${enabled ? 'enable' : 'disable'} scheduler`,
+      logPrefix: 'Error toggling scheduler',
       refreshAfter: false
     });
   };
@@ -297,6 +354,7 @@ export default function JobsPage() {
     };
     checkWorkerStatus();
     fetchStats();
+    fetchSchedulers();
   }, []);
   
   // Refresh stats when refreshKey changes
@@ -361,6 +419,38 @@ export default function JobsPage() {
           
           {/* Controls */}
           <div className="flex gap-1 items-center">
+            {/* Scheduler Toggles */}
+            {schedulers.map(scheduler => {
+              const intervalStr = scheduler.interval >= 3600000
+                ? `${Math.round(scheduler.interval / 3600000)}h`
+                : scheduler.interval >= 60000
+                ? `${Math.round(scheduler.interval / 60000)}m`
+                : `${Math.round(scheduler.interval / 1000)}s`;
+              const nextRunStr = scheduler.nextRun
+                ? `Next: ${new Date(scheduler.nextRun).toLocaleTimeString()}`
+                : 'Not scheduled';
+
+              return (
+                <div key={scheduler.id} className="flex items-center gap-1 border border-zinc-200 rounded px-2 py-0.5">
+                  <label
+                    htmlFor={`scheduler-${scheduler.id}`}
+                    className="text-xs font-medium text-zinc-600 cursor-pointer"
+                    title={`${scheduler.description}\nInterval: every ${intervalStr}\n${nextRunStr}`}
+                  >
+                    {scheduler.id === 'check-mail' ? '📧' : '🎨'}
+                    <span className="ml-1 text-zinc-500">{intervalStr}</span>
+                  </label>
+                  <Switch
+                    id={`scheduler-${scheduler.id}`}
+                    checked={scheduler.enabled}
+                    onCheckedChange={(enabled) => handleSchedulerToggle(scheduler.id, enabled)}
+                    disabled={isLoadingSchedulers}
+                    className="scale-75"
+                  />
+                </div>
+              );
+            })}
+            <div className="w-px h-5 bg-zinc-300 mx-1" />
             <div className="flex items-center gap-2">
               <label htmlFor="workers-toggle" className="text-sm font-medium text-zinc-700">
                 Workers
@@ -476,7 +566,7 @@ export default function JobsPage() {
         </div>
       </div>
       
-      <JobsMonitor refreshTrigger={refreshKey} forceRefresh={forceRefresh} />
+      <JobsMonitor refreshTrigger={refreshKey} forceRefresh={forceRefresh} onJobComplete={fetchStats} />
       
       {/* Real-Time Logs Panel */}
       <div className="mt-6">

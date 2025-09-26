@@ -1,11 +1,11 @@
 /**
- * Email Processing Worker
- * STUB IMPLEMENTATION - Placeholder for future email processing functionality
+ * Inbox Worker
+ * STUB IMPLEMENTATION - Handles processing of inbox emails
  */
 
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
-import { JobType, ProcessInboxJobData, LearnFromEditJobData } from '../queue';
+import { JobType, ProcessInboxJobData } from '../queue';
 import { imapLogger } from '../imap-logger';
 
 // Redis connection for worker
@@ -15,11 +15,11 @@ const connection = new Redis({
   maxRetriesPerRequest: null
 });
 
-// Worker that will call API endpoints when they're implemented
-const emailProcessingWorker = new Worker(
-  'email-processing',
+// Worker that processes inbox emails
+const inboxWorker = new Worker(
+  'inbox',
   async (job: Job) => {
-    console.log(`[EmailProcessingWorker] Processing job ${job.id}: ${job.name}`);
+    console.log(`[InboxWorker] Processing job ${job.id}: ${job.name}`);
     
     const { userId } = job.data;
 
@@ -29,8 +29,8 @@ const emailProcessingWorker = new Worker(
           const data = job.data as ProcessInboxJobData;
           
           // Log to console and real-time logs that this is a stub
-          console.warn(`[EmailProcessingWorker] STUB: ${JobType.PROCESS_INBOX} not implemented yet`);
-          console.warn(`[EmailProcessingWorker] Would process inbox for account ${data.accountId}, folder: ${data.folderName || 'INBOX'}`);
+          console.warn(`[InboxWorker] STUB: ${JobType.PROCESS_INBOX} not implemented yet`);
+          console.warn(`[InboxWorker] Would process inbox for account ${data.accountId}, folder: ${data.folderName || 'INBOX'}`);
           
           // Send to real-time logs
           imapLogger.log(userId, {
@@ -60,45 +60,10 @@ const emailProcessingWorker = new Worker(
           };
         }
 
-        case JobType.LEARN_FROM_EDIT: {
-          const data = job.data as LearnFromEditJobData;
-          
-          // Log to console and real-time logs that this is a stub
-          console.warn(`[EmailProcessingWorker] STUB: ${JobType.LEARN_FROM_EDIT} not implemented yet`);
-          console.warn(`[EmailProcessingWorker] Would learn from edit for user ${userId}`);
-          
-          // Send to real-time logs
-          imapLogger.log(userId, {
-            userId,
-            emailAccountId: 'learning-system',
-            level: 'warn',
-            command: 'worker.stub.learn_from_edit',
-            data: {
-              raw: `STUB: Learn from edit functionality not implemented. Would analyze edits to improve tone profiles.`,
-              parsed: {
-                hasOriginal: !!data.originalDraft,
-                hasEdited: !!data.editedDraft,
-                hasContext: !!data.context
-              }
-            }
-          });
-          
-          // TODO: When implemented, this would:
-          // 1. Call POST /api/tone/learn-from-edit endpoint
-          // 2. Analyze differences between original and edited drafts
-          // 3. Update user's tone profile based on changes
-          // 4. Store learning data for future improvements
-          
-          return { 
-            success: true, 
-            stub: true,
-            message: 'STUB: Learning from edit not implemented' 
-          };
-        }
 
         default:
           const errorMsg = `Unknown job type: ${job.name}`;
-          console.error(`[EmailProcessingWorker] ${errorMsg}`);
+          console.error(`[InboxWorker] ${errorMsg}`);
           
           // Log unknown job type
           imapLogger.log(userId, {
@@ -115,7 +80,7 @@ const emailProcessingWorker = new Worker(
           throw new Error(errorMsg);
       }
     } catch (error) {
-      console.error(`[EmailProcessingWorker] Job ${job.id} failed:`, error);
+      console.error(`[InboxWorker] Job ${job.id} failed:`, error);
       
       // Log error to real-time logs
       imapLogger.log(userId, {
@@ -140,12 +105,12 @@ const emailProcessingWorker = new Worker(
 );
 
 // Event logging
-emailProcessingWorker.on('completed', (job) => {
-  console.log(`[EmailProcessingWorker] Job ${job.id} completed (STUB)`);
+inboxWorker.on('completed', (job) => {
+  console.log(`[InboxWorker] Job ${job.id} completed (STUB)`);
 });
 
-emailProcessingWorker.on('failed', (job, err) => {
-  console.error(`[EmailProcessingWorker] Job ${job?.id} failed:`, err);
+inboxWorker.on('failed', (job, err) => {
+  console.error(`[InboxWorker] Job ${job?.id} failed:`, err);
 });
 
-export default emailProcessingWorker;
+export default inboxWorker;

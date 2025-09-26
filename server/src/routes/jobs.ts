@@ -1,12 +1,12 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
-import { 
-  emailProcessingQueue,
-  toneProfileQueue,
+import {
+  inboxQueue,
+  trainingQueue,
   JobType,
   JobPriority,
-  addEmailJob,
-  addToneProfileJob
+  addInboxJob,
+  addTrainingJob
 } from '../lib/queue';
 
 const router = express.Router();
@@ -36,17 +36,17 @@ router.post('/queue', requireAuth, async (req, res): Promise<void> => {
     
     // Queue the job based on type
     switch (type) {
-      case JobType.BUILD_TONE_PROFILE:
-        job = await addToneProfileJob(
+      case JobType.PROCESS_INBOX:
+        job = await addInboxJob(
           { ...data, userId },
           jobPriority
         );
         break;
-        
-      case JobType.PROCESS_INBOX:
+
+      case JobType.BUILD_TONE_PROFILE:
       case JobType.LEARN_FROM_EDIT:
-        job = await addEmailJob(
-          type as JobType,
+        job = await addTrainingJob(
+          type as JobType.BUILD_TONE_PROFILE | JobType.LEARN_FROM_EDIT,
           { ...data, userId },
           jobPriority
         );
@@ -85,9 +85,9 @@ router.get('/:queueName/:jobId/status', requireAuth, async (req, res): Promise<v
     // Get the appropriate queue
     let queue;
     if (queueName === 'email-processing') {
-      queue = emailProcessingQueue;
+      queue = inboxQueue;
     } else if (queueName === 'tone-profile') {
-      queue = toneProfileQueue;
+      queue = trainingQueue;
     } else {
       res.status(400).json({ error: 'Invalid queue name. Must be "email-processing" or "tone-profile"' });
       return;
@@ -133,13 +133,13 @@ router.get('/list', requireAuth, async (req, res): Promise<void> => {
       ? ['waiting', 'prioritized', 'active', 'completed', 'failed', 'delayed', 'paused'] 
       : [status as any];
     
-    const emailJobs = await emailProcessingQueue.getJobs(
+    const emailJobs = await inboxQueue.getJobs(
       jobStates,
       Number(offset),
       Number(offset) + Number(limit) - 1
     );
 
-    const toneJobs = await toneProfileQueue.getJobs(
+    const toneJobs = await trainingQueue.getJobs(
       jobStates,
       Number(offset),
       Number(offset) + Number(limit) - 1
@@ -194,9 +194,9 @@ router.delete('/:queueName/:jobId', requireAuth, async (req, res): Promise<void>
     // Get the appropriate queue
     let queue;
     if (queueName === 'email-processing') {
-      queue = emailProcessingQueue;
+      queue = inboxQueue;
     } else if (queueName === 'tone-profile') {
-      queue = toneProfileQueue;
+      queue = trainingQueue;
     } else {
       res.status(400).json({ error: 'Invalid queue name. Must be "email-processing" or "tone-profile"' });
       return;
@@ -233,9 +233,9 @@ router.post('/:queueName/:jobId/retry', requireAuth, async (req, res): Promise<v
     // Get the appropriate queue
     let queue;
     if (queueName === 'email-processing') {
-      queue = emailProcessingQueue;
+      queue = inboxQueue;
     } else if (queueName === 'tone-profile') {
-      queue = toneProfileQueue;
+      queue = trainingQueue;
     } else {
       res.status(400).json({ error: 'Invalid queue name. Must be "email-processing" or "tone-profile"' });
       return;
@@ -255,14 +255,16 @@ router.post('/:queueName/:jobId/retry', requireAuth, async (req, res): Promise<v
 
     // Create a new job with the same data and type
     let newJob;
-    if (queueName === 'email-processing') {
-      newJob = await addEmailJob(
-        job.name as JobType,
+    // Check if it's an inbox job (PROCESS_INBOX)
+    if (job.name === JobType.PROCESS_INBOX) {
+      newJob = await addInboxJob(
         job.data,
         JobPriority.NORMAL
       );
     } else {
-      newJob = await addToneProfileJob(
+      // It's a training job (BUILD_TONE_PROFILE or LEARN_FROM_EDIT)
+      newJob = await addTrainingJob(
+        job.name as JobType.BUILD_TONE_PROFILE | JobType.LEARN_FROM_EDIT,
         job.data,
         JobPriority.NORMAL
       );
@@ -289,12 +291,12 @@ router.post('/:queueName/:jobId/retry', requireAuth, async (req, res): Promise<v
 router.get('/stats', requireAuth, async (_req, res): Promise<void> => {
   try {
     // Get counts from both queues
-    const emailCounts = await emailProcessingQueue.getJobCounts();
-    const toneCounts = await toneProfileQueue.getJobCounts();
+    const emailCounts = await inboxQueue.getJobCounts();
+    const toneCounts = await trainingQueue.getJobCounts();
 
     // Get queue pause status
-    const emailPaused = await emailProcessingQueue.isPaused();
-    const tonePaused = await toneProfileQueue.isPaused();
+    const emailPaused = await inboxQueue.isPaused();
+    const tonePaused = await trainingQueue.isPaused();
 
     // Combined stats for backward compatibility
     // Include both 'waiting' and 'prioritized' jobs in the queued count
@@ -308,15 +310,16 @@ router.get('/stats', requireAuth, async (_req, res): Promise<void> => {
       paused: emailCounts.paused + toneCounts.paused,
       // Per-queue stats
       queues: {
+        // Keep old names for backward compatibility in frontend
         emailProcessing: {
           ...emailCounts,
           isPaused: emailPaused,
-          name: 'Email Processing'
+          name: 'Inbox Processing'
         },
         toneProfile: {
           ...toneCounts,
           isPaused: tonePaused,
-          name: 'Tone Profile'
+          name: 'Training & Learning'
         }
       }
     };
@@ -343,7 +346,7 @@ router.post('/clear-pending-jobs', requireAuth, async (_req, res): Promise<void>
     
     // Clear pending jobs from email processing queue
     for (const state of statesToClear) {
-      const emailJobs = await emailProcessingQueue.getJobs([state as any]);
+      const emailJobs = await inboxQueue.getJobs([state as any]);
       for (const job of emailJobs) {
         try {
           await job.remove();
@@ -357,7 +360,7 @@ router.post('/clear-pending-jobs', requireAuth, async (_req, res): Promise<void>
     
     // Clear pending jobs from tone profile queue
     for (const state of statesToClear) {
-      const toneJobs = await toneProfileQueue.getJobs([state as any]);
+      const toneJobs = await trainingQueue.getJobs([state as any]);
       for (const job of toneJobs) {
         try {
           await job.remove();
@@ -402,8 +405,8 @@ router.post('/clear-all-queues', requireAuth, async (_req, res): Promise<void> =
     console.log('Starting complete queue obliteration...');
     
     // Get counts before clearing
-    const emailCounts = await emailProcessingQueue.getJobCounts();
-    const toneCounts = await toneProfileQueue.getJobCounts();
+    const emailCounts = await inboxQueue.getJobCounts();
+    const toneCounts = await trainingQueue.getJobCounts();
     
     const totalBefore = 
       emailCounts.waiting + emailCounts.active + emailCounts.completed + emailCounts.failed + 
@@ -413,8 +416,8 @@ router.post('/clear-all-queues', requireAuth, async (_req, res): Promise<void> =
     
     // Clean both queues using BullMQ's obliterate (removes ALL jobs and data unconditionally)
     console.log('Obliterating all queues (lock renewal errors after this are expected and harmless)...');
-    await emailProcessingQueue.obliterate({ force: true });
-    await toneProfileQueue.obliterate({ force: true });
+    await inboxQueue.obliterate({ force: true });
+    await trainingQueue.obliterate({ force: true });
     console.log('Queues obliterated successfully');
     
     // Note: Workers may log "could not renew lock" errors after obliteration
@@ -432,8 +435,8 @@ router.post('/clear-all-queues', requireAuth, async (_req, res): Promise<void> =
     }
     
     // Verify cleanup
-    const emailCountsAfter = await emailProcessingQueue.getJobCounts();
-    const toneCountsAfter = await toneProfileQueue.getJobCounts();
+    const emailCountsAfter = await inboxQueue.getJobCounts();
+    const toneCountsAfter = await trainingQueue.getJobCounts();
     
     const totalAfter = 
       emailCountsAfter.waiting + emailCountsAfter.active + emailCountsAfter.completed + 
@@ -465,8 +468,8 @@ router.post('/clear-queue', requireAuth, async (_req, res): Promise<void> => {
     console.log('Legacy /clear-queue endpoint called, redirecting to /clear-all-queues');
     
     // Get counts before clearing
-    const emailCounts = await emailProcessingQueue.getJobCounts();
-    const toneCounts = await toneProfileQueue.getJobCounts();
+    const emailCounts = await inboxQueue.getJobCounts();
+    const toneCounts = await trainingQueue.getJobCounts();
     
     const totalBefore = 
       emailCounts.waiting + emailCounts.active + emailCounts.completed + emailCounts.failed + 
@@ -475,8 +478,8 @@ router.post('/clear-queue', requireAuth, async (_req, res): Promise<void> => {
       toneCounts.delayed + toneCounts.paused + toneCounts.prioritized;
     
     // Clean both queues using BullMQ's obliterate
-    await emailProcessingQueue.obliterate({ force: true });
-    await toneProfileQueue.obliterate({ force: true });
+    await inboxQueue.obliterate({ force: true });
+    await trainingQueue.obliterate({ force: true });
     
     // Broadcast queue cleared event to update UI
     const { getUnifiedWebSocketServer } = await import('../websocket/unified-websocket');

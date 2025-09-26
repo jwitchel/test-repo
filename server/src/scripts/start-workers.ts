@@ -13,17 +13,17 @@ dotenv.config({ path: path.join(__dirname, '../../../.env') });
 // Set environment to skip server start
 process.env.SKIP_SERVER_START = 'true';
 
-import emailProcessingWorker from '../lib/workers/email-processing-worker';
-import toneWorker from '../lib/workers/tone-profile-worker';
-import { emailProcessingQueue, toneProfileQueue } from '../lib/queue';
+import inboxWorker from '../lib/workers/inbox-worker';
+import trainingWorker from '../lib/workers/training-worker';
+import { inboxQueue, trainingQueue } from '../lib/queue';
 import { workerManager } from '../lib/worker-manager';
 
 async function startWorkers() {
-  console.log('🚀 Starting Email Processing Workers...\n');
-  
+  console.log('🚀 Starting Background Workers...\n');
+
   // Initialize worker manager (restores pause state from Redis)
   await workerManager.initialize();
-  
+
 }
 
 startWorkers().catch(console.error);
@@ -31,18 +31,18 @@ startWorkers().catch(console.error);
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down workers...');
-  await emailProcessingWorker.close();
-  await toneWorker.close();
-  await emailProcessingQueue.close();
-  await toneProfileQueue.close();
+  await inboxWorker.close();
+  await trainingWorker.close();
+  await inboxQueue.close();
+  await trainingQueue.close();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down workers...');
-  await emailProcessingWorker.close();
-  await toneWorker.close();
-  await emailProcessingQueue.close();
-  await toneProfileQueue.close();
+  await inboxWorker.close();
+  await trainingWorker.close();
+  await inboxQueue.close();
+  await trainingQueue.close();
   process.exit(0);
 });

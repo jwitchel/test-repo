@@ -17,7 +17,7 @@ interface JobData {
   jobId: string;
   queueName: string;
   type: string;
-  status: 'queued' | 'waiting' | 'prioritized' | 'active' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'waiting' | 'prioritized' | 'delayed' | 'paused' | 'active' | 'completed' | 'failed' | 'cancelled' | string;
   progress?: JobProgress;
   result?: {
     profilesCreated?: number;
@@ -36,7 +36,7 @@ interface ApiJobData {
   jobId: string;
   queueName: string;
   type: string;
-  status: 'queued' | 'waiting' | 'prioritized' | 'active' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'waiting' | 'prioritized' | 'delayed' | 'paused' | 'active' | 'completed' | 'failed' | 'cancelled' | string;
   progress?: JobProgress;
   result?: {
     profilesCreated?: number;
@@ -84,13 +84,20 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string, queu
     queued: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
     waiting: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
     prioritized: { variant: 'secondary' as const, icon: Clock, color: 'text-zinc-500' },
+    delayed: { variant: 'secondary' as const, icon: Clock, color: 'text-orange-500' },
+    paused: { variant: 'secondary' as const, icon: Clock, color: 'text-yellow-500' },
     active: { variant: 'default' as const, icon: Loader2, color: 'text-indigo-600' },
     completed: { variant: 'default' as const, icon: CheckCircle, color: 'text-green-600' },
     failed: { variant: 'destructive' as const, icon: XCircle, color: 'text-red-600' },
     cancelled: { variant: 'secondary' as const, icon: XCircle, color: 'text-zinc-400' }
   };
-  
-  const config = statusConfig[job.status];
+
+  // Provide a default config for unknown statuses
+  const config = statusConfig[job.status] || {
+    variant: 'secondary' as const,
+    icon: Clock,
+    color: 'text-zinc-400'
+  };
   const Icon = config.icon;
   
   const jobTypeDisplay = {
@@ -131,9 +138,10 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string, queu
 interface JobsMonitorProps {
   refreshTrigger?: number;
   forceRefresh?: boolean;
+  onJobComplete?: () => void;
 }
 
-export function JobsMonitor({ refreshTrigger, forceRefresh }: JobsMonitorProps) {
+export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: JobsMonitorProps) {
   const [jobs, setJobs] = useState<Map<string, JobData>>(new Map());
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
@@ -290,6 +298,10 @@ export function JobsMonitor({ refreshTrigger, forceRefresh }: JobsMonitorProps) 
                   result: event.result,
                   completedAt: new Date().toISOString()
                 });
+                // Trigger stats refresh when a job completes
+                if (onJobComplete) {
+                  onJobComplete();
+                }
                 break;
                 
               case 'JOB_FAILED':
@@ -301,6 +313,10 @@ export function JobsMonitor({ refreshTrigger, forceRefresh }: JobsMonitorProps) 
                   error: event.error,
                   completedAt: event.failedAt || new Date().toISOString()
                 });
+                // Trigger stats refresh when a job fails
+                if (onJobComplete) {
+                  onJobComplete();
+                }
                 break;
                 
               case 'QUEUE_CLEARED':
