@@ -20,7 +20,7 @@ export class WorkerManager {
   private queues: Map<string, any> = new Map();
   private redis: Redis;
   private isPaused: boolean = false;
-  private isDryRun: boolean = false;
+  private isDryRun: boolean = true;
 
   private constructor() {
     this.redis = new Redis({
@@ -29,7 +29,12 @@ export class WorkerManager {
       maxRetriesPerRequest: null
     });
 
-    // Register workers
+    // Register workers - log for debugging
+    console.log('[WorkerManager] Registering workers:', {
+      inboxWorker: inboxWorker ? 'defined' : 'undefined',
+      trainingWorker: trainingWorker ? 'defined' : 'undefined'
+    });
+
     this.workers.set('inbox', inboxWorker);
     this.workers.set('training', trainingWorker);
 
@@ -50,27 +55,28 @@ export class WorkerManager {
    */
   async initialize(): Promise<void> {
     try {
-      // Check if we should start paused (from env or Redis)
-      const defaultPaused = process.env.WORKERS_START_PAUSED === 'true';
-
-      // Try to get stored state from Redis
+      // Initialize worker pause state
+      // Priority: Redis state > ENV (guaranteed to exist)
       const storedState = await this.redis.get(WORKER_STATE_KEY);
 
       if (storedState !== null) {
-        // Use stored state
+        // Use stored state from Redis
         this.isPaused = storedState === 'true';
       } else {
-        // Use env variable or default to paused
-        this.isPaused = defaultPaused !== false; // Default to true (paused) if not specified
+        // Use env variable (guaranteed to be set)
+        this.isPaused = process.env.WORKERS_START_PAUSED === 'true';
         await this.redis.set(WORKER_STATE_KEY, String(this.isPaused));
       }
 
-      // Initialize dry-run state
-      const dryRunState = await this.redis.get(DRY_RUN_STATE_KEY);
-      if (dryRunState !== null) {
-        this.isDryRun = dryRunState === 'true';
+      // Initialize dry-run state (same pattern as worker pause)
+      // Priority: Redis state > ENV (guaranteed to exist)
+      const storedDryRunState = await this.redis.get(DRY_RUN_STATE_KEY);
+
+      if (storedDryRunState !== null) {
+        // Use stored state from Redis
+        this.isDryRun = storedDryRunState === 'true';
       } else {
-        // Use env variable default
+        // Use env variable (guaranteed to be set)
         this.isDryRun = process.env.DRY_RUN_DEFAULT === 'true';
         await this.redis.set(DRY_RUN_STATE_KEY, String(this.isDryRun));
       }
@@ -95,15 +101,19 @@ export class WorkerManager {
    */
   async pauseAllWorkers(doNotWaitActive: boolean = false): Promise<void> {
     console.log(`[WorkerManager] Pausing all workers (wait for active: ${!doNotWaitActive})`);
-    
-    const pausePromises = Array.from(this.workers.values()).map(worker =>
-      worker.pause(doNotWaitActive)
-    );
-    
+
+    const pausePromises = Array.from(this.workers.values())
+      .filter(worker => worker !== undefined)
+      .map(worker => worker.pause(doNotWaitActive));
+
+    if (pausePromises.length === 0) {
+      console.warn('[WorkerManager] No workers to pause - workers may not be initialized yet');
+    }
+
     await Promise.all(pausePromises);
     this.isPaused = true;
     await this.redis.set(WORKER_STATE_KEY, 'true');
-    
+
     console.log('[WorkerManager] All workers paused');
   }
 
@@ -112,20 +122,26 @@ export class WorkerManager {
    */
   async resumeAllWorkers(): Promise<void> {
     console.log('[WorkerManager] Resuming all workers');
-    
-    const resumePromises = Array.from(this.workers.values()).map(async worker => {
-      // First resume the worker (if it was paused)
-      await worker.resume();
-      // Then ensure it's running (in case autorun was false)
-      if (!worker.isRunning()) {
-        await worker.run();
-      }
-    });
-    
+
+    const resumePromises = Array.from(this.workers.values())
+      .filter(worker => worker !== undefined)
+      .map(async worker => {
+        // First resume the worker (if it was paused)
+        await worker.resume();
+        // Then ensure it's running (in case autorun was false)
+        if (!worker.isRunning()) {
+          await worker.run();
+        }
+      });
+
+    if (resumePromises.length === 0) {
+      console.warn('[WorkerManager] No workers to resume - workers may not be initialized yet');
+    }
+
     await Promise.all(resumePromises);
     this.isPaused = false;
     await this.redis.set(WORKER_STATE_KEY, 'false');
-    
+
     console.log('[WorkerManager] All workers resumed');
   }
 
@@ -189,7 +205,6 @@ export class WorkerManager {
     console.log('[WorkerManager] Enabling dry-run mode');
     this.isDryRun = true;
     await this.redis.set(DRY_RUN_STATE_KEY, 'true');
-    console.log('[WorkerManager] Dry-run mode enabled - emails will be analyzed but not moved');
   }
 
   /**
@@ -199,7 +214,6 @@ export class WorkerManager {
     console.log('[WorkerManager] Disabling dry-run mode');
     this.isDryRun = false;
     await this.redis.set(DRY_RUN_STATE_KEY, 'false');
-    console.log('[WorkerManager] Dry-run mode disabled - emails will be moved to folders after processing');
   }
 
   /**
@@ -219,11 +233,7 @@ export class WorkerManager {
    */
   async isDryRunEnabled(): Promise<boolean> {
     const state = await this.redis.get(DRY_RUN_STATE_KEY);
-    if (state === null) {
-      // Use environment default if not set
-      return process.env.DRY_RUN_DEFAULT === 'true';
-    }
-    return state === 'true';
+    return state !== 'false'; // Default to true if not explicitly false
   }
 
   /**
@@ -240,9 +250,12 @@ export class WorkerManager {
     const storedState = await this.redis.get(WORKER_STATE_KEY);
     const actualWorkersPaused = storedState === 'true';
 
+    // Read dry-run state from Redis
+    const storedDryRunState = await this.redis.get(DRY_RUN_STATE_KEY);
+    const dryRunEnabled = storedDryRunState !== 'false'; // Default to true
+
     const queuesPaused = await this.areQueuesPaused();
-    const dryRunEnabled = await this.isDryRunEnabled();
-    
+
     const workerStatuses = await Promise.all(
       Array.from(this.workers.entries()).map(async ([name, worker]) => ({
         name,
@@ -250,14 +263,14 @@ export class WorkerManager {
         isRunning: worker.isRunning()
       }))
     );
-    
+
     const queueStatuses = await Promise.all(
       Array.from(this.queues.entries()).map(async ([name, queue]) => ({
         name,
         isPaused: await queue.isPaused()
       }))
     );
-    
+
     return {
       workersPaused: actualWorkersPaused,
       queuesPaused,

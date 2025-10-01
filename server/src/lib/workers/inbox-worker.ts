@@ -1,91 +1,106 @@
 /**
  * Inbox Worker
- * STUB IMPLEMENTATION - Handles processing of inbox emails
+ * Processes inbox emails using InboxProcessor service
  */
 
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { JobType, ProcessInboxJobData } from '../queue';
 import { imapLogger } from '../imap-logger';
+import { inboxProcessor } from '../email-processing/inbox-processor';
+import { pool } from '../../server';
 
-// Redis connection for worker
 const connection = new Redis({
   host: 'localhost',
   port: 6380,
   maxRetriesPerRequest: null
 });
 
-// Worker that processes inbox emails
+async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
+  const { userId, accountId, dryRun } = job.data;
+
+  // Log start
+  imapLogger.log(userId, {
+    userId,
+    emailAccountId: accountId,
+    level: 'info',
+    command: 'worker.process_inbox.start',
+    data: {
+      raw: dryRun
+        ? `Starting inbox processing (DRY-RUN) for account ${accountId}`
+        : `Starting inbox processing for account ${accountId}`,
+      parsed: { accountId, dryRun }
+    }
+  });
+
+  // Get user's default LLM provider
+  const providerResult = await pool.query(
+    'SELECT id FROM llm_providers WHERE user_id = $1 AND is_default = true AND is_active = true LIMIT 1',
+    [userId]
+  );
+
+  if (providerResult.rows.length === 0) {
+    throw new Error('No default LLM provider configured. Please set a default provider in settings.');
+  }
+
+  const providerId = providerResult.rows[0].id;
+  const batchSize = parseInt(process.env.INBOX_BATCH_SIZE || '10', 10);
+
+  // Process batch
+  const result = await inboxProcessor.processBatch({
+    accountId,
+    userId,
+    providerId,
+    dryRun,
+    batchSize,
+    offset: 0,
+    force: false
+  });
+
+  // Log completion
+  imapLogger.log(userId, {
+    userId,
+    emailAccountId: accountId,
+    level: 'info',
+    command: 'worker.process_inbox.complete',
+    data: {
+      raw: `Processed ${result.processed} emails in ${result.elapsed}ms`,
+      parsed: {
+        processed: result.processed,
+        elapsed: result.elapsed,
+        results: result.results
+      }
+    }
+  });
+
+  // Return summary
+  return {
+    success: true,
+    processed: result.processed,
+    draftsGenerated: result.results.filter(r => !r.error && r.action && !r.action.startsWith('silent')).length,
+    silentActions: result.results.filter(r => !r.error && r.action && r.action.startsWith('silent')).length,
+    errors: result.results.filter(r => r.error).length,
+    elapsed: result.elapsed
+  };
+}
+
 const inboxWorker = new Worker(
   'inbox',
   async (job: Job) => {
-    console.log(`[InboxWorker] Processing job ${job.id}: ${job.name}`);
-    
     const { userId } = job.data;
 
     try {
-      switch (job.name) {
-        case JobType.PROCESS_INBOX: {
-          const data = job.data as ProcessInboxJobData;
-          
-          // Log to console and real-time logs that this is a stub
-          console.warn(`[InboxWorker] STUB: ${JobType.PROCESS_INBOX} not implemented yet`);
-          console.warn(`[InboxWorker] Would process inbox for account ${data.accountId}, folder: ${data.folderName || 'INBOX'}`);
-          
-          // Send to real-time logs
-          imapLogger.log(userId, {
-            userId,
-            emailAccountId: data.accountId,
-            level: 'warn',
-            command: 'worker.stub.process_inbox',
-            data: {
-              raw: `STUB: Process inbox functionality not implemented. Would process folder "${data.folderName || 'INBOX'}" for account ${data.accountId}`
-            }
-          });
-          
-          // TODO: When implemented, this would:
-          // 1. Call POST /api/email/process-inbox endpoint
-          // 2. Connect to IMAP for the account
-          // 3. Fetch new/unread emails from the folder
-          // 4. Process each email (generate drafts, etc.)
-          // 5. Mark emails as processed
-          
-          return { 
-            success: true, 
-            stub: true,
-            emailsFound: 0,
-            emailsProcessed: 0,
-            draftsGenerated: 0,
-            message: 'STUB: Inbox processing not implemented' 
-          };
-        }
-
-
-        default:
-          const errorMsg = `Unknown job type: ${job.name}`;
-          console.error(`[InboxWorker] ${errorMsg}`);
-          
-          // Log unknown job type
-          imapLogger.log(userId, {
-            userId,
-            emailAccountId: 'unknown',
-            level: 'error',
-            command: 'worker.error.unknown_job',
-            data: {
-              raw: errorMsg,
-              parsed: { jobName: job.name, jobId: job.id }
-            }
-          });
-          
-          throw new Error(errorMsg);
+      if (job.name !== JobType.PROCESS_INBOX) {
+        throw new Error(`Unknown job type: ${job.name}`);
       }
+
+      return await processInboxJob(job as Job<ProcessInboxJobData>);
+
     } catch (error) {
-      console.error(`[InboxWorker] Job ${job.id} failed:`, error);
-      
-      // Log error to real-time logs
+      // Log error once
       imapLogger.log(userId, {
         userId,
-        emailAccountId: 'error',
+        emailAccountId: (job.data as ProcessInboxJobData).accountId || 'unknown',
         level: 'error',
         command: 'worker.error',
         data: {
@@ -93,20 +108,19 @@ const inboxWorker = new Worker(
           parsed: { jobId: job.id, jobName: job.name }
         }
       });
-      
+
       throw error;
     }
   },
   {
     connection,
     concurrency: 5,
-    autorun: false  // Don't start automatically - let WorkerManager control this
+    autorun: false
   }
 );
 
-// Event logging
 inboxWorker.on('completed', (job) => {
-  console.log(`[InboxWorker] Job ${job.id} completed (STUB)`);
+  console.log(`[InboxWorker] Job ${job.id} completed`);
 });
 
 inboxWorker.on('failed', (job, err) => {
