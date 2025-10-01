@@ -27,15 +27,15 @@ export async function apiFetch(
     try {
       const cloned = response.clone();
       const data = await cloned.json();
-      // Do not redirect on provider OAuth expiry; let caller handle reauth UX
-      if (data && data.error === 'OAUTH_REAUTH_REQUIRED') {
+      // Do not redirect on provider auth issues; let caller handle reauth UX
+      if (data && (data.error === 'OAUTH_REAUTH_REQUIRED' || data.error === 'INVALID_CREDENTIALS')) {
         return response;
       }
     } catch {
       // ignore parse error; fall through to redirect
     }
-    // For all other 401s, redirect to login
-    window.location.href = '/login';
+    // For all other 401s, redirect to signin
+    window.location.href = '/signin';
   }
   
   return response;

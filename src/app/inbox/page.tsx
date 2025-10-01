@@ -202,6 +202,8 @@ export default function InboxPage() {
   // Fetch message when account or index changes
   useEffect(() => {
     if (selectedAccount) {
+      // Clear reauth flag when switching accounts
+      setNeedsReauth(false);
       fetchMessage();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -254,8 +256,9 @@ export default function InboxPage() {
       }
     } catch (err) {
       const errWithCode = err as Error & { code?: string };
-      if (errWithCode.code === 'OAUTH_REAUTH_REQUIRED') {
+      if (errWithCode.code === 'OAUTH_REAUTH_REQUIRED' || errWithCode.code === 'INVALID_CREDENTIALS') {
         setNeedsReauth(true);
+        error(`Email account credentials are invalid. Please reconnect your account in Settings.`);
       } else {
         error('Failed to load message');
         console.error(err);
@@ -411,55 +414,31 @@ export default function InboxPage() {
       error('No draft to send');
       return;
     }
-    
+
     setIsUploadingDraft(true);
-    
+
     try {
-      const recommendedAction = generatedDraft.meta?.recommendedAction;
-      const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
-      
-      let destFolder: string | undefined;
-      if (ignoreActions.includes(recommendedAction || '')) {
-        // For silent actions, move the original email using UID (no raw message payload)
-        const res = await apiPost<{ success: boolean; folder: string; message: string }>(
-          '/api/imap-draft/move-email',
-          {
+      // Use the consolidated process-single endpoint
+      // Pass the already-generated draft to avoid LLM non-determinism
+      const res = await apiPost<{ success: boolean; folder: string; message: string; action?: string; draftId?: string }>(
+        '/api/inbox/process-single',
+        {
           emailAccountId: selectedAccount,
           messageUid: currentMessage.uid,
           messageId: currentMessage.messageId,
-          sourceFolder: 'INBOX',
-          recommendedAction: recommendedAction
+          messageSubject: currentMessage.subject,
+          messageFrom: currentMessage.from,
+          rawMessage: currentMessage.rawMessage,
+          providerId: selectedProviderId,
+          dryRun: false,
+          generatedDraft: generatedDraft // Pass the existing draft to avoid regenerating
         }
-        );
-        destFolder = res.folder;
+      );
+
+      if (res.folder) {
+        success(`Email sent to ${res.folder}!`);
       } else {
-        // For other actions, create a draft reply
-        const res = await apiPost<{ success: boolean; folder: string; message: string; action?: string }>(
-          '/api/imap-draft/upload-draft',
-          {
-          emailAccountId: selectedAccount,
-          to: generatedDraft.to,
-          cc: generatedDraft.cc,
-          subject: generatedDraft.subject,
-          body: generatedDraft.body,
-          bodyHtml: generatedDraft.bodyHtml,
-          inReplyTo: generatedDraft.inReplyTo,
-          references: generatedDraft.references,
-          recommendedAction: recommendedAction
-        }
-        );
-        destFolder = res.folder;
-      }
-      
-      if (destFolder) {
-        success(`Email sent to ${destFolder}!`);
-      } else {
-        const destination = getDestinationFolder(recommendedAction);
-        if (destination.error) {
-          error('Folder configuration missing. Please configure folders in Settings.');
-          return;
-        }
-        success(`Email sent to ${destination.folder}!`);
+        success(res.message || 'Email processed successfully');
       }
     } catch (err) {
       console.error('Failed to process email:', err);
