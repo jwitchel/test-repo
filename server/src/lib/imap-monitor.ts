@@ -9,6 +9,7 @@ import { ImapOperations } from './imap-operations';
 import { addInboxJob, JobPriority } from './queue';
 import { pool } from '../server';
 import { imapLogger } from './imap-logger';
+import { workerManager } from './worker-manager';
 
 // Monitoring configuration
 interface MonitorConfig {
@@ -178,8 +179,13 @@ class MonitorInstance {
   private async connect(): Promise<void> {
     try {
       console.log(`Connecting to IMAP for account ${this.accountId}`);
-      
+
       // Create new ImapOperations instance
+      // NOTE: We intentionally do NOT use withImapContext() here because this is a
+      // long-running connection that stays open for IDLE monitoring. The connection
+      // lifecycle is managed explicitly by this monitor class (connect/stop/release).
+      // This is different from route handlers which use withImapContext() for
+      // automatic connection management scoped to a single request.
       this.operations = await ImapOperations.fromAccountId(
         this.accountId,
         this.userId
@@ -301,13 +307,17 @@ class MonitorInstance {
         { limit: count, preserveConnection: true }
       );
 
+      // Get current dry-run state from WorkerManager
+      const isDryRun = await workerManager.isDryRunEnabled();
+
       // Queue each message for processing
       for (const message of messages) {
         const job = await addInboxJob(
           {
             userId: this.userId,
             accountId: this.accountId,
-            folderName: 'INBOX'
+            folderName: 'INBOX',
+            dryRun: isDryRun  // Use state from WorkerManager (Redis)
           },
           JobPriority.HIGH
         );

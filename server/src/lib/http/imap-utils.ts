@@ -15,6 +15,18 @@ export function mapImapError(res: Response, error: any, fallbackMessage: string)
         message: 'Email provider session expired or revoked. Please reconnect your account.'
       });
     }
+    // Check for authentication/credential errors
+    const errorMsg = error.message.toLowerCase();
+    if (errorMsg.includes('invalid credentials') ||
+        errorMsg.includes('authentication failed') ||
+        errorMsg.includes('login failed') ||
+        error.source === 'authentication') {
+      return res.status(401).json({
+        error: 'INVALID_CREDENTIALS',
+        message: 'Email account credentials are invalid. Please update your password or reconnect your account.',
+        code: error.code
+      });
+    }
     return res.status(503).json({
       error: 'IMAP connection failed',
       message: error.message,

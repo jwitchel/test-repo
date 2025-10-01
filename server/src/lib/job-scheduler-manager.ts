@@ -13,6 +13,7 @@ import {
   BuildToneProfileJobData
 } from './queue';
 import { Queue } from 'bullmq';
+import { workerManager } from './worker-manager';
 
 // Redis keys for storing scheduler state
 const SCHEDULER_STATE_PREFIX = 'scheduler:';
@@ -29,7 +30,7 @@ interface SchedulerConfig {
   queue: Queue;
   interval: number;
   jobType: JobType;
-  jobData: (userId: string, accountId: string) => ProcessInboxJobData | BuildToneProfileJobData;
+  jobData: (userId: string, accountId: string) => Promise<ProcessInboxJobData | BuildToneProfileJobData>;
   jobOpts: { priority: JobPriority };
   description: string;
 }
@@ -64,10 +65,11 @@ export class JobSchedulerManager {
       queue: inboxQueue,
       interval: parseInt(process.env.CHECK_MAIL_INTERVAL || '60000'), // Default 60 seconds
       jobType: JobType.PROCESS_INBOX,
-      jobData: (userId: string, accountId: string) => ({
+      jobData: async (userId: string, accountId: string) => ({
         userId,
         accountId,
-        folderName: 'INBOX'
+        folderName: 'INBOX',
+        dryRun: await workerManager.isDryRunEnabled() // Get current state from WorkerManager
       }),
       jobOpts: { priority: JobPriority.NORMAL },
       description: 'Check for new emails'
@@ -79,7 +81,7 @@ export class JobSchedulerManager {
       queue: trainingQueue,
       interval: parseInt(process.env.UPDATE_TONE_INTERVAL || '86400000'), // Default 24 hours
       jobType: JobType.BUILD_TONE_PROFILE,
-      jobData: (userId: string, accountId: string) => ({
+      jobData: async (userId: string, accountId: string) => ({
         userId,
         accountId,
         historyDays: 30
@@ -111,7 +113,7 @@ export class JobSchedulerManager {
       },
       {
         name: config.jobType,
-        data: config.jobData(userId, accountId),
+        data: await config.jobData(userId, accountId),
         opts: config.jobOpts
       }
     );

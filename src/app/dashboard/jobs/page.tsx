@@ -26,6 +26,8 @@ export default function JobsPage() {
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
   const [queuesEmergencyPaused, setQueuesEmergencyPaused] = useState(false);
   const [isLoadingEmergency, setIsLoadingEmergency] = useState(false);
+  // Dry-run state from worker manager (stored in Redis)
+  const [dryRunEnabled, setDryRunEnabled] = useState(true); // Default to true for safety
   const [schedulers, setSchedulers] = useState<Array<{
     id: string;
     enabled: boolean;
@@ -181,10 +183,11 @@ export default function JobsPage() {
     await queueJob({
       type: 'process-inbox',
       data: {
-        folderName: 'INBOX'
+        folderName: 'INBOX',
+        dryRun: dryRunEnabled  // Pass dry-run state to the job
       },
       priority: 'normal',
-      successMessage: 'Email processing job queued',
+      successMessage: `Email processing job queued (${dryRunEnabled ? 'dry-run' : 'live'})`,
       errorMessage: 'Failed to queue email job',
       logMessage: 'Error queueing email job:'
     });
@@ -201,6 +204,43 @@ export default function JobsPage() {
       errorMessage: 'Failed to queue tone job',
       logMessage: 'Error queueing tone job:'
     });
+  };
+
+  const handleProcessInbox = async () => {
+    try {
+      // Get first account - this is just a quick test button
+      const response = await fetch(`${apiUrl}/api/email-accounts`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        error('Please add an email account first');
+        return;
+      }
+
+      const accounts = await response.json();
+      if (!accounts || accounts.length === 0) {
+        error('Please add an email account first');
+        return;
+      }
+
+      // Queue job for first account with current dry-run state
+      await queueJob({
+        type: 'process-inbox',
+        data: {
+          accountId: accounts[0].id,
+          folderName: 'INBOX',
+          dryRun: dryRunEnabled
+        },
+        priority: 'high',
+        successMessage: `Inbox processing queued for ${accounts[0].email_address} (${dryRunEnabled ? 'dry-run' : 'live'})`,
+        errorMessage: 'Failed to queue inbox processing',
+        logMessage: 'Error queueing inbox processing:'
+      });
+    } catch (err) {
+      error('Failed to queue inbox processing');
+      console.error('Error:', err);
+    }
   };
   
   const handleWorkersToggle = async (enabled: boolean) => {
@@ -220,10 +260,10 @@ export default function JobsPage() {
   };
   
   const handleEmergencyToggle = async () => {
-    const endpoint = queuesEmergencyPaused 
-      ? '/api/workers/resume-queues' 
+    const endpoint = queuesEmergencyPaused
+      ? '/api/workers/resume-queues'
       : '/api/workers/emergency-pause';
-    
+
     await handleApiRequest({
       endpoint,
       loadingStateSetter: setIsLoadingEmergency,
@@ -233,6 +273,20 @@ export default function JobsPage() {
       },
       defaultErrorMessage: 'Failed to toggle emergency pause',
       logPrefix: 'Error toggling emergency pause'
+    });
+  };
+
+  const handleDryRunToggle = async (enabled: boolean) => {
+    const endpoint = enabled ? '/api/workers/dry-run/enable' : '/api/workers/dry-run/disable';
+
+    await handleApiRequest({
+      endpoint,
+      onSuccess: (data) => {
+        setDryRunEnabled(data.dryRunEnabled as boolean);
+        success(data.message as string);
+      },
+      defaultErrorMessage: `Failed to ${enabled ? 'enable' : 'disable'} dry-run mode`,
+      logPrefix: `Error ${enabled ? 'enabling' : 'disabling'} dry-run mode`
     });
   };
   
@@ -343,6 +397,10 @@ export default function JobsPage() {
         onSuccess: (data) => {
           setWorkersActive(!(data.workersPaused as boolean));
           setQueuesEmergencyPaused(data.queuesPaused as boolean);
+          // Get dry-run state from worker status
+          if (data.dryRunEnabled !== undefined) {
+            setDryRunEnabled(data.dryRunEnabled as boolean);
+          }
         },
         onError: () => {
           // Silent error handling for status check - don't show toast
@@ -381,44 +439,51 @@ export default function JobsPage() {
         </div>
         
         {/* Single row with queue stats and controls */}
-        <div className="flex gap-2 items-center">
-          {/* Email Queue Stats */}
-          <div className="border border-zinc-200 rounded-md px-2 py-1 bg-white">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-zinc-600">Email:</span>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-indigo-600 font-semibold" title="Active - Currently processing">{queueStats.emailProcessing.active}</span>
-                <span className="text-xs text-zinc-400">/</span>
-                <span className="text-xs text-zinc-600" title="Queued - Waiting to process">{(queueStats.emailProcessing.waiting || 0) + (queueStats.emailProcessing.prioritized || 0)}</span>
-                <span className="text-xs text-zinc-400">/</span>
-                <span className="text-xs text-green-600" title="Completed - Successfully processed">{queueStats.emailProcessing.completed}</span>
-                <span className="text-xs text-zinc-400">/</span>
-                <span className="text-xs text-red-600" title="Failed - Encountered errors">{queueStats.emailProcessing.failed}</span>
+        <div className="flex gap-2 items-start">
+          {/* Queue Stats - aligned with Row 1 of controls */}
+          <div className="flex flex-col gap-1">
+            <div className="flex gap-2 items-center">
+              {/* Email Queue Stats */}
+              <div className="border border-zinc-200 rounded-md px-2 py-1 bg-white">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-zinc-600">Email:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-indigo-600 font-semibold" title="Active - Currently processing">{queueStats.emailProcessing.active}</span>
+                    <span className="text-xs text-zinc-400">/</span>
+                    <span className="text-xs text-zinc-600" title="Queued - Waiting to process">{(queueStats.emailProcessing.waiting || 0) + (queueStats.emailProcessing.prioritized || 0)}</span>
+                    <span className="text-xs text-zinc-400">/</span>
+                    <span className="text-xs text-green-600" title="Completed - Successfully processed">{queueStats.emailProcessing.completed}</span>
+                    <span className="text-xs text-zinc-400">/</span>
+                    <span className="text-xs text-red-600" title="Failed - Encountered errors">{queueStats.emailProcessing.failed}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tone Queue Stats */}
+              <div className="border border-zinc-200 rounded-md px-2 py-1 bg-white">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-zinc-600">Tone:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-indigo-600 font-semibold" title="Active - Currently processing">{queueStats.toneProfile.active}</span>
+                    <span className="text-xs text-zinc-400">/</span>
+                    <span className="text-xs text-zinc-600" title="Queued - Waiting to process">{(queueStats.toneProfile.waiting || 0) + (queueStats.toneProfile.prioritized || 0)}</span>
+                    <span className="text-xs text-zinc-400">/</span>
+                    <span className="text-xs text-green-600" title="Completed - Successfully processed">{queueStats.toneProfile.completed}</span>
+                    <span className="text-xs text-zinc-400">/</span>
+                    <span className="text-xs text-red-600" title="Failed - Encountered errors">{queueStats.toneProfile.failed}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          
-          {/* Tone Queue Stats */}
-          <div className="border border-zinc-200 rounded-md px-2 py-1 bg-white">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-zinc-600">Tone:</span>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-indigo-600 font-semibold" title="Active - Currently processing">{queueStats.toneProfile.active}</span>
-                <span className="text-xs text-zinc-400">/</span>
-                <span className="text-xs text-zinc-600" title="Queued - Waiting to process">{(queueStats.toneProfile.waiting || 0) + (queueStats.toneProfile.prioritized || 0)}</span>
-                <span className="text-xs text-zinc-400">/</span>
-                <span className="text-xs text-green-600" title="Completed - Successfully processed">{queueStats.toneProfile.completed}</span>
-                <span className="text-xs text-zinc-400">/</span>
-                <span className="text-xs text-red-600" title="Failed - Encountered errors">{queueStats.toneProfile.failed}</span>
-              </div>
-            </div>
-          </div>
-          
+
           {/* Spacer */}
           <div className="flex-1" />
-          
-          {/* Controls */}
-          <div className="flex gap-1 items-center">
+
+          {/* Controls - Split into two rows */}
+          <div className="flex flex-col gap-1 items-end">
+            {/* Row 1: Schedulers and Toggles */}
+            <div className="flex gap-1 items-center">
             {/* Scheduler Toggles */}
             {schedulers.map(scheduler => {
               const intervalStr = scheduler.interval >= 3600000
@@ -451,8 +516,24 @@ export default function JobsPage() {
               );
             })}
             <div className="w-px h-5 bg-zinc-300 mx-1" />
-            <div className="flex items-center gap-2">
-              <label htmlFor="workers-toggle" className="text-sm font-medium text-zinc-700">
+            <div className="flex items-center gap-1.5">
+              <label
+                htmlFor="dry-run-toggle"
+                className="text-xs font-medium text-zinc-600"
+                title="When enabled, emails are analyzed but NOT moved or marked as processed. They will be reprocessed on each run (useful for testing). Disable schedulers when testing with dry-run."
+              >
+                Dry Run
+              </label>
+              <Switch
+                id="dry-run-toggle"
+                checked={dryRunEnabled}
+                onCheckedChange={(checked) => handleDryRunToggle(checked)}
+                className="scale-90"
+              />
+            </div>
+            <div className="w-px h-5 bg-zinc-300 mx-1" />
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="workers-toggle" className="text-xs font-medium text-zinc-600">
                 Workers
               </label>
               <Switch
@@ -460,17 +541,22 @@ export default function JobsPage() {
                 checked={workersActive}
                 onCheckedChange={handleWorkersToggle}
                 disabled={isLoadingWorkers}
+                className="scale-90"
               />
             </div>
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh}
-              className="hover:bg-zinc-50 h-7 px-2"
-              title="Refresh stats"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-            <Button 
+            </div>
+
+            {/* Row 2: Action Buttons */}
+            <div className="flex gap-1 items-center">
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                className="hover:bg-zinc-50 h-7 px-2"
+                title="Refresh stats"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            <Button
               onClick={handleQueueEmailJob}
               className="bg-purple-600 hover:bg-purple-700 h-7 px-2 text-xs"
               title="Queue Email Processing Job"
@@ -478,13 +564,25 @@ export default function JobsPage() {
               <Plus className="h-3.5 w-3.5 mr-1" />
               Email
             </Button>
-            <Button 
+            <Button
               onClick={handleQueueToneJob}
               className="bg-indigo-600 hover:bg-indigo-700 h-7 px-2 text-xs"
               title="Queue Tone Profile Job"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               Tone
+            </Button>
+            <Button
+              onClick={handleProcessInbox}
+              className={dryRunEnabled
+                ? "bg-amber-600 hover:bg-amber-700 h-7 px-2 text-xs"
+                : "bg-emerald-600 hover:bg-emerald-700 h-7 px-2 text-xs"}
+              title={dryRunEnabled
+                ? "Process emails in DRY RUN mode - analyzes and generates drafts but does NOT move emails or mark them as processed (will reprocess on next run)"
+                : "Process all unprocessed emails - moves them to folders and marks as processed"}
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              {dryRunEnabled ? "Process (Dry)" : "Process All"}
             </Button>
             <Button
               onClick={handleEmergencyToggle}
@@ -562,6 +660,7 @@ export default function JobsPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            </div>
           </div>
         </div>
       </div>
