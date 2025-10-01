@@ -23,11 +23,11 @@ router.get('/', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// Get specific scheduler status
-router.get('/:id', requireAuth, async (req, res): Promise<void> => {
+// Get specific scheduler status for an account
+router.get('/:id/:accountId', requireAuth, async (req, res): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
     const schedulerId = req.params.id;
+    const accountId = req.params.accountId;
 
     // Validate scheduler ID
     if (!Object.values(SchedulerId).includes(schedulerId as SchedulerId)) {
@@ -35,7 +35,7 @@ router.get('/:id', requireAuth, async (req, res): Promise<void> => {
       return;
     }
 
-    const status = await jobSchedulerManager.getSchedulerStatus(schedulerId, userId);
+    const status = await jobSchedulerManager.getSchedulerStatus(schedulerId, accountId);
     res.json(status);
   } catch (error) {
     console.error(`Error getting scheduler ${req.params.id}:`, error);
@@ -46,11 +46,12 @@ router.get('/:id', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// Update scheduler (enable/disable)
-router.put('/:id', requireAuth, async (req, res): Promise<void> => {
+// Update scheduler (enable/disable) for a specific account
+router.put('/:id/:accountId', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
     const schedulerId = req.params.id;
+    const accountId = req.params.accountId;
     const { enabled } = req.body;
 
     // Validate scheduler ID
@@ -66,36 +67,17 @@ router.put('/:id', requireAuth, async (req, res): Promise<void> => {
     }
 
     if (enabled) {
-      // Get the user's first email account to use for scheduling
-      const accountsResponse = await fetch(`http://localhost:${process.env.PORT || 3002}/api/email-accounts`, {
-        headers: {
-          'Cookie': req.headers.cookie || ''
-        }
-      });
-
-      if (!accountsResponse.ok) {
-        res.status(400).json({ error: 'Please add an email account first' });
-        return;
-      }
-
-      const accounts = await accountsResponse.json() as any[];
-      if (!accounts || accounts.length === 0) {
-        res.status(400).json({ error: 'Please add an email account first' });
-        return;
-      }
-
-      const firstAccount = accounts[0];
-      await jobSchedulerManager.enableScheduler(schedulerId, userId, firstAccount.id);
+      await jobSchedulerManager.enableScheduler(schedulerId, userId, accountId);
     } else {
-      await jobSchedulerManager.disableScheduler(schedulerId, userId);
+      await jobSchedulerManager.disableScheduler(schedulerId, userId, accountId);
     }
 
     // Get updated status
-    const status = await jobSchedulerManager.getSchedulerStatus(schedulerId, userId);
+    const status = await jobSchedulerManager.getSchedulerStatus(schedulerId, accountId);
 
     res.json({
       success: true,
-      message: `Scheduler ${schedulerId} ${enabled ? 'enabled' : 'disabled'}`,
+      message: `Scheduler ${schedulerId} ${enabled ? 'enabled' : 'disabled'} for account ${accountId}`,
       scheduler: status
     });
   } catch (error) {

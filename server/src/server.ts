@@ -29,7 +29,7 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// Test database connection and initialize better-auth
+// Test database connection and initialize schedulers
 async function initializeDatabase() {
   try {
     // Test PostgreSQL connection
@@ -42,8 +42,37 @@ async function initializeDatabase() {
   }
 }
 
-// Initialize database on startup
-initializeDatabase();
+// Initialize schedulers for all users on startup
+async function initializeSchedulers() {
+  try {
+    const { jobSchedulerManager } = await import('./lib/job-scheduler-manager');
+
+    // Get all unique users with active email accounts
+    const result = await pool.query(
+      'SELECT DISTINCT user_id FROM email_accounts WHERE is_active = true'
+    );
+
+    console.log(`🔄 Initializing schedulers for ${result.rows.length} users...`);
+
+    for (const row of result.rows) {
+      try {
+        await jobSchedulerManager.initializeUserSchedulers(row.user_id);
+      } catch (error) {
+        console.error(`Failed to initialize schedulers for user ${row.user_id}:`, error);
+      }
+    }
+
+    console.log('✅ Schedulers initialized');
+  } catch (error) {
+    console.error('❌ Scheduler initialization error:', error);
+  }
+}
+
+// Initialize database and schedulers on startup
+initializeDatabase().then(() => {
+  // Initialize schedulers after database is ready
+  initializeSchedulers();
+});
 
 // CORS configuration for Next.js frontend
 app.use(cors({
