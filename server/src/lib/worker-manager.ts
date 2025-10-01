@@ -63,7 +63,7 @@ export class WorkerManager {
         // Use stored state from Redis
         this.isPaused = storedState === 'true';
       } else {
-        // Use env variable (guaranteed to be set)
+        // Use env variable - WORKERS_START_PAUSED (true = paused, false = running)
         this.isPaused = process.env.WORKERS_START_PAUSED === 'true';
         await this.redis.set(WORKER_STATE_KEY, String(this.isPaused));
       }
@@ -80,6 +80,8 @@ export class WorkerManager {
         this.isDryRun = process.env.DRY_RUN_DEFAULT === 'true';
         await this.redis.set(DRY_RUN_STATE_KEY, String(this.isDryRun));
       }
+
+      console.log(`[WorkerManager] Initialized with state: isPaused=${this.isPaused}, isDryRun=${this.isDryRun}`);
 
       // Apply initial state to all workers
       if (this.isPaused) {

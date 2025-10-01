@@ -5,6 +5,7 @@ export interface CreateEmailAccountRequest {
   imap_secure: boolean;
   imap_username: string;
   imap_password: string;
+  monitoring_enabled?: boolean;
 }
 
 export interface EmailAccountResponse {
