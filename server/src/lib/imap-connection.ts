@@ -107,16 +107,26 @@ export class ImapConnection extends EventEmitter {
     this.imap.on('ready', () => {
       this.connected = true;
       this.logOperation('CONNECT', {
+        raw: `Connection established for ${this.config.user}`,
         response: 'Connection established',
-        parsed: { host: this.config.host, port: this.config.port }
+        parsed: {
+          host: this.config.host,
+          port: this.config.port,
+          user: this.config.user
+        }
       });
       this.emit('ready');
     });
 
     this.imap.on('error', (err: Error) => {
       this.logOperation('ERROR', {
+        raw: `Error for ${this.config.user}: ${err.message}`,
         error: err.message,
-        parsed: { code: (err as any).code, source: (err as any).source }
+        parsed: {
+          code: (err as any).code,
+          source: (err as any).source,
+          user: this.config.user
+        }
       }, 'error');
       this.emit('error', err);
     });
@@ -125,6 +135,7 @@ export class ImapConnection extends EventEmitter {
       this.connected = false;
       this.currentBox = null;
       this.logOperation('DISCONNECT', {
+        raw: `Connection ended for ${this.config.user}`,
         response: 'Connection ended'
       });
       this.emit('end');
@@ -134,8 +145,9 @@ export class ImapConnection extends EventEmitter {
       this.connected = false;
       this.currentBox = null;
       this.logOperation('CLOSE', {
+        raw: `Connection closed for ${this.config.user}${hadError ? ' (with error)' : ''}`,
         response: hadError ? 'Connection closed with error' : 'Connection closed',
-        parsed: { hadError }
+        parsed: { hadError, user: this.config.user }
       });
       this.emit('close', hadError);
     });
