@@ -783,37 +783,24 @@ function EditAccountForm({ account, onSuccess, onCancel }: {
   const onSubmit = async (data: z.infer<typeof emailAccountSchema>) => {
     setIsSubmitting(true)
     try {
-      // For edit, we need to update the existing account
-      // First delete the old one, then add the new one with updated credentials
-      const deleteResponse = await fetch(`http://localhost:3002/api/email-accounts/${account.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (!deleteResponse.ok) {
-        throw new Error('Failed to update account')
-      }
-
-      // Now add with new credentials
-      const response = await fetch('http://localhost:3002/api/email-accounts', {
+      const response = await fetch(`http://localhost:3002/api/email-accounts/${account.id}/update-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          imap_host: data.imap_host,
+          imap_port: data.imap_port,
+          imap_username: data.imap_username,
+          imap_password: data.imap_password
+        })
       })
 
       if (response.ok) {
-        success('Email account updated successfully!')
+        success('Email account credentials updated successfully!')
         onSuccess()
       } else {
         const errorData = await response.json()
-        if (errorData.error === 'IMAP authentication failed') {
-          showError('Invalid credentials. Please check your password.')
-        } else if (errorData.error === 'IMAP connection failed') {
-          showError('Could not connect to email server. Please check the server settings.')
-        } else {
-          showError(errorData.error || 'Failed to update email account')
-        }
+        showError(errorData.error || 'Failed to update email account')
       }
     } catch {
       showError('Failed to update email account. Please try again.')
