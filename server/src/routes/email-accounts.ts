@@ -4,14 +4,15 @@ import { pool } from '../server';
 
 import { encryptPassword } from '../lib/crypto';
 import { validateEmailAccount } from '../middleware/validation';
-import { 
-  CreateEmailAccountRequest, 
+import {
+  CreateEmailAccountRequest,
   EmailAccountResponse,
-  ImapConnectionError 
+  ImapConnectionError
 } from '../types/email-account';
 import { ImapOperations } from '../lib/imap-operations';
 import { withImapContext } from '../lib/imap-context';
 import { imapLogger } from '../lib/imap-logger';
+import { jobSchedulerManager, SchedulerId } from '../lib/job-scheduler-manager';
 
 const router = express.Router();
 
@@ -178,37 +179,48 @@ router.post('/', requireAuth, validateEmailAccount, async (req, res): Promise<vo
     
     // Encrypt password
     const encryptedPassword = encryptPassword(accountData.imap_password);
-    
+
     // Insert into database
     const result = await pool.query(
-      `INSERT INTO email_accounts 
-       (user_id, email_address, imap_host, imap_port, imap_username, imap_password_encrypted, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
-       RETURNING id, email_address, imap_host, imap_port, imap_username, is_active, last_sync, created_at`,
+      `INSERT INTO email_accounts
+       (user_id, email_address, imap_host, imap_port, imap_username, imap_password_encrypted, is_active, monitoring_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, email_address, imap_host, imap_port, imap_username, is_active, monitoring_enabled, last_sync, created_at`,
       [
-        userId, 
-        accountData.email_address, 
-        accountData.imap_host, 
+        userId,
+        accountData.email_address,
+        accountData.imap_host,
         accountData.imap_port,
-        accountData.imap_username, 
+        accountData.imap_username,
         encryptedPassword,
-        true // Set as active by default
+        true, // Set as active by default
+        accountData.monitoring_enabled || false // Default to false if not specified
       ]
     );
-    
+
+    const newAccountId = result.rows[0].id;
+    const monitoringEnabled = result.rows[0].monitoring_enabled;
+
+    // Enable scheduler if monitoring was enabled during creation
+    if (monitoringEnabled) {
+      await jobSchedulerManager.enableScheduler(SchedulerId.CHECK_MAIL, userId, newAccountId);
+      console.log(`[email-accounts] Enabled scheduler for new account ${newAccountId}`);
+    }
+
     const account: EmailAccountResponse = {
-      id: result.rows[0].id,
+      id: newAccountId,
       email_address: result.rows[0].email_address,
       imap_host: result.rows[0].imap_host,
       imap_port: result.rows[0].imap_port,
       imap_secure: accountData.imap_secure, // Not stored in DB, return from request
       imap_username: result.rows[0].imap_username,
       is_active: result.rows[0].is_active,
+      monitoring_enabled: monitoringEnabled,
       last_sync: result.rows[0].last_sync ? result.rows[0].last_sync.toISOString() : null,
       created_at: result.rows[0].created_at.toISOString(),
       updated_at: new Date().toISOString() // Not in DB, use current time
     };
-    
+
     res.status(201).json(account);
   } catch (error) {
     console.error('Error creating email account:', error);
@@ -284,26 +296,35 @@ router.post('/:id/monitoring', requireAuth, async (req, res): Promise<void> => {
     const userId = (req as any).user.id;
     const accountId = req.params.id;
     const { enabled } = req.body;
-    
+
     if (typeof enabled !== 'boolean') {
       res.status(400).json({ error: 'enabled must be a boolean' });
       return;
     }
-    
+
     // Update the monitoring status
     const result = await pool.query(
-      `UPDATE email_accounts 
-       SET monitoring_enabled = $1 
-       WHERE id = $2 AND user_id = $3 
+      `UPDATE email_accounts
+       SET monitoring_enabled = $1
+       WHERE id = $2 AND user_id = $3
        RETURNING id, email_address, monitoring_enabled`,
       [enabled, accountId, userId]
     );
-    
+
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Email account not found' });
       return;
     }
-    
+
+    // Sync scheduler with monitoring state
+    if (enabled) {
+      await jobSchedulerManager.enableScheduler(SchedulerId.CHECK_MAIL, userId, accountId);
+      console.log(`[email-accounts] Enabled scheduler for account ${accountId}`);
+    } else {
+      await jobSchedulerManager.disableScheduler(SchedulerId.CHECK_MAIL, userId, accountId);
+      console.log(`[email-accounts] Disabled scheduler for account ${accountId}`);
+    }
+
     // Log account monitoring toggle
     imapLogger.log(userId, {
       userId,
@@ -311,15 +332,15 @@ router.post('/:id/monitoring', requireAuth, async (req, res): Promise<void> => {
       level: 'info',
       command: 'ACCOUNT_MONITORING_TOGGLE',
       data: {
-        parsed: { 
+        parsed: {
           accountId: result.rows[0].id,
           email: result.rows[0].email_address,
-          enabled 
+          enabled
         },
         response: `Account monitoring ${enabled ? 'enabled' : 'disabled'} for ${result.rows[0].email_address}`
       }
     });
-    
+
     res.json({
       success: true,
       account: {
@@ -334,29 +355,69 @@ router.post('/:id/monitoring', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
+// Update email account credentials (password, host, port, username)
+router.post('/:id/update-credentials', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const accountId = req.params.id;
+    const { imap_host, imap_port, imap_username, imap_password } = req.body;
+
+    // Verify account exists and belongs to user
+    const accountResult = await pool.query(
+      'SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2',
+      [accountId, userId]
+    );
+
+    if (accountResult.rows.length === 0) {
+      res.status(404).json({ error: 'Email account not found' });
+      return;
+    }
+
+    // Update connection fields
+    const encryptedPassword = encryptPassword(imap_password);
+    await pool.query(
+      `UPDATE email_accounts
+       SET imap_host = $1, imap_port = $2, imap_username = $3, imap_password_encrypted = $4
+       WHERE id = $5`,
+      [imap_host, imap_port, imap_username, encryptedPassword, accountId]
+    );
+
+    // No need to refresh scheduler - it fetches fresh credentials from database on each run
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating account credentials:', error);
+    res.status(500).json({ error: 'Failed to update account credentials' });
+  }
+});
+
 // Delete email account
 router.delete('/:id', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
     const accountId = req.params.id;
-    
+
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(accountId)) {
       res.status(400).json({ error: 'Invalid account ID format' });
       return;
     }
-    
+
     const result = await pool.query(
       'DELETE FROM email_accounts WHERE id = $1 AND user_id = $2 RETURNING id',
       [accountId, userId]
     );
-    
+
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Email account not found' });
       return;
     }
-    
+
+    // Disable scheduler for deleted account
+    await jobSchedulerManager.disableScheduler(SchedulerId.CHECK_MAIL, userId, accountId);
+    console.log(`[email-accounts] Disabled scheduler for deleted account ${accountId}`);
+
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting email account:', error);
