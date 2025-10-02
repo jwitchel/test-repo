@@ -52,14 +52,22 @@ interface ApiJobData {
 }
 
 function formatTimestamp(timestamp: string): string {
+  if (!timestamp) return 'N/A';
+
   const date = new Date(timestamp);
+
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    return 'N/A';
+  }
+
   const now = new Date();
   const diff = now.getTime() - date.getTime();
-  
+
   if (diff < 60000) return 'Just now';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  
+
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
 }
 
@@ -274,8 +282,11 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
               case 'JOB_ACTIVE':
                 newJobs.set(jobKey, {
                   ...existingJob,
+                  jobId: event.jobId || existingJob.jobId,
                   queueName: event.queueName || existingJob.queueName,
+                  type: event.jobType || existingJob.type,
                   status: 'active',
+                  timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
                   startedAt: event.startedAt || new Date().toISOString()
                 });
                 break;
@@ -283,8 +294,11 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
               case 'JOB_PROGRESS':
                 newJobs.set(jobKey, {
                   ...existingJob,
+                  jobId: event.jobId || existingJob.jobId,
                   queueName: event.queueName || existingJob.queueName,
+                  type: event.jobType || existingJob.type,
                   status: 'active',
+                  timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
                   progress: event.progress
                 });
                 break;
@@ -293,8 +307,11 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                 console.log(`[JobsMonitor] JOB_COMPLETED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
                 newJobs.set(jobKey, {
                   ...existingJob,
+                  jobId: event.jobId || existingJob.jobId,
                   queueName: event.queueName || existingJob.queueName,
+                  type: event.jobType || existingJob.type,
                   status: 'completed',
+                  timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
                   result: event.result,
                   completedAt: new Date().toISOString()
                 });
@@ -308,8 +325,11 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                 console.log(`[JobsMonitor] JOB_FAILED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
                 newJobs.set(jobKey, {
                   ...existingJob,
+                  jobId: event.jobId || existingJob.jobId,
                   queueName: event.queueName || existingJob.queueName,
+                  type: event.jobType || existingJob.type,
                   status: 'failed',
+                  timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
                   error: event.error,
                   completedAt: event.failedAt || new Date().toISOString()
                 });
