@@ -206,7 +206,7 @@ export class InboxProcessor {
     const startTime = Date.now();
     const { accountId, userId, providerId, dryRun, batchSize, offset, force } = params;
 
-    console.log(`[InboxProcessor] Processing batch: accountId=${accountId}, batchSize=${batchSize}, offset=${offset}, dryRun=${dryRun}`);
+    console.log(`[SERVER] [InboxProcessor] ${dryRun ? '[DRY RUN] ' : ''}Processing batch: accountId=${accountId}, batchSize=${batchSize}, offset=${offset}, dryRun=${dryRun}`);
 
     // Wrap entire batch operation in IMAP context to ensure:
     // 1. Single connection reused across all IMAP operations
@@ -243,12 +243,14 @@ export class InboxProcessor {
         const fullMessages = await imapOps.getMessagesRaw('INBOX', uids);
 
         // Get action tracking for all messages to filter already processed
+        // In dry-run mode, process all messages regardless of tracking (to show what would happen)
         const messageIds = fullMessages.map(msg => msg.messageId).filter((id): id is string => !!id);
-        const actionTracking = await EmailActionTracker.getActionsForMessages(accountId, messageIds);
+        const actionTracking = dryRun ? {} : await EmailActionTracker.getActionsForMessages(accountId, messageIds);
 
-        // Filter to unprocessed messages (unless force is true)
+        // Filter to unprocessed messages (unless force is true or dry-run mode)
         const toProcess = fullMessages.filter(msg => {
           if (!msg.messageId) return false;
+          if (dryRun) return true; // Process all in dry-run mode
           const tracked = actionTracking[msg.messageId];
           const shouldProcess = force || !tracked || tracked.actionTaken === 'none';
           if (!shouldProcess) {
