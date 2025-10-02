@@ -100,11 +100,16 @@ export class JobSchedulerManager {
       throw new Error(`Unknown scheduler: ${schedulerId}`);
     }
 
-    console.log(`[JobSchedulerManager] Enabling scheduler: ${schedulerId} for user: ${userId}`);
+    // Get email address for logging
+    const { pool } = await import('../server');
+    const emailResult = await pool.query('SELECT email_address FROM email_accounts WHERE id = $1', [accountId]);
+    const emailAddress = emailResult.rows[0]?.email_address || accountId;
+
+    console.log(`[JobSchedulerManager] Enabling scheduler: ${schedulerId} for ${emailAddress}`);
 
     // Create or update the JobScheduler using BullMQ's native functionality
-    // Note: JobScheduler ID includes userId to make it unique per user
-    const jobSchedulerId = `${schedulerId}-${userId}`;
+    // Note: JobScheduler ID includes userId AND accountId to make it unique per account
+    const jobSchedulerId = `${schedulerId}-${accountId}`;
 
     await config.queue.upsertJobScheduler(
       jobSchedulerId,
@@ -120,69 +125,77 @@ export class JobSchedulerManager {
 
     // Store enabled state in Redis
     await this.redis.set(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:enabled`, 'true');
+    await this.redis.set(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:userId`, userId);
     await this.redis.set(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:accountId`, accountId);
 
-    console.log(`[JobSchedulerManager] Scheduler ${schedulerId} enabled for user ${userId} with interval ${config.interval}ms`);
+    console.log(`[JobSchedulerManager] Scheduler ${schedulerId} enabled for ${emailAddress} (${config.interval}ms)`);
   }
 
   /**
-   * Disable a scheduler for a specific user
+   * Disable a scheduler for a specific account
+   * @param userId - Included for signature consistency with enableScheduler (not used internally)
    */
-  async disableScheduler(schedulerId: string, userId: string): Promise<void> {
+  async disableScheduler(schedulerId: string, _userId: string, accountId: string): Promise<void> {
     const config = this.schedulerConfigs.get(schedulerId);
     if (!config) {
       throw new Error(`Unknown scheduler: ${schedulerId}`);
     }
 
-    console.log(`[JobSchedulerManager] Disabling scheduler: ${schedulerId} for user: ${userId}`);
+    // Get email address for logging
+    const { pool } = await import('../server');
+    const emailResult = await pool.query('SELECT email_address FROM email_accounts WHERE id = $1', [accountId]);
+    const emailAddress = emailResult.rows[0]?.email_address || accountId;
+
+    console.log(`[JobSchedulerManager] Disabling scheduler: ${schedulerId} for ${emailAddress}`);
 
     // Remove the JobScheduler
-    const jobSchedulerId = `${schedulerId}-${userId}`;
+    const jobSchedulerId = `${schedulerId}-${accountId}`;
     await config.queue.removeJobScheduler(jobSchedulerId);
 
-    // Update state in Redis
-    await this.redis.set(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:enabled`, 'false');
+    // Clean up state in Redis
+    await this.redis.del(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:enabled`);
+    await this.redis.del(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:userId`);
+    await this.redis.del(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:accountId`);
 
-    console.log(`[JobSchedulerManager] Scheduler ${schedulerId} disabled for user ${userId}`);
+    console.log(`[JobSchedulerManager] Scheduler ${schedulerId} disabled for ${emailAddress}`);
   }
 
   /**
-   * Get the status of a specific scheduler
+   * Get the status of a specific scheduler for an account
    */
-  async getSchedulerStatus(schedulerId: string, userId: string): Promise<{
+  async getSchedulerStatus(schedulerId: string, accountId: string): Promise<{
     id: string;
     enabled: boolean;
     interval: number;
     description: string;
-    accountId?: string;
+    accountId: string;
     nextRun?: Date;
-  }> {
+  } | null> {
     const config = this.schedulerConfigs.get(schedulerId);
     if (!config) {
       throw new Error(`Unknown scheduler: ${schedulerId}`);
     }
 
-    const jobSchedulerId = `${schedulerId}-${userId}`;
+    const jobSchedulerId = `${schedulerId}-${accountId}`;
 
     // Get enabled state from Redis
     const enabledStr = await this.redis.get(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:enabled`);
     const enabled = enabledStr === 'true';
 
-    // Get account ID from Redis
-    const accountId = await this.redis.get(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:accountId`);
+    if (!enabled) {
+      return null;
+    }
 
     // Get scheduler details from BullMQ if enabled
     let nextRun: Date | undefined;
-    if (enabled) {
-      try {
-        const schedulers = await config.queue.getJobSchedulers();
-        const scheduler = schedulers.find(s => s.id === jobSchedulerId);
-        if (scheduler && scheduler.next) {
-          nextRun = new Date(scheduler.next);
-        }
-      } catch (error) {
-        console.error(`Error getting scheduler details for ${jobSchedulerId}:`, error);
+    try {
+      const schedulers = await config.queue.getJobSchedulers();
+      const scheduler = schedulers.find(s => s.id === jobSchedulerId);
+      if (scheduler && scheduler.next) {
+        nextRun = new Date(scheduler.next);
       }
+    } catch (error) {
+      console.error(`Error getting scheduler details for ${jobSchedulerId}:`, error);
     }
 
     return {
@@ -190,51 +203,87 @@ export class JobSchedulerManager {
       enabled,
       interval: config.interval,
       description: config.description,
-      accountId: accountId || undefined,
+      accountId,
       nextRun
     };
   }
 
   /**
-   * Get status of all schedulers for a user
+   * Get status of all schedulers for a user (across all their accounts)
    */
   async getAllSchedulerStatuses(userId: string): Promise<Array<{
     id: string;
     enabled: boolean;
     interval: number;
     description: string;
-    accountId?: string;
+    accountId: string;
     nextRun?: Date;
   }>> {
     const statuses = [];
 
-    for (const schedulerId of this.schedulerConfigs.keys()) {
-      const status = await this.getSchedulerStatus(schedulerId, userId);
-      statuses.push(status);
+    // Get all keys matching the pattern for this scheduler type
+    const keys = await this.redis.keys(`${SCHEDULER_STATE_PREFIX}*:userId`);
+
+    for (const key of keys) {
+      const storedUserId = await this.redis.get(key);
+      if (storedUserId !== userId) continue;
+
+      // Extract scheduler ID from key pattern: scheduler:check-mail-ACCOUNT_ID:userId
+      // The accountId is a UUID (8-4-4-4-12 hex format)
+      const match = key.match(/scheduler:(.+)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):userId/i);
+      if (!match) continue;
+
+      const schedulerId = match[1];
+      const accountId = match[2];
+
+      const status = await this.getSchedulerStatus(schedulerId, accountId);
+      if (status) {
+        statuses.push(status);
+      }
     }
 
     return statuses;
   }
 
   /**
-   * Initialize schedulers for a user (restore state from Redis)
+   * Initialize schedulers for a user based on email_accounts.monitoring_enabled
+   * This syncs the schedulers with the database state by:
+   * 1. Enabling schedulers for accounts with monitoring_enabled = true
+   * 2. Disabling schedulers for accounts with monitoring_enabled = false
    */
   async initializeUserSchedulers(userId: string): Promise<void> {
     console.log(`[JobSchedulerManager] Initializing schedulers for user: ${userId}`);
 
-    for (const [schedulerId] of this.schedulerConfigs.entries()) {
-      const jobSchedulerId = `${schedulerId}-${userId}`;
-      const enabledStr = await this.redis.get(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:enabled`);
-      const accountId = await this.redis.get(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:accountId`);
+    // Import pool here to avoid circular dependencies
+    const { pool } = await import('../server');
 
-      if (enabledStr === 'true' && accountId) {
-        try {
-          // Re-enable the scheduler if it was previously enabled
-          await this.enableScheduler(schedulerId, userId, accountId);
-          console.log(`[JobSchedulerManager] Restored scheduler ${schedulerId} for user ${userId}`);
-        } catch (error) {
-          console.error(`[JobSchedulerManager] Failed to restore scheduler ${schedulerId} for user ${userId}:`, error);
+    // Query ALL accounts for this user with email addresses
+    const result = await pool.query(
+      'SELECT id, email_address, monitoring_enabled FROM email_accounts WHERE user_id = $1 AND is_active = true',
+      [userId]
+    );
+
+    const monitoredCount = result.rows.filter(r => r.monitoring_enabled).length;
+    console.log(`[JobSchedulerManager] Found ${result.rows.length} active accounts (${monitoredCount} monitored)`);
+
+    // Sync each account's scheduler with its monitoring_enabled state
+    for (const row of result.rows) {
+      const accountId = row.id;
+      const emailAddress = row.email_address;
+      const monitoringEnabled = row.monitoring_enabled;
+
+      try {
+        if (monitoringEnabled) {
+          await this.enableScheduler(SchedulerId.CHECK_MAIL, userId, accountId);
+        } else {
+          // Disable if currently enabled
+          const status = await this.getSchedulerStatus(SchedulerId.CHECK_MAIL, accountId);
+          if (status) {
+            await this.disableScheduler(SchedulerId.CHECK_MAIL, userId, accountId);
+          }
         }
+      } catch (error) {
+        console.error(`[JobSchedulerManager] Failed to sync scheduler for ${emailAddress}:`, error);
       }
     }
   }
@@ -245,11 +294,25 @@ export class JobSchedulerManager {
   async cleanupUserSchedulers(userId: string): Promise<void> {
     console.log(`[JobSchedulerManager] Cleaning up schedulers for user: ${userId}`);
 
-    for (const schedulerId of this.schedulerConfigs.keys()) {
+    // Get all scheduler keys for this user
+    const keys = await this.redis.keys(`${SCHEDULER_STATE_PREFIX}*:userId`);
+
+    for (const key of keys) {
+      const storedUserId = await this.redis.get(key);
+      if (storedUserId !== userId) continue;
+
+      // Extract accountId from key pattern: scheduler:check-mail-ACCOUNT_ID:userId
+      // The accountId is a UUID (8-4-4-4-12 hex format)
+      const match = key.match(/scheduler:(.+)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):userId/i);
+      if (!match) continue;
+
+      const schedulerId = match[1];
+      const accountId = match[2];
+
       try {
-        await this.disableScheduler(schedulerId, userId);
+        await this.disableScheduler(schedulerId, userId, accountId);
       } catch (error) {
-        console.error(`[JobSchedulerManager] Error disabling scheduler ${schedulerId} for user ${userId}:`, error);
+        console.error(`[JobSchedulerManager] Error disabling scheduler ${schedulerId} for account ${accountId}:`, error);
       }
     }
   }
