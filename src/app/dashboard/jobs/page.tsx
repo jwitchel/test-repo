@@ -491,9 +491,15 @@ export default function JobsPage() {
                 : scheduler.interval >= 60000
                 ? `${Math.round(scheduler.interval / 60000)}m`
                 : `${Math.round(scheduler.interval / 1000)}s`;
-              const nextRunStr = scheduler.nextRun
-                ? `Next: ${new Date(scheduler.nextRun).toLocaleTimeString()}`
-                : 'Not scheduled';
+
+              // Safely format next run time
+              let nextRunStr = 'Not scheduled';
+              if (scheduler.nextRun) {
+                const nextRunDate = new Date(scheduler.nextRun);
+                if (!isNaN(nextRunDate.getTime())) {
+                  nextRunStr = `Next: ${nextRunDate.toLocaleTimeString()}`;
+                }
+              }
 
               return (
                 <div key={scheduler.id} className="flex items-center gap-1 border border-zinc-200 rounded px-2 py-0.5">

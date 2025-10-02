@@ -175,17 +175,6 @@ export class ImapConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const startTime = Date.now();
-
-      this.logOperation('CONNECT', {
-        raw: `Connecting to ${this.config.host}:${this.config.port}`,
-        parsed: {
-          host: this.config.host,
-          port: this.config.port,
-          tls: this.config.tls
-        }
-      });
-
       const timeout = setTimeout(() => {
         this.imap.end();
         reject(new ImapConnectionError('Connection timeout', 'ETIMEDOUT'));
@@ -193,11 +182,6 @@ export class ImapConnection extends EventEmitter {
 
       this.imap.once('ready', () => {
         clearTimeout(timeout);
-        this.logOperation('LOGIN', {
-          raw: `LOGIN ${this.config.user} ****`,
-          response: 'Authentication successful',
-          duration: Date.now() - startTime
-        });
         resolve();
       });
 
@@ -293,34 +277,13 @@ export class ImapConnection extends EventEmitter {
     }
 
     return new Promise((resolve, reject) => {
-      const startTime = Date.now();
-
-      this.logOperation('SELECT', {
-        raw: `SELECT ${folderName}`
-      });
-
       this.imap.openBox(folderName, false, (err: Error | null, box: any) => {
         if (err) {
-          this.logOperation('SELECT', {
-            error: err.message,
-            duration: Date.now() - startTime
-          }, 'error');
           reject(new ImapConnectionError(`Failed to select folder: ${err.message}`, 'SELECT_FAILED'));
           return;
         }
 
         this.currentBox = folderName;
-
-        this.logOperation('SELECT', {
-          response: `Selected ${folderName}`,
-          parsed: {
-            messages: box.messages.total,
-            recent: box.messages.new,
-            uidvalidity: box.uidvalidity,
-            uidnext: box.uidnext
-          },
-          duration: Date.now() - startTime
-        });
 
         resolve(box);
       });
@@ -343,9 +306,22 @@ export class ImapConnection extends EventEmitter {
     try {
       const uids = await searchAsync(criteria);
 
+      // Show first 5 and last 5 UIDs for better visibility
+      let uidSample: number[] = [];
+      if (Array.isArray(uids) && uids.length > 0) {
+        if (uids.length <= 10) {
+          uidSample = uids;
+        } else {
+          uidSample = [...uids.slice(0, 5), ...uids.slice(-5)];
+        }
+      }
+
       this.logOperation('SEARCH', {
         response: `Found ${uids.length} messages`,
-        parsed: { count: uids.length, uids: uids.slice(0, 10) }, // Log first 10 UIDs
+        parsed: {
+          count: uids.length,
+          uids: uidSample
+        },
         duration: Date.now() - startTime
       });
 
