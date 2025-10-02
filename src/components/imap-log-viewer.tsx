@@ -112,13 +112,9 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
           setError('Authentication required. Please sign in first.');
           return;
         }
-        
-        // Handle abnormal closures
-        if (event.code === 1006) {
-          setError('WebSocket connection lost. Reconnecting...');
-        }
 
-        // Auto-reconnect after 5 seconds for unexpected closures
+        // Auto-reconnect after 5 seconds for unexpected closures (including abnormal closures like 1006)
+        // Don't show error toast - the connection status badge already shows disconnected state
         if (event.code !== 1000 && !reconnectTimeoutRef.current) {
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectTimeoutRef.current = null;
