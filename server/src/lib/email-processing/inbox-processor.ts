@@ -6,8 +6,6 @@
 
 import { ImapOperations } from '../imap-operations';
 import { EmailActionTracker } from '../email-action-tracker';
-import { EmailActionRouter } from '../email-action-router';
-import { pool } from '../../server';
 import { draftGenerator } from './draft-generator';
 import { emailMover } from './email-mover';
 import { withImapContext } from '../imap-context';
@@ -26,7 +24,6 @@ export interface ProcessEmailParams {
   accountId: string;
   userId: string;
   providerId: string;
-  dryRun: boolean;
   generatedDraft?: any; // Optional pre-generated draft to avoid LLM non-determinism
 }
 
@@ -40,7 +37,6 @@ export interface ProcessEmailResult {
   destination: string;
   draftId?: string;
   moved: boolean;
-  dryRun: boolean;
   error?: string;
 }
 
@@ -48,7 +44,6 @@ export interface BatchProcessParams {
   accountId: string;
   userId: string;
   providerId: string;
-  dryRun: boolean;
   batchSize: number;
   offset: number;
   force?: boolean;
@@ -68,7 +63,7 @@ export class InboxProcessor {
    * Process a single email - follows the exact logic from /inbox page
    */
   async processEmail(params: ProcessEmailParams): Promise<ProcessEmailResult> {
-    const { message, accountId, userId, providerId, dryRun, generatedDraft: existingDraft } = params;
+    const { message, accountId, userId, providerId, generatedDraft: existingDraft } = params;
 
     try {
       let generatedDraft: any;
@@ -101,71 +96,51 @@ export class InboxProcessor {
       let actionDescription = 'Reply sent';
 
       // Step 2: Process based on action type (matching /inbox page logic exactly)
-      if (!dryRun) {
-        try {
-          if (SILENT_ACTIONS.includes(recommendedAction)) {
-            // For silent actions, just move the email (no draft to upload)
-            console.log(`[InboxProcessor] Silent action ${recommendedAction} - moving message ${message.uid}`);
+      try {
+        if (SILENT_ACTIONS.includes(recommendedAction)) {
+          // For silent actions, just move the email (no draft to upload)
+          console.log(`[InboxProcessor] Silent action ${recommendedAction} - moving message ${message.uid}`);
 
-            const moveResponse = await emailMover.moveEmail({
-              emailAccountId: accountId,
-              userId,
-              messageUid: message.uid,
-              messageId: message.messageId,
-              sourceFolder: 'INBOX',
-              recommendedAction
-            });
+          const moveResponse = await emailMover.moveEmail({
+            emailAccountId: accountId,
+            userId,
+            messageUid: message.uid,
+            messageId: message.messageId,
+            sourceFolder: 'INBOX',
+            recommendedAction
+          });
 
-            if (moveResponse.success) {
-              moved = true;
-              destination = moveResponse.folder || destination;
-              actionDescription = moveResponse.message || `Moved to ${destination}`;
-            }
-          } else {
-            // For other actions (reply, etc), upload the draft which also moves the original
-            console.log(`[InboxProcessor] Uploading draft for message ${message.messageId}`);
-
-            const uploadResponse = await emailMover.uploadDraft({
-              emailAccountId: accountId,
-              userId,
-              to: generatedDraft.to,
-              cc: generatedDraft.cc,
-              subject: generatedDraft.subject,
-              body: generatedDraft.body,
-              bodyHtml: generatedDraft.bodyHtml,
-              inReplyTo: generatedDraft.inReplyTo,
-              references: generatedDraft.references,
-              recommendedAction
-            });
-
-            if (uploadResponse.success) {
-              moved = true;
-              destination = uploadResponse.folder || destination;
-              actionDescription = uploadResponse.message || 'Draft created and email moved';
-            }
+          if (moveResponse.success) {
+            moved = true;
+            destination = moveResponse.folder || destination;
+            actionDescription = moveResponse.message || `Moved to ${destination}`;
           }
-        } catch (moveError) {
-          console.error(`[InboxProcessor] Failed to process message ${message.messageId}:`, moveError);
-          throw moveError;
-        }
-      } else {
-        // In dry-run mode, determine what would happen without making changes
-        // Get folder routing info for display
-        const userResult = await pool.query(
-          'SELECT preferences FROM "user" WHERE id = $1',
-          [userId]
-        );
-        const folderPrefs = userResult.rows[0]?.preferences?.folders;
-        const actionRouter = new EmailActionRouter(folderPrefs, 'Drafts');
-
-        if (recommendedAction !== 'reply') {
-          const route = actionRouter.getActionRoute(recommendedAction as any);
-          destination = route.folder;
-          actionDescription = `DRY-RUN: Would ${SILENT_ACTIONS.includes(recommendedAction) ? 'move' : 'reply and move'} to ${destination}`;
         } else {
-          actionDescription = 'DRY-RUN: Would send reply';
+          // For other actions (reply, etc), upload the draft which also moves the original
+          console.log(`[InboxProcessor] Uploading draft for message ${message.messageId}`);
+
+          const uploadResponse = await emailMover.uploadDraft({
+            emailAccountId: accountId,
+            userId,
+            to: generatedDraft.to,
+            cc: generatedDraft.cc,
+            subject: generatedDraft.subject,
+            body: generatedDraft.body,
+            bodyHtml: generatedDraft.bodyHtml,
+            inReplyTo: generatedDraft.inReplyTo,
+            references: generatedDraft.references,
+            recommendedAction
+          });
+
+          if (uploadResponse.success) {
+            moved = true;
+            destination = uploadResponse.folder || destination;
+            actionDescription = uploadResponse.message || 'Draft created and email moved';
+          }
         }
-        console.log(`[InboxProcessor] DRY-RUN: Message ${message.uid} - ${actionDescription}`);
+      } catch (moveError) {
+        console.error(`[InboxProcessor] Failed to process message ${message.messageId}:`, moveError);
+        throw moveError;
       }
 
       return {
@@ -177,8 +152,7 @@ export class InboxProcessor {
         actionDescription,
         destination,
         draftId: generatedDraft?.id,
-        moved,
-        dryRun
+        moved
       };
 
     } catch (error) {
@@ -192,7 +166,6 @@ export class InboxProcessor {
         actionDescription: 'Failed to process',
         destination: 'INBOX',
         moved: false,
-        dryRun,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
@@ -204,9 +177,9 @@ export class InboxProcessor {
    */
   async processBatch(params: BatchProcessParams): Promise<BatchProcessResult> {
     const startTime = Date.now();
-    const { accountId, userId, providerId, dryRun, batchSize, offset, force } = params;
+    const { accountId, userId, providerId, batchSize, offset, force } = params;
 
-    console.log(`[SERVER] [InboxProcessor] ${dryRun ? '[DRY RUN] ' : ''}Processing batch: accountId=${accountId}, batchSize=${batchSize}, offset=${offset}, dryRun=${dryRun}`);
+    console.log(`[SERVER] [InboxProcessor] Processing batch: accountId=${accountId}, batchSize=${batchSize}, offset=${offset}`);
 
     // Wrap entire batch operation in IMAP context to ensure:
     // 1. Single connection reused across all IMAP operations
@@ -243,14 +216,12 @@ export class InboxProcessor {
         const fullMessages = await imapOps.getMessagesRaw('INBOX', uids);
 
         // Get action tracking for all messages to filter already processed
-        // In dry-run mode, process all messages regardless of tracking (to show what would happen)
         const messageIds = fullMessages.map(msg => msg.messageId).filter((id): id is string => !!id);
-        const actionTracking = dryRun ? {} : await EmailActionTracker.getActionsForMessages(accountId, messageIds);
+        const actionTracking = await EmailActionTracker.getActionsForMessages(accountId, messageIds);
 
-        // Filter to unprocessed messages (unless force is true or dry-run mode)
+        // Filter to unprocessed messages (unless force is true)
         const toProcess = fullMessages.filter(msg => {
           if (!msg.messageId) return false;
-          if (dryRun) return true; // Process all in dry-run mode
           const tracked = actionTracking[msg.messageId];
           const shouldProcess = force || !tracked || tracked.actionTaken === 'none';
           if (!shouldProcess) {
@@ -273,8 +244,7 @@ export class InboxProcessor {
             },
             accountId,
             userId,
-            providerId,
-            dryRun
+            providerId
           });
 
           results.push(result);

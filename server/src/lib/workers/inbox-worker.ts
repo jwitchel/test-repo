@@ -19,11 +19,6 @@ const connection = new Redis({
 async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
   const { userId, accountId } = job.data;
 
-  // Always fetch current dry-run state from WorkerManager
-  // JobScheduler caches job data, so we can't rely on job.data.dryRun
-  const { workerManager } = await import('../worker-manager');
-  const dryRun = await workerManager.isDryRunEnabled();
-
   // Log start
   imapLogger.log(userId, {
     userId,
@@ -31,10 +26,8 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
     level: 'info',
     command: 'worker.process_inbox.start',
     data: {
-      raw: dryRun
-        ? `Starting inbox processing (DRY-RUN) for account ${accountId}`
-        : `Starting inbox processing for account ${accountId}`,
-      parsed: { accountId, dryRun }
+      raw: `Starting inbox processing for account ${accountId}`,
+      parsed: { accountId }
     }
   });
 
@@ -56,7 +49,6 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
     accountId,
     userId,
     providerId,
-    dryRun,
     batchSize,
     offset: 0,
     force: false
@@ -69,13 +61,10 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
     level: 'info',
     command: 'worker.process_inbox.complete',
     data: {
-      raw: dryRun
-        ? `[DRY RUN] Processed ${result.processed} emails in ${result.elapsed}ms`
-        : `Processed ${result.processed} emails in ${result.elapsed}ms`,
+      raw: `Processed ${result.processed} emails in ${result.elapsed}ms`,
       parsed: {
         processed: result.processed,
         elapsed: result.elapsed,
-        dryRun,
         results: result.results
       }
     }

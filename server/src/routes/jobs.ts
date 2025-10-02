@@ -8,7 +8,6 @@ import {
   addInboxJob,
   addTrainingJob
 } from '../lib/queue';
-import { workerManager } from '../lib/worker-manager';
 
 const router = express.Router();
 
@@ -38,13 +37,8 @@ router.post('/queue', requireAuth, async (req, res): Promise<void> => {
     // Queue the job based on type
     switch (type) {
       case JobType.PROCESS_INBOX:
-        // Get current dry-run state from WorkerManager if not provided
-        const isDryRun = data.dryRun !== undefined
-          ? data.dryRun
-          : await workerManager.isDryRunEnabled();
-
         job = await addInboxJob(
-          { ...data, userId, dryRun: isDryRun },
+          { ...data, userId },
           jobPriority
         );
         break;

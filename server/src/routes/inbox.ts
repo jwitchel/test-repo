@@ -19,14 +19,13 @@ router.post('/process-single', requireAuth, async (req, res): Promise<void> => {
     messageFrom,
     rawMessage,
     providerId,
-    dryRun,
     generatedDraft
   } = req.body;
 
   // Validate required fields
-  if (!emailAccountId || !rawMessage || !providerId || !messageUid || dryRun === undefined) {
+  if (!emailAccountId || !rawMessage || !providerId || !messageUid) {
     res.status(400).json({
-      error: 'Missing required fields: emailAccountId, rawMessage, providerId, messageUid, dryRun'
+      error: 'Missing required fields: emailAccountId, rawMessage, providerId, messageUid'
     });
     return;
   }
@@ -44,7 +43,6 @@ router.post('/process-single', requireAuth, async (req, res): Promise<void> => {
       accountId: emailAccountId,
       userId,
       providerId,
-      dryRun,
       generatedDraft
     });
 

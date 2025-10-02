@@ -430,7 +430,6 @@ export default function InboxPage() {
           messageFrom: currentMessage.from,
           rawMessage: currentMessage.rawMessage,
           providerId: selectedProviderId,
-          dryRun: false,
           generatedDraft: generatedDraft // Pass the existing draft to avoid regenerating
         }
       );

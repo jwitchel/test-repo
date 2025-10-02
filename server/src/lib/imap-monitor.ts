@@ -9,7 +9,6 @@ import { ImapOperations } from './imap-operations';
 import { addInboxJob, JobPriority } from './queue';
 import { pool } from '../server';
 import { imapLogger } from './imap-logger';
-import { workerManager } from './worker-manager';
 
 // Monitoring configuration
 interface MonitorConfig {
@@ -307,17 +306,13 @@ class MonitorInstance {
         { limit: count, preserveConnection: true }
       );
 
-      // Get current dry-run state from WorkerManager
-      const isDryRun = await workerManager.isDryRunEnabled();
-
       // Queue each message for processing
       for (const message of messages) {
         const job = await addInboxJob(
           {
             userId: this.userId,
             accountId: this.accountId,
-            folderName: 'INBOX',
-            dryRun: isDryRun  // Use state from WorkerManager (Redis)
+            folderName: 'INBOX'
           },
           JobPriority.HIGH
         );

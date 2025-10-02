@@ -50,7 +50,6 @@ export interface ProcessInboxJobData {
   accountId: string;
   folderName?: string; // Default to INBOX
   since?: Date; // Optional: only process emails after this date
-  dryRun: boolean; // Whether to run in dry-run mode
 }
 
 export interface LearnFromEditJobData {

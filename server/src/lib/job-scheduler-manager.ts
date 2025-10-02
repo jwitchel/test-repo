@@ -13,7 +13,6 @@ import {
   BuildToneProfileJobData
 } from './queue';
 import { Queue } from 'bullmq';
-import { workerManager } from './worker-manager';
 
 // Redis keys for storing scheduler state
 const SCHEDULER_STATE_PREFIX = 'scheduler:';
@@ -68,8 +67,7 @@ export class JobSchedulerManager {
       jobData: async (userId: string, accountId: string) => ({
         userId,
         accountId,
-        folderName: 'INBOX',
-        dryRun: await workerManager.isDryRunEnabled() // Get current state from WorkerManager
+        folderName: 'INBOX'
       }),
       jobOpts: { priority: JobPriority.NORMAL },
       description: 'Check for new emails'
@@ -182,20 +180,18 @@ export class JobSchedulerManager {
     const enabledStr = await this.redis.get(`${SCHEDULER_STATE_PREFIX}${jobSchedulerId}:enabled`);
     const enabled = enabledStr === 'true';
 
-    if (!enabled) {
-      return null;
-    }
-
     // Get scheduler details from BullMQ if enabled
     let nextRun: Date | undefined;
-    try {
-      const schedulers = await config.queue.getJobSchedulers();
-      const scheduler = schedulers.find(s => s.id === jobSchedulerId);
-      if (scheduler && scheduler.next) {
-        nextRun = new Date(scheduler.next);
+    if (enabled) {
+      try {
+        const schedulers = await config.queue.getJobSchedulers();
+        const scheduler = schedulers.find(s => s.id === jobSchedulerId);
+        if (scheduler && scheduler.next) {
+          nextRun = new Date(scheduler.next);
+        }
+      } catch (error) {
+        console.error(`Error getting scheduler details for ${jobSchedulerId}:`, error);
       }
-    } catch (error) {
-      console.error(`Error getting scheduler details for ${jobSchedulerId}:`, error);
     }
 
     return {
@@ -210,6 +206,7 @@ export class JobSchedulerManager {
 
   /**
    * Get status of all schedulers for a user (across all their accounts)
+   * Returns ALL possible schedulers (enabled and disabled) for all active accounts
    */
   async getAllSchedulerStatuses(userId: string): Promise<Array<{
     id: string;
@@ -221,24 +218,29 @@ export class JobSchedulerManager {
   }>> {
     const statuses = [];
 
-    // Get all keys matching the pattern for this scheduler type
-    const keys = await this.redis.keys(`${SCHEDULER_STATE_PREFIX}*:userId`);
+    // Import pool here to avoid circular dependencies
+    const { pool } = await import('../server');
 
-    for (const key of keys) {
-      const storedUserId = await this.redis.get(key);
-      if (storedUserId !== userId) continue;
+    // Get all active email accounts for this user
+    const result = await pool.query(
+      'SELECT id FROM email_accounts WHERE user_id = $1 AND is_active = true',
+      [userId]
+    );
 
-      // Extract scheduler ID from key pattern: scheduler:check-mail-ACCOUNT_ID:userId
-      // The accountId is a UUID (8-4-4-4-12 hex format)
-      const match = key.match(/scheduler:(.+)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):userId/i);
-      if (!match) continue;
+    // For each account, get status of all scheduler types
+    for (const row of result.rows) {
+      const accountId = row.id;
 
-      const schedulerId = match[1];
-      const accountId = match[2];
-
-      const status = await this.getSchedulerStatus(schedulerId, accountId);
-      if (status) {
-        statuses.push(status);
+      // Get status for each scheduler type
+      for (const schedulerId of this.schedulerConfigs.keys()) {
+        try {
+          const status = await this.getSchedulerStatus(schedulerId, accountId);
+          if (status) {
+            statuses.push(status);
+          }
+        } catch (error) {
+          console.error(`Error getting status for scheduler ${schedulerId} account ${accountId}:`, error);
+        }
       }
     }
 

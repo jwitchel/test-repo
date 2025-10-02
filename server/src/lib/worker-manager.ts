@@ -12,7 +12,6 @@ import { inboxQueue, trainingQueue } from './queue';
 // Redis keys for storing worker state
 const WORKER_STATE_KEY = 'worker:manager:paused';
 const QUEUE_STATE_KEY = 'queue:manager:paused';
-const DRY_RUN_STATE_KEY = 'processing:dry-run:enabled';
 
 export class WorkerManager {
   private static instance: WorkerManager;
@@ -20,7 +19,6 @@ export class WorkerManager {
   private queues: Map<string, any> = new Map();
   private redis: Redis;
   private isPaused: boolean = false;
-  private isDryRun: boolean = true;
 
   private constructor() {
     this.redis = new Redis({
@@ -68,20 +66,7 @@ export class WorkerManager {
         await this.redis.set(WORKER_STATE_KEY, String(this.isPaused));
       }
 
-      // Initialize dry-run state (same pattern as worker pause)
-      // Priority: Redis state > ENV (guaranteed to exist)
-      const storedDryRunState = await this.redis.get(DRY_RUN_STATE_KEY);
-
-      if (storedDryRunState !== null) {
-        // Use stored state from Redis
-        this.isDryRun = storedDryRunState === 'true';
-      } else {
-        // Use env variable (guaranteed to be set)
-        this.isDryRun = process.env.DRY_RUN_DEFAULT === 'true';
-        await this.redis.set(DRY_RUN_STATE_KEY, String(this.isDryRun));
-      }
-
-      console.log(`[WorkerManager] Initialized with state: isPaused=${this.isPaused}, isDryRun=${this.isDryRun}`);
+      console.log(`[WorkerManager] Initialized with state: isPaused=${this.isPaused}`);
 
       // Apply initial state to all workers
       if (this.isPaused) {
@@ -201,60 +186,17 @@ export class WorkerManager {
   }
 
   /**
-   * Enable dry-run mode
-   */
-  async enableDryRun(): Promise<void> {
-    console.log('[WorkerManager] Enabling dry-run mode');
-    this.isDryRun = true;
-    await this.redis.set(DRY_RUN_STATE_KEY, 'true');
-  }
-
-  /**
-   * Disable dry-run mode
-   */
-  async disableDryRun(): Promise<void> {
-    console.log('[WorkerManager] Disabling dry-run mode');
-    this.isDryRun = false;
-    await this.redis.set(DRY_RUN_STATE_KEY, 'false');
-  }
-
-  /**
-   * Toggle dry-run mode
-   */
-  async toggleDryRun(): Promise<boolean> {
-    if (this.isDryRun) {
-      await this.disableDryRun();
-    } else {
-      await this.enableDryRun();
-    }
-    return this.isDryRun;
-  }
-
-  /**
-   * Check if dry-run mode is enabled
-   */
-  async isDryRunEnabled(): Promise<boolean> {
-    const state = await this.redis.get(DRY_RUN_STATE_KEY);
-    return state !== 'false'; // Default to true if not explicitly false
-  }
-
-  /**
    * Get current worker status
    */
   async getStatus(): Promise<{
     workersPaused: boolean;
     queuesPaused: boolean;
-    dryRunEnabled: boolean;
     workers: Array<{ name: string; isPaused: boolean; isRunning: boolean }>;
     queues: Array<{ name: string; isPaused: boolean }>;
   }> {
     // Read actual worker paused state from Redis
     const storedState = await this.redis.get(WORKER_STATE_KEY);
     const actualWorkersPaused = storedState === 'true';
-
-    // Read dry-run state from Redis
-    const storedDryRunState = await this.redis.get(DRY_RUN_STATE_KEY);
-    const dryRunEnabled = storedDryRunState !== 'false'; // Default to true
 
     const queuesPaused = await this.areQueuesPaused();
 
@@ -276,7 +218,6 @@ export class WorkerManager {
     return {
       workersPaused: actualWorkersPaused,
       queuesPaused,
-      dryRunEnabled,
       workers: workerStatuses,
       queues: queueStatuses
     };

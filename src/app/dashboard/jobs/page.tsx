@@ -26,13 +26,12 @@ export default function JobsPage() {
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
   const [queuesEmergencyPaused, setQueuesEmergencyPaused] = useState(false);
   const [isLoadingEmergency, setIsLoadingEmergency] = useState(false);
-  // Dry-run state from worker manager (stored in Redis)
-  const [dryRunEnabled, setDryRunEnabled] = useState(true); // Default to true for safety
   const [schedulers, setSchedulers] = useState<Array<{
     id: string;
     enabled: boolean;
     interval: number;
     description: string;
+    accountId: string;
     nextRun?: string;
   }>>([]);
   const [isLoadingSchedulers, setIsLoadingSchedulers] = useState(false);
@@ -183,11 +182,10 @@ export default function JobsPage() {
     await queueJob({
       type: 'process-inbox',
       data: {
-        folderName: 'INBOX',
-        dryRun: dryRunEnabled  // Pass dry-run state to the job
+        folderName: 'INBOX'
       },
       priority: 'normal',
-      successMessage: `Email processing job queued (${dryRunEnabled ? 'dry-run' : 'live'})`,
+      successMessage: 'Email processing job queued',
       errorMessage: 'Failed to queue email job',
       logMessage: 'Error queueing email job:'
     });
@@ -224,16 +222,15 @@ export default function JobsPage() {
         return;
       }
 
-      // Queue job for first account with current dry-run state
+      // Queue job for first account
       await queueJob({
         type: 'process-inbox',
         data: {
           accountId: accounts[0].id,
-          folderName: 'INBOX',
-          dryRun: dryRunEnabled
+          folderName: 'INBOX'
         },
         priority: 'high',
-        successMessage: `Inbox processing queued for ${accounts[0].email_address} (${dryRunEnabled ? 'dry-run' : 'live'})`,
+        successMessage: `Inbox processing queued for ${accounts[0].email_address}`,
         errorMessage: 'Failed to queue inbox processing',
         logMessage: 'Error queueing inbox processing:'
       });
@@ -276,20 +273,6 @@ export default function JobsPage() {
     });
   };
 
-  const handleDryRunToggle = async (enabled: boolean) => {
-    const endpoint = enabled ? '/api/workers/dry-run/enable' : '/api/workers/dry-run/disable';
-
-    await handleApiRequest({
-      endpoint,
-      onSuccess: (data) => {
-        setDryRunEnabled(data.dryRunEnabled as boolean);
-        success(data.message as string);
-      },
-      defaultErrorMessage: `Failed to ${enabled ? 'enable' : 'disable'} dry-run mode`,
-      logPrefix: `Error ${enabled ? 'enabling' : 'disabling'} dry-run mode`
-    });
-  };
-  
   const handleClearQueue = async () => {
     await handleApiRequest({
       endpoint: '/api/jobs/clear-pending-jobs',
@@ -354,6 +337,7 @@ export default function JobsPage() {
           enabled: boolean;
           interval: number;
           description: string;
+          accountId: string;
           nextRun?: string;
         }> };
         setSchedulers(schedulerData.schedulers || []);
@@ -368,9 +352,9 @@ export default function JobsPage() {
   }, [handleApiRequest]);
 
   // Handle scheduler toggle
-  const handleSchedulerToggle = async (schedulerId: string, enabled: boolean) => {
+  const handleSchedulerToggle = async (schedulerId: string, accountId: string, enabled: boolean) => {
     await handleApiRequest({
-      endpoint: `/api/schedulers/${schedulerId}`,
+      endpoint: `/api/schedulers/${schedulerId}/${accountId}`,
       method: 'PUT',
       body: { enabled },
       loadingStateSetter: setIsLoadingSchedulers,
@@ -397,10 +381,6 @@ export default function JobsPage() {
         onSuccess: (data) => {
           setWorkersActive(!(data.workersPaused as boolean));
           setQueuesEmergencyPaused(data.queuesPaused as boolean);
-          // Get dry-run state from worker status
-          if (data.dryRunEnabled !== undefined) {
-            setDryRunEnabled(data.dryRunEnabled as boolean);
-          }
         },
         onError: () => {
           // Silent error handling for status check - don't show toast
@@ -514,29 +494,13 @@ export default function JobsPage() {
                   <Switch
                     id={`scheduler-${scheduler.id}`}
                     checked={scheduler.enabled}
-                    onCheckedChange={(enabled) => handleSchedulerToggle(scheduler.id, enabled)}
+                    onCheckedChange={(enabled) => handleSchedulerToggle(scheduler.id, scheduler.accountId, enabled)}
                     disabled={isLoadingSchedulers}
                     className="scale-75"
                   />
                 </div>
               );
             })}
-            <div className="w-px h-5 bg-zinc-300 mx-1" />
-            <div className="flex items-center gap-1.5">
-              <label
-                htmlFor="dry-run-toggle"
-                className="text-xs font-medium text-zinc-600"
-                title="When enabled, emails are analyzed but NOT moved or marked as processed. They will be reprocessed on each run (useful for testing). Disable schedulers when testing with dry-run."
-              >
-                Dry Run
-              </label>
-              <Switch
-                id="dry-run-toggle"
-                checked={dryRunEnabled}
-                onCheckedChange={(checked) => handleDryRunToggle(checked)}
-                className="scale-90"
-              />
-            </div>
             <div className="w-px h-5 bg-zinc-300 mx-1" />
             <div className="flex items-center gap-1.5">
               <label htmlFor="workers-toggle" className="text-xs font-medium text-zinc-600">
@@ -580,15 +544,11 @@ export default function JobsPage() {
             </Button>
             <Button
               onClick={handleProcessInbox}
-              className={dryRunEnabled
-                ? "bg-amber-600 hover:bg-amber-700 h-7 px-2 text-xs"
-                : "bg-emerald-600 hover:bg-emerald-700 h-7 px-2 text-xs"}
-              title={dryRunEnabled
-                ? "Process emails in DRY RUN mode - analyzes and generates drafts but does NOT move emails or mark them as processed (will reprocess on next run)"
-                : "Process all unprocessed emails - moves them to folders and marks as processed"}
+              className="bg-emerald-600 hover:bg-emerald-700 h-7 px-2 text-xs"
+              title="Process all unprocessed emails - moves them to folders and marks as processed"
             >
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              {dryRunEnabled ? "Process (Dry)" : "Process All"}
+              Process All
             </Button>
             <Button
               onClick={handleEmergencyToggle}
