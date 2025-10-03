@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,7 +30,17 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">AI Email Assistant</h1>
+          <div className="flex items-center space-x-3">
+            <Image 
+              src="/logo.png" 
+              alt="AI Email Assistant Logo" 
+              width={40} 
+              height={40}
+              className="object-contain"
+              style={{ width: '40px', height: '40px' }}
+            />
+            <h1 className="text-2xl font-bold">AI Email Assistant</h1>
+          </div>
           <div className="flex gap-4">
             <Button asChild variant="ghost">
               <Link href="/signin">Sign In</Link>

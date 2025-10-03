@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
@@ -78,8 +79,15 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo/Brand */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="flex items-center space-x-2">
-              <Mail className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+            <Link href="/dashboard" className="flex items-center space-x-3">
+              <Image 
+                src="/logo.png" 
+                alt="AI Email Assistant Logo" 
+                width={32} 
+                height={32}
+                className="object-contain"
+                style={{ width: '32px', height: '32px' }}
+              />
               <span className="font-semibold text-lg text-zinc-900 dark:text-zinc-100">
                 AI Email Assistant
               </span>
