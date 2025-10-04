@@ -221,10 +221,6 @@ export default function InboxPage() {
     try {
       const data = await apiGet<{ accounts: EmailAccount[] }>('/api/inbox/accounts');
       setAccounts(data.accounts);
-      
-      if (data.accounts.length > 0) {
-        setSelectedAccount(data.accounts[0].id);
-      }
     } catch (err) {
       error('Failed to load email accounts');
       console.error(err);
@@ -494,11 +490,13 @@ export default function InboxPage() {
         {/* Account selector */}
         <div className="flex items-center gap-4 mb-4">
           <Select value={selectedAccount} onValueChange={(value) => {
-            setSelectedAccount(value);
-            setCurrentIndex(0); // Reset to first message when switching accounts
+            if (value) {
+              setSelectedAccount(value);
+              setCurrentIndex(0); // Reset to first message when switching accounts
+            }
           }}>
             <SelectTrigger className="w-[300px]">
-              <SelectValue placeholder="Select an email account" />
+              <SelectValue placeholder="Select Email Account..." />
             </SelectTrigger>
             <SelectContent>
               {accounts.map(account => (
