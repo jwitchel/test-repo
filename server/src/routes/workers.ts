@@ -1,14 +1,23 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { workerManager } from '../lib/worker-manager';
+import { jobSchedulerManager } from '../lib/job-scheduler-manager';
 
 const router = express.Router();
 
 // Get worker status
-router.get('/status', requireAuth, async (_req, res): Promise<void> => {
+router.get('/status', requireAuth, async (req, res): Promise<void> => {
   try {
+    const userId = (req as any).user.id;
     const status = await workerManager.getStatus();
-    res.json(status);
+
+    // Get scheduler summary for this user
+    const schedulerSummary = await jobSchedulerManager.getSchedulerSummary(userId);
+
+    res.json({
+      ...status,
+      schedulers: schedulerSummary
+    });
   } catch (error) {
     console.error('Error getting worker status:', error);
     res.status(500).json({

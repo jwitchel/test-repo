@@ -9,6 +9,7 @@ import { EmailActionTracker } from '../email-action-tracker';
 import { draftGenerator } from './draft-generator';
 import { emailMover } from './email-mover';
 import { withImapContext } from '../imap-context';
+import { emailStorageService } from '../email-storage-service';
 
 // Silent actions that don't require draft creation
 const SILENT_ACTIONS = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
@@ -143,6 +144,38 @@ export class InboxProcessor {
         throw moveError;
       }
 
+      // Step 3: Save incoming email to Qdrant (same as processBatch)
+      try {
+        console.log(`[InboxProcessor] Saving incoming email ${message.messageId} to Qdrant`);
+
+        // Construct full email data structure matching EmailMessageWithRaw
+        const emailData = {
+          uid: message.uid,
+          messageId: message.messageId,
+          subject: message.subject,
+          from: message.from,
+          rawMessage: message.rawMessage,
+          to: [], // These will be parsed from rawMessage by emailStorageService
+          cc: [],
+          date: new Date(),
+          flags: [],
+          size: message.rawMessage.length
+        };
+
+        await emailStorageService.saveEmail({
+          userId,
+          emailAccountId: accountId,
+          emailData,
+          emailType: 'incoming',
+          folderName: 'INBOX'
+        });
+
+        console.log(`[InboxProcessor] Successfully saved email ${message.messageId} to Qdrant`);
+      } catch (storageError) {
+        // Log error but don't fail inbox processing
+        console.error(`[InboxProcessor] Failed to save email ${message.messageId} to Qdrant:`, storageError);
+      }
+
       return {
         success: true,
         messageId: message.messageId,
@@ -215,17 +248,25 @@ export class InboxProcessor {
         console.log(`[InboxProcessor] Batch fetching ${uids.length} messages`);
         const fullMessages = await imapOps.getMessagesRaw('INBOX', uids);
 
+        console.log(`[InboxProcessor] Fetched ${fullMessages.length} full messages`);
+        console.log(`[InboxProcessor] Message details:`, fullMessages.map(m => ({ uid: m.uid, messageId: m.messageId, hasMessageId: !!m.messageId })));
+
         // Get action tracking for all messages to filter already processed
         const messageIds = fullMessages.map(msg => msg.messageId).filter((id): id is string => !!id);
+        console.log(`[InboxProcessor] Extracted ${messageIds.length} message IDs from ${fullMessages.length} messages`);
         const actionTracking = await EmailActionTracker.getActionsForMessages(accountId, messageIds);
+        console.log(`[InboxProcessor] Action tracking results:`, actionTracking);
 
         // Filter to unprocessed messages (unless force is true)
         const toProcess = fullMessages.filter(msg => {
-          if (!msg.messageId) return false;
+          if (!msg.messageId) {
+            console.log(`[InboxProcessor] Skipping - no messageId: UID ${msg.uid}`);
+            return false;
+          }
           const tracked = actionTracking[msg.messageId];
           const shouldProcess = force || !tracked || tracked.actionTaken === 'none';
           if (!shouldProcess) {
-            console.log(`[InboxProcessor] Skipping already processed: ${msg.messageId}`);
+            console.log(`[InboxProcessor] Skipping already processed: ${msg.messageId}, action: ${tracked?.actionTaken}`);
           }
           return shouldProcess;
         });
@@ -233,6 +274,7 @@ export class InboxProcessor {
         console.log(`[InboxProcessor] Processing ${toProcess.length} of ${fullMessages.length} messages`);
 
         // Process each email
+        // Note: processEmail now handles Qdrant storage internally (DRY)
         for (const msg of toProcess) {
           const result = await this.processEmail({
             message: {

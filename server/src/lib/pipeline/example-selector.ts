@@ -1,4 +1,4 @@
-import { VectorStore } from '../vector/qdrant-client';
+import { VectorStore, SENT_COLLECTION } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { RelationshipService } from '../relationships/relationship-service';
 import { RelationshipDetector } from '../relationships/relationship-detector';
@@ -51,7 +51,7 @@ export class ExampleSelector {
     
 
     // Debug: Check what's in the vector store for this user
-    await this.vectorStore.debugUserEmails(params.userId, 5);
+    await this.vectorStore.debugUserEmails(params.userId, 5, SENT_COLLECTION);
     
     // Step 2: Get relationship profile (for future use)
     await this.relationshipService.getRelationshipProfile(
@@ -77,7 +77,8 @@ export class ExampleSelector {
         queryVector: vector,
         recipientEmail: params.recipientEmail,  // Filter to this specific recipient
         limit: 50,  // Get more than we need to allow for selection
-        scoreThreshold: 0  // Get all results, sorted by similarity
+        scoreThreshold: 0,  // Get all results, sorted by similarity
+        collectionName: SENT_COLLECTION  // Only search sent emails for tone training
       })
     );
     
@@ -98,7 +99,8 @@ export class ExampleSelector {
           queryVector: vector,
           relationship: relationship.relationship,  // Same relationship type
           limit: 100,  // Get plenty for selection
-          scoreThreshold: 0  // Get all results, sorted by similarity
+          scoreThreshold: 0,  // Get all results, sorted by similarity
+          collectionName: SENT_COLLECTION  // Only search sent emails for tone training
         })
       );
       

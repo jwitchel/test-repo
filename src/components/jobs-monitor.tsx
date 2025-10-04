@@ -30,6 +30,7 @@ interface JobData {
   priority?: string;
   startedAt?: string;
   completedAt?: string;
+  emailAddress?: string;
 }
 
 interface ApiJobData {
@@ -49,6 +50,7 @@ interface ApiJobData {
   priority?: string;
   processedAt?: string | null;
   completedAt?: string | null;
+  emailAddress?: string;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -83,7 +85,8 @@ function convertApiJobToJobData(apiJob: ApiJobData): JobData {
     timestamp: apiJob.createdAt,
     duration: apiJob.duration,
     startedAt: apiJob.processedAt || undefined,
-    completedAt: apiJob.completedAt || undefined
+    completedAt: apiJob.completedAt || undefined,
+    emailAddress: apiJob.emailAddress
   };
 }
 
@@ -101,19 +104,31 @@ function JobCard({ job, onRetry }: { job: JobData; onRetry: (jobId: string, queu
   };
 
   // Provide a default config for unknown statuses
-  const config = statusConfig[job.status] || {
+  const config = statusConfig[job.status as keyof typeof statusConfig] || {
     variant: 'secondary' as const,
     icon: Clock,
     color: 'text-zinc-400'
   };
   const Icon = config.icon;
-  
-  const jobTypeDisplay = {
-    'build-tone-profile': 'Tone Profile Builder',
-    'process-inbox': 'Process Inbox',
-    'learn-from-edit': 'Learn From Edit'
-  }[job.type] || job.type;
-  
+
+  // Display job type with email address if available
+  let jobTypeDisplay: string;
+  if (job.emailAddress) {
+    if (job.type === 'process-inbox') {
+      jobTypeDisplay = `Process Email for ${job.emailAddress}`;
+    } else if (job.type === 'build-tone-profile') {
+      jobTypeDisplay = `Rebuild Tone for ${job.emailAddress}`;
+    } else {
+      jobTypeDisplay = job.type;
+    }
+  } else {
+    jobTypeDisplay = {
+      'build-tone-profile': 'Rebuild All Tones',
+      'process-inbox': 'Process All Emails',
+      'learn-from-edit': 'Learn From Edit'
+    }[job.type] || job.type;
+  }
+
   return (
     <div className="flex items-center justify-between py-1.5 px-2 border-b border-zinc-100 hover:bg-zinc-50 text-xs">
       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -167,40 +182,35 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
       
       if (response.ok) {
         const data = await response.json();
-        console.log(`[JobsMonitor] loadJobs - received ${data.jobs.length} jobs:`, 
-          data.jobs.map((j: ApiJobData) => `${j.type}(${j.queueName}):${j.status}[${j.jobId}]`));
-        
+
         if (forceReplace) {
           // Replace all jobs with API data (used for refresh after clear operations)
-          console.log(`[JobsMonitor] loadJobs - force replacing all jobs with API data`);
           const newJobs = new Map<string, JobData>();
-          
+
           for (const apiJob of data.jobs) {
             const jobKey = `${apiJob.queueName}:${apiJob.jobId}`;
             const jobData = convertApiJobToJobData(apiJob);
             newJobs.set(jobKey, jobData);
           }
-          
+
           setJobs(newJobs);
-          console.log(`[JobsMonitor] loadJobs - replaced with ${newJobs.size} jobs from API`);
         } else {
           // Merge API data with existing WebSocket state (normal operation)
           setJobs(prevJobs => {
             const newJobs = new Map(prevJobs);
-            
+
             for (const apiJob of data.jobs) {
               // Use composite key: queueName:jobId to handle job ID reuse across queues
               const jobKey = `${apiJob.queueName}:${apiJob.jobId}`;
               const existing = newJobs.get(jobKey);
               const jobData = convertApiJobToJobData(apiJob);
-              
+
               // Prefer existing WebSocket data for active jobs, API data for others
               if (!existing || existing.status === 'queued' || apiJob.status !== 'queued') {
                 newJobs.set(jobKey, jobData);
               }
             }
-            
-            console.log(`[JobsMonitor] loadJobs - merged state, now have ${newJobs.size} total jobs`);
+
             return newJobs;
           });
         }
@@ -243,17 +253,15 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
         // Handle job events from unified WebSocket
         if (data.type === 'job-event' && data.data) {
           const event = data.data;
-          console.log(`[JobsMonitor] WebSocket event:`, event.type, event.jobId, event.queueName, event.jobType);
-          
+
           setJobs(prev => {
             const newJobs = new Map(prev);
             // Use composite key: queueName:jobId to handle job ID reuse across queues
             const jobKey = `${event.queueName}:${event.jobId}`;
             const existingJob = newJobs.get(jobKey) || {} as JobData;
-            
+
             switch (event.type) {
               case 'JOB_QUEUED':
-                console.log(`[JobsMonitor] JOB_QUEUED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
                 // Always update the job in our state immediately
                 newJobs.set(jobKey, {
                   ...existingJob,
@@ -262,17 +270,16 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                   type: event.jobType || existingJob.type,
                   status: 'queued',
                   timestamp: event.timestamp || new Date().toISOString(),
-                  priority: event.priority
+                  priority: event.priority,
+                  emailAddress: event.emailAddress || existingJob.emailAddress
                 });
-                
+
                 // For completely new jobs, also fetch full details from API (with deduplication)
                 if (!existingJob.jobId && loadJobsRef.current && !pendingLoadJobs.current.has(jobKey)) {
-                  console.log(`[JobsMonitor] Scheduling loadJobs for new job:`, jobKey);
                   pendingLoadJobs.current.add(jobKey);
-                  
+
                   // Delay slightly to ensure job is fully persisted in Redis
                   setTimeout(() => {
-                    console.log(`[JobsMonitor] Calling loadJobs for job:`, jobKey);
                     pendingLoadJobs.current.delete(jobKey);
                     loadJobsRef.current!();
                   }, 200);
@@ -287,7 +294,8 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                   type: event.jobType || existingJob.type,
                   status: 'active',
                   timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
-                  startedAt: event.startedAt || new Date().toISOString()
+                  startedAt: event.startedAt || new Date().toISOString(),
+                  emailAddress: event.emailAddress || existingJob.emailAddress
                 });
                 break;
                 
@@ -299,12 +307,12 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                   type: event.jobType || existingJob.type,
                   status: 'active',
                   timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
-                  progress: event.progress
+                  progress: event.progress,
+                  emailAddress: event.emailAddress || existingJob.emailAddress
                 });
                 break;
-                
+
               case 'JOB_COMPLETED':
-                console.log(`[JobsMonitor] JOB_COMPLETED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
                 newJobs.set(jobKey, {
                   ...existingJob,
                   jobId: event.jobId || existingJob.jobId,
@@ -313,16 +321,16 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                   status: 'completed',
                   timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
                   result: event.result,
-                  completedAt: new Date().toISOString()
+                  completedAt: new Date().toISOString(),
+                  emailAddress: event.emailAddress || existingJob.emailAddress
                 });
                 // Trigger stats refresh when a job completes
                 if (onJobComplete) {
                   onJobComplete();
                 }
                 break;
-                
+
               case 'JOB_FAILED':
-                console.log(`[JobsMonitor] JOB_FAILED - existing:`, !!existingJob.jobId, 'queue:', event.queueName);
                 newJobs.set(jobKey, {
                   ...existingJob,
                   jobId: event.jobId || existingJob.jobId,
@@ -331,7 +339,8 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                   status: 'failed',
                   timestamp: existingJob.timestamp || event.timestamp || new Date().toISOString(),
                   error: event.error,
-                  completedAt: event.failedAt || new Date().toISOString()
+                  completedAt: event.failedAt || new Date().toISOString(),
+                  emailAddress: event.emailAddress || existingJob.emailAddress
                 });
                 // Trigger stats refresh when a job fails
                 if (onJobComplete) {

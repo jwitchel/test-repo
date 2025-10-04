@@ -74,6 +74,28 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
           } else if (data.type === 'job-event' && data.data) {
             // Handle job events from the queue system
             const jobEvent = data.data;
+
+            // Format job type display with email address if available
+            let jobTypeDisplay: string;
+            if (jobEvent.emailAddress) {
+              if (jobEvent.jobType === 'process-inbox') {
+                jobTypeDisplay = `Process Email for ${jobEvent.emailAddress}`;
+              } else if (jobEvent.jobType === 'build-tone-profile') {
+                jobTypeDisplay = `Rebuild Tone for ${jobEvent.emailAddress}`;
+              } else {
+                jobTypeDisplay = jobEvent.jobType || '';
+              }
+            } else {
+              // Parent jobs without specific email
+              if (jobEvent.jobType === 'process-inbox') {
+                jobTypeDisplay = 'Process All Emails';
+              } else if (jobEvent.jobType === 'build-tone-profile') {
+                jobTypeDisplay = 'Rebuild All Tones';
+              } else {
+                jobTypeDisplay = jobEvent.jobType || '';
+              }
+            }
+
             // Use a more unique ID with random component to avoid duplicates
             const uniqueId = `job-${jobEvent.jobId}-${jobEvent.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             const log: ImapLogEntry = {
@@ -84,7 +106,7 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
               level: 'info',
               command: jobEvent.type || 'JOB_EVENT',
               data: {
-                raw: `[Job ${jobEvent.jobId}] ${jobEvent.type}: ${jobEvent.jobType || ''}`,
+                raw: `[Job ${jobEvent.jobId}] ${jobEvent.type}: ${jobTypeDisplay}`,
                 parsed: jobEvent
               }
             };

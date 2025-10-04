@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { VectorStore } from '../vector/qdrant-client';
+import { VectorStore, SENT_COLLECTION } from '../vector/qdrant-client';
 import { EmailFeatures } from '../nlp-feature-extractor';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -53,7 +53,8 @@ export class StyleAggregationService {
       queryVector: new Array(384).fill(0), // Dummy vector to get all matches
       relationship: relationshipType,
       limit: 1000, // Get all user's emails for this relationship
-      scoreThreshold: 0 // Get all matches
+      scoreThreshold: 0, // Get all matches
+      collectionName: SENT_COLLECTION // Only aggregate style from sent emails
     });
     
     // Aggregate patterns

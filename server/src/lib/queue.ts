@@ -41,15 +41,17 @@ export enum JobPriority {
 // Type definitions for job data
 export interface BuildToneProfileJobData {
   userId: string;
-  accountId: string;
+  accountId?: string;  // Optional for fan-out jobs
   historyDays?: number;
+  fanOut?: boolean;    // Flag to indicate parent fan-out job
 }
 
 export interface ProcessInboxJobData {
   userId: string;
-  accountId: string;
+  accountId?: string;  // Optional for fan-out jobs
   folderName?: string; // Default to INBOX
   since?: Date; // Optional: only process emails after this date
+  fanOut?: boolean;    // Flag to indicate parent fan-out job
 }
 
 export interface LearnFromEditJobData {

@@ -35,12 +35,28 @@ async function broadcastJobEvent(eventType: string, jobId: string, queueName: st
   const job = await queue.getJob(jobId);
 
   if (job?.data?.userId) {
+    // Get email address from accountId if available
+    let emailAddress: string | undefined;
+    if (job.data?.accountId) {
+      try {
+        const { pool } = await import('../server');
+        const result = await pool.query(
+          'SELECT email_address FROM email_accounts WHERE id = $1',
+          [job.data.accountId]
+        );
+        emailAddress = result.rows[0]?.email_address;
+      } catch (err) {
+        console.error('Error fetching email address for job event:', err);
+      }
+    }
+
     wsServer.broadcastJobEvent({
       type: eventType,
       jobId,
       queueName,
       userId: job.data.userId,
       jobType: job.name,
+      emailAddress,
       timestamp: new Date().toISOString(),
       ...additionalData
     });
