@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth-context'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SignaturePatterns } from '@/components/settings/signature-patterns'
 import { TypedNameSettings } from '@/components/settings/typed-name-settings'
 import { useState, useEffect } from 'react'
@@ -197,7 +198,15 @@ export default function SettingsPage() {
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold mb-8">Settings</h1>
 
-          <div className="space-y-6">
+          <Tabs defaultValue="profile" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-6">
+              <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="email">Email</TabsTrigger>
+              <TabsTrigger value="signatures">Signatures</TabsTrigger>
+              <TabsTrigger value="security">Security</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="profile" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Profile Information</CardTitle>
@@ -244,31 +253,21 @@ export default function SettingsPage() {
                 <Button onClick={handleSave} disabled={isSaving || isLoading}>
                   {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
-                
-                <Separator className="my-6" />
-                
-                <div className="space-y-2">
-                  <h3 className="text-lg font-medium">Email Signature Detection</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Configure patterns to automatically detect and remove your email signature when analyzing your writing style.
-                  </p>
-                </div>
-                
-                <SignaturePatterns />
-                
-                <Separator className="my-6" />
-                
-                <div className="space-y-2">
-                  <h3 className="text-lg font-medium">Typed Name Settings</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Configure how your name appears in generated email responses.
-                  </p>
-                </div>
-                
-                <TypedNameSettings />
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle>Typed Name Settings</CardTitle>
+                <CardDescription>Configure how your name appears in generated email responses</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TypedNameSettings />
+              </CardContent>
+            </Card>
+            </TabsContent>
+
+            <TabsContent value="email" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Email Signature Block</CardTitle>
@@ -427,7 +426,23 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+            </TabsContent>
 
+            <TabsContent value="signatures" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Email Signature Detection</CardTitle>
+                <CardDescription>
+                  Configure patterns to automatically detect and remove your email signature when analyzing your writing style
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SignaturePatterns />
+              </CardContent>
+            </Card>
+            </TabsContent>
+
+            <TabsContent value="security" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Security</CardTitle>
@@ -447,7 +462,8 @@ export default function SettingsPage() {
                 <Button variant="destructive">Delete Account</Button>
               </CardContent>
             </Card>
-          </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </ProtectedRoute>
