@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { RefreshCw, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface WritingPatterns {
@@ -97,7 +97,6 @@ export default function TonePage() {
   const router = useRouter()
   const [toneData, setToneData] = useState<ToneData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [selectedRelationship, setSelectedRelationship] = useState<string>('aggregate')
 
   useEffect(() => {
@@ -125,7 +124,7 @@ export default function TonePage() {
 
       const data = await response.json()
       setToneData(data)
-      
+
       // Select aggregate by default, or first available relationship
       if (data.profiles.aggregate) {
         setSelectedRelationship('aggregate')
@@ -140,12 +139,6 @@ export default function TonePage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    await fetchToneData()
-    setRefreshing(false)
   }
 
   if (authLoading || loading) {
@@ -191,30 +184,13 @@ export default function TonePage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8">
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-              Your Writing Tone Analysis
-            </h1>
-            <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-              Based on {toneData.totalEmailsAnalyzed} analyzed emails
-            </p>
-          </div>
-          <Button 
-            onClick={handleRefresh} 
-            disabled={refreshing}
-            variant="outline"
-            size="sm"
-          >
-            {refreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </>
-            )}
-          </Button>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+            Your Writing Tone Analysis
+          </h1>
+          <p className="text-zinc-600 dark:text-zinc-400 mt-2">
+            Based on {toneData.totalEmailsAnalyzed} analyzed emails
+          </p>
         </div>
         {/* Relationship Tabs */}
         <Tabs value={selectedRelationship} onValueChange={setSelectedRelationship} className="space-y-6">
