@@ -488,14 +488,14 @@ export default function InboxPage() {
         <h1 className="text-2xl font-bold mb-4">Inbox</h1>
         
         {/* Account selector */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-2 mb-4">
           <Select value={selectedAccount} onValueChange={(value) => {
             if (value) {
               setSelectedAccount(value);
               setCurrentIndex(0); // Reset to first message when switching accounts
             }
           }}>
-            <SelectTrigger className="w-[300px]">
+            <SelectTrigger className="w-[240px] h-7 text-xs">
               <SelectValue placeholder="Select Email Account..." />
             </SelectTrigger>
             <SelectContent>
@@ -507,50 +507,70 @@ export default function InboxPage() {
             </SelectContent>
           </Select>
           
-          {/* Show All Emails toggle */}
+          {/* Email filter */}
           <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="showAll"
-              checked={showAllEmails}
-              onChange={(e) => {
-                setShowAllEmails(e.target.checked);
-                setCurrentIndex(0); // Reset to first message when toggling filter
-              }}
-              className="h-4 w-4"
-            />
-            <label htmlFor="showAll" className="text-sm">
-              Show All Emails
-            </label>
+            <span className="text-xs font-medium">Show:</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="radio"
+                id="unprocessedOnly"
+                name="emailFilter"
+                checked={!showAllEmails}
+                onChange={() => {
+                  setShowAllEmails(false);
+                  setCurrentIndex(0);
+                }}
+                className="h-3 w-3"
+              />
+              <label htmlFor="unprocessedOnly" className="text-xs">
+                Unprocessed Only
+              </label>
+            </div>
+            <div className="flex items-center gap-1">
+              <input
+                type="radio"
+                id="allEmails"
+                name="emailFilter"
+                checked={showAllEmails}
+                onChange={() => {
+                  setShowAllEmails(true);
+                  setCurrentIndex(0);
+                }}
+                className="h-3 w-3"
+              />
+              <label htmlFor="allEmails" className="text-xs">
+                All Emails
+              </label>
+            </div>
           </div>
           
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-1 ml-auto">
             <Button
               variant="outline"
-              size="sm"
+              className="h-7 px-2 text-xs"
               onClick={handlePrevious}
               disabled={currentIndex === 0 || loading}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
               Previous
             </Button>
-            
-            <span className="text-sm text-muted-foreground">
+
+            <span className="text-xs text-muted-foreground px-2">
               {totalMessages > 0 ? `${currentIndex + 1} of ${totalMessages}` : '0 messages'}
             </span>
-            
+
             <Button
               variant="outline"
-              size="sm"
+              className="h-7 px-2 text-xs"
               onClick={handleNext}
               disabled={currentIndex >= totalMessages - 1 || loading}
             >
               Next
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </Button>
-            
-            <div className="flex items-center gap-2 ml-4">
-              <span className="text-sm text-muted-foreground">Jump to:</span>
+
+            <div className="flex items-center gap-1 ml-2">
+              <span className="text-xs text-muted-foreground">Jump to:</span>
               <Input
                 type="number"
                 min="1"
@@ -569,12 +589,12 @@ export default function InboxPage() {
                     }
                   }
                 }}
-                className="w-20 h-8"
+                className="w-16 h-7 text-xs"
                 placeholder="#"
               />
               <Button
                 variant="outline"
-                size="sm"
+                className="h-7 px-2 text-xs"
                 onClick={() => {
                   const index = parseInt(jumpToInput) - 1;
                   if (!isNaN(index) && index >= 0 && index < totalMessages) {
