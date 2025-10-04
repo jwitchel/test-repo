@@ -298,7 +298,9 @@ export class ImapOperations {
       
       // Search for all messages
       const uids = await conn.search(['ALL']);
-      
+
+      console.log(`[ImapOperations] Found ${uids.length} total messages. First 10 UIDs: [${uids.slice(0, 10).join(', ')}]`);
+
       if (uids.length === 0) {
         return [];
       }
@@ -307,11 +309,14 @@ export class ImapOperations {
       let sortedUids = [...uids];
       if (options.descending !== false) {
         sortedUids.reverse(); // Default to newest first
+        console.log(`[ImapOperations] After reverse - First 10 UIDs: [${sortedUids.slice(0, 10).join(', ')}]`);
       }
 
       const offset = options.offset || 0;
       const limit = options.limit || 50;
       const paginatedUids = sortedUids.slice(offset, offset + limit);
+
+      console.log(`[ImapOperations] Paginated UIDs (offset=${offset}, limit=${limit}): [${paginatedUids.join(', ')}]`);
 
       if (paginatedUids.length === 0) {
         return [];
@@ -564,13 +569,13 @@ export class ImapOperations {
             return null;
           }
 
-          const msg = messages[0];
-          
+          const msg = messages[0] as any;
+
           if (!msg.body) {
             console.warn(`Message ${uid} has no body`);
             return null;
           }
-          
+
           // Ensure body is a string with proper encoding
           let bodyString: string;
           if (Buffer.isBuffer(msg.body)) {
@@ -581,14 +586,17 @@ export class ImapOperations {
             console.warn(`Message ${uid} has invalid body type`);
             return null;
           }
-          
+
+          // Use mailparser to parse the complete message for proper header extraction
+          const parsedEmail = await simpleParser(bodyString);
+
           const result: EmailMessageWithRaw = {
             uid: msg.uid,
-            messageId: msg.headers?.messageId?.[0],
-            from: msg.headers?.from?.[0],
-            to: msg.headers?.to,
-            subject: msg.headers?.subject?.[0],
-            date: msg.date,
+            messageId: parsedEmail.messageId || undefined,
+            from: parsedEmail.from?.value?.[0]?.address || undefined,
+            to: parsedEmail.to ? (Array.isArray(parsedEmail.to) ? parsedEmail.to : [parsedEmail.to]).flatMap((addr: any) => addr.value || []).map((a: any) => a.address || '') : undefined,
+            subject: parsedEmail.subject || undefined,
+            date: parsedEmail.date || msg.date || new Date(),
             flags: msg.flags,
             size: msg.size,
             rawMessage: bodyString

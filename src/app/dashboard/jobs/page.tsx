@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2, Pause, Play } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,7 +31,7 @@ export default function JobsPage() {
     enabled: boolean;
     interval: number;
     description: string;
-    accountId: string;
+    monitoredAccounts: number;
     nextRun?: string;
   }>>([]);
   const [isLoadingSchedulers, setIsLoadingSchedulers] = useState(false);
@@ -112,12 +112,6 @@ export default function JobsPage() {
       if (loadingStateSetter) loadingStateSetter(false);
     }
   };
-  
-  const handleRefresh = () => {
-    setForceRefresh(true);
-    setRefreshKey(prev => prev + 1);
-    success('Jobs list refreshed');
-  };
 
   const queueJob = async (jobConfig: {
     type: string;
@@ -128,24 +122,28 @@ export default function JobsPage() {
     logMessage: string;
   }) => {
     try {
-      // Get the first email account
-      const accountsResponse = await fetch(`${apiUrl}/api/email-accounts`, {
-        credentials: 'include'
-      });
-      
-      if (!accountsResponse.ok) {
-        error('Please add an email account first');
-        return;
+      // If no accountId provided and not a fan-out job, get the first email account
+      let jobData = jobConfig.data;
+      if (!jobConfig.data.accountId && !jobConfig.data.fanOut) {
+        const accountsResponse = await fetch(`${apiUrl}/api/email-accounts`, {
+          credentials: 'include'
+        });
+
+        if (!accountsResponse.ok) {
+          error('Please add an email account first');
+          return;
+        }
+
+        const accounts = await accountsResponse.json();
+        if (!accounts || accounts.length === 0) {
+          error('Please add an email account first');
+          return;
+        }
+
+        const firstAccount = accounts[0];
+        jobData = { accountId: firstAccount.id, ...jobConfig.data };
       }
-      
-      const accounts = await accountsResponse.json();
-      if (!accounts || accounts.length === 0) {
-        error('Please add an email account first');
-        return;
-      }
-      
-      const firstAccount = accounts[0];
-      
+
       // Queue the job
       const response = await fetch(`${apiUrl}/api/jobs/queue`, {
         method: 'POST',
@@ -155,10 +153,7 @@ export default function JobsPage() {
         credentials: 'include',
         body: JSON.stringify({
           type: jobConfig.type,
-          data: {
-            accountId: firstAccount.id,
-            ...jobConfig.data
-          },
+          data: jobData,
           priority: jobConfig.priority
         })
       });
@@ -178,64 +173,44 @@ export default function JobsPage() {
     }
   };
 
-  const handleQueueEmailJob = async () => {
-    await queueJob({
-      type: 'process-inbox',
-      data: {
-        folderName: 'INBOX'
-      },
-      priority: 'normal',
-      successMessage: 'Email processing job queued',
-      errorMessage: 'Failed to queue email job',
-      logMessage: 'Error queueing email job:'
-    });
-  };
-
-  const handleQueueToneJob = async () => {
-    await queueJob({
-      type: 'build-tone-profile',
-      data: {
-        historyDays: 30
-      },
-      priority: 'high',
-      successMessage: 'Tone profile job queued',
-      errorMessage: 'Failed to queue tone job',
-      logMessage: 'Error queueing tone job:'
-    });
-  };
-
-  const handleProcessInbox = async () => {
+  const handleCheckAllNow = async () => {
     try {
-      // Get first account - this is just a quick test button
-      const response = await fetch(`${apiUrl}/api/email-accounts`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        error('Please add an email account first');
-        return;
-      }
-
-      const accounts = await response.json();
-      if (!accounts || accounts.length === 0) {
-        error('Please add an email account first');
-        return;
-      }
-
-      // Queue job for first account
+      // Create a single parent fan-out job that will spawn child jobs for each monitored account
       await queueJob({
         type: 'process-inbox',
         data: {
-          accountId: accounts[0].id,
-          folderName: 'INBOX'
+          // No accountId = parent fan-out job
+          folderName: 'INBOX',
+          fanOut: true // Flag to indicate this should fan out to all monitored accounts
         },
         priority: 'high',
-        successMessage: `Inbox processing queued for ${accounts[0].email_address}`,
-        errorMessage: 'Failed to queue inbox processing',
-        logMessage: 'Error queueing inbox processing:'
+        successMessage: 'Email check queued for all monitored accounts',
+        errorMessage: 'Failed to queue email check',
+        logMessage: 'Error queueing email check:'
       });
     } catch (err) {
-      error('Failed to queue inbox processing');
+      error('Failed to queue email checks');
+      console.error('Error:', err);
+    }
+  };
+
+  const handleUpdateAllTones = async () => {
+    try {
+      // Create a single parent fan-out job that will spawn child jobs for each account
+      await queueJob({
+        type: 'build-tone-profile',
+        data: {
+          // No accountId = parent fan-out job
+          historyDays: 30,
+          fanOut: true // Flag to indicate this should fan out to all accounts
+        },
+        priority: 'high',
+        successMessage: 'Tone rebuild queued for all accounts',
+        errorMessage: 'Failed to queue tone rebuild',
+        logMessage: 'Error queueing tone rebuild:'
+      });
+    } catch (err) {
+      error('Failed to queue tone updates');
       console.error('Error:', err);
     }
   };
@@ -337,7 +312,7 @@ export default function JobsPage() {
           enabled: boolean;
           interval: number;
           description: string;
-          accountId: string;
+          monitoredAccounts: number;
           nextRun?: string;
         }> };
         setSchedulers(schedulerData.schedulers || []);
@@ -351,10 +326,10 @@ export default function JobsPage() {
     });
   }, [handleApiRequest]);
 
-  // Handle scheduler toggle
-  const handleSchedulerToggle = async (schedulerId: string, accountId: string, enabled: boolean) => {
+  // Handle global scheduler toggle
+  const handleSchedulerToggle = async (schedulerId: string, enabled: boolean) => {
     await handleApiRequest({
-      endpoint: `/api/schedulers/${schedulerId}/${accountId}`,
+      endpoint: `/api/schedulers/${schedulerId}`,
       method: 'PUT',
       body: { enabled },
       loadingStateSetter: setIsLoadingSchedulers,
@@ -465,6 +440,7 @@ export default function JobsPage() {
             {/* Row 1: Schedulers and Toggles */}
             <div className="flex gap-1 items-center">
             {/* Scheduler Toggles */}
+            <span className="text-xs font-medium text-zinc-600 mr-1">Schedulers:</span>
             {schedulers.map(scheduler => {
               const intervalStr = scheduler.interval >= 3600000
                 ? `${Math.round(scheduler.interval / 3600000)}h`
@@ -486,15 +462,18 @@ export default function JobsPage() {
                   <label
                     htmlFor={`scheduler-${scheduler.id}`}
                     className="text-xs font-medium text-zinc-600 cursor-pointer"
-                    title={`${scheduler.description}\nInterval: every ${intervalStr}\n${nextRunStr}`}
+                    title={`${scheduler.description}\n${scheduler.monitoredAccounts} account(s) monitored\nInterval: every ${intervalStr}\n${nextRunStr}`}
                   >
                     {scheduler.id === 'check-mail' ? '📧' : '🎨'}
                     <span className="ml-1 text-zinc-500">{intervalStr}</span>
+                    {scheduler.monitoredAccounts > 0 && (
+                      <span className="ml-1 text-xs text-zinc-400">({scheduler.monitoredAccounts})</span>
+                    )}
                   </label>
                   <Switch
                     id={`scheduler-${scheduler.id}`}
                     checked={scheduler.enabled}
-                    onCheckedChange={(enabled) => handleSchedulerToggle(scheduler.id, scheduler.accountId, enabled)}
+                    onCheckedChange={(enabled) => handleSchedulerToggle(scheduler.id, enabled)}
                     disabled={isLoadingSchedulers}
                     className="scale-75"
                   />
@@ -514,118 +493,104 @@ export default function JobsPage() {
                 className="scale-90"
               />
             </div>
-            </div>
-
-            {/* Row 2: Action Buttons */}
-            <div className="flex gap-1 items-center">
-              <Button
-                variant="outline"
-                onClick={handleRefresh}
-                className="hover:bg-zinc-50 h-7 px-2"
-                title="Refresh stats"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-              </Button>
+            <div className="w-px h-5 bg-zinc-300 mx-1" />
             <Button
-              onClick={handleQueueEmailJob}
-              className="bg-purple-600 hover:bg-purple-700 h-7 px-2 text-xs"
-              title="Queue Email Processing Job"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Email
-            </Button>
-            <Button
-              onClick={handleQueueToneJob}
-              className="bg-indigo-600 hover:bg-indigo-700 h-7 px-2 text-xs"
-              title="Queue Tone Profile Job"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Tone
-            </Button>
-            <Button
-              onClick={handleProcessInbox}
+              onClick={handleCheckAllNow}
               className="bg-emerald-600 hover:bg-emerald-700 h-7 px-2 text-xs"
-              title="Process all unprocessed emails - moves them to folders and marks as processed"
+              title="Manually check all email accounts now - creates high-priority jobs for all accounts"
             >
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              Process All
+              Check All Email
             </Button>
             <Button
-              onClick={handleEmergencyToggle}
-              disabled={isLoadingEmergency}
-              className={queuesEmergencyPaused 
-                ? "bg-green-600 hover:bg-green-700 h-7 px-2 text-xs" 
-                : "bg-red-600 hover:bg-red-700 h-7 px-2 text-xs"}
-              title={queuesEmergencyPaused 
-                ? "Resume all queues" 
-                : "Emergency stop - pause all queues immediately"}
+              onClick={handleUpdateAllTones}
+              className="bg-indigo-600 hover:bg-indigo-700 h-7 px-2 text-xs"
+              title="Update tone profiles for all accounts - analyzes writing style from recent emails"
             >
-              {queuesEmergencyPaused ? "Resume" : "Stop"}
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              Update All Tones
             </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  variant="outline"
-                  className="hover:bg-red-50 border-red-200 text-red-600 hover:text-red-700 h-7 px-2 text-xs"
-                  title="Clear pending jobs (queued/prioritized) from all queues"
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" />
-                  Clear
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Clear Pending Jobs</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to clear pending jobs from all queues? This will remove jobs that haven&apos;t started processing yet (queued, prioritized, and delayed) from both the Email Processing and Tone Profile queues. Active, completed, and failed jobs will remain. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearQueue} className="bg-red-600 hover:bg-red-700">
-                    Clear Pending Jobs
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  variant="outline"
-                  className="hover:bg-red-100 border-red-300 text-red-700 hover:text-red-800 h-7 px-2 text-xs font-semibold"
-                  title="Obliterate ALL jobs from all queues (nuclear option)"
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" />
-                  Obliterate
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-red-600">⚠️ Obliterate All Jobs</AlertDialogTitle>
-                  <AlertDialogDescription asChild>
-                    <div className="space-y-2">
-                      <div className="font-semibold text-red-700">DANGER: This is the nuclear option!</div>
-                      <div>This will completely obliterate ALL jobs from ALL queues, including:</div>
-                      <ul className="list-disc list-inside text-sm space-y-1 ml-2">
-                        <li>Waiting and prioritized jobs</li>
-                        <li>Active jobs (currently processing)</li>
-                        <li>Completed jobs (history)</li>
-                        <li>Failed jobs (debugging info)</li>
-                        <li>Delayed and paused jobs</li>
-                      </ul>
-                      <div className="font-semibold text-red-700">This action cannot be undone and will clear all job history!</div>
-                    </div>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleObliterateQueue} className="bg-red-700 hover:bg-red-800">
-                    💥 Obliterate Everything
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            </div>
+
+            {/* Row 2: Emergency & Maintenance */}
+            <div className="flex gap-1 items-center pt-2 border-t border-red-200">
+              <Button
+                onClick={handleEmergencyToggle}
+                disabled={isLoadingEmergency}
+                className={queuesEmergencyPaused
+                  ? "bg-green-600 hover:bg-green-700 h-7 px-2 text-xs"
+                  : "bg-red-600 hover:bg-red-700 h-7 px-2 text-xs"}
+                title={queuesEmergencyPaused
+                  ? "Resume all queues after emergency pause"
+                  : "⚠️ Immediately pause all job queues - use only in emergencies"}
+              >
+                {queuesEmergencyPaused ? (
+                  <>
+                    <Play className="h-3.5 w-3.5 mr-1" />
+                    Resume Queues
+                  </>
+                ) : (
+                  <>
+                    <Pause className="h-3.5 w-3.5 mr-1" />
+                    Emergency Pause
+                  </>
+                )}
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="hover:bg-red-50 border-red-200 text-red-600 hover:text-red-700 h-7 px-2 text-xs"
+                    title="Remove all waiting/queued jobs from all queues"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Clear Waiting
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>⚠️ Clear Waiting Jobs</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Remove all waiting/queued jobs from both queues? Active and completed jobs will remain. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearQueue} className="bg-red-600 hover:bg-red-700">
+                      🗑 Clear Jobs
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="hover:bg-red-100 border-red-300 text-red-700 hover:text-red-800 h-7 px-2 text-xs font-semibold"
+                    title="⚠️ DANGER: Delete ALL jobs and history from all queues"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Obliterate All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-red-600">⚠️ DANGER: Obliterate All Queues</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="space-y-2">
+                        <div className="font-semibold text-red-700">This will delete ALL jobs (waiting, active, completed, failed) from all queues. All job history will be lost. This cannot be undone.</div>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleObliterateQueue} className="bg-red-700 hover:bg-red-800">
+                      💥 Obliterate Everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </div>
