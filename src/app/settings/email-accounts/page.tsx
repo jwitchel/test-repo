@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, Mail, Server, Eye, EyeOff } from 'lucide-react'
 import { EmailAccountResponse } from '@/types/email-account'
@@ -125,8 +126,8 @@ function EmailAccountsContent() {
                   <strong>{reauthAccount.email_address}</strong> requires re-authorization. Click reconnect to resume syncing.
                 </span>
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
                   onClick={async () => {
                     try {
                       const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
@@ -264,7 +265,7 @@ function AccountList({
                   <div>
                     {account.email_address}
                     {account.oauth_provider && (
-                      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 mt-1">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                         <FcGoogle className="h-3 w-3" />
                         Connected via OAuth
                       </span>
@@ -278,25 +279,20 @@ function AccountList({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    account.is_active 
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' 
-                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                  }`}>
+                  <Badge variant={account.is_active ? 'default' : 'secondary'}>
                     {account.is_active ? 'Active' : 'Inactive'}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     {account.monitoring_enabled ? (
-                      <Eye className="h-4 w-4 text-green-600" />
+                      <Eye className="h-4 w-4" />
                     ) : (
-                      <EyeOff className="h-4 w-4 text-zinc-400" />
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
                     )}
                     <Switch
                       checked={account.monitoring_enabled || false}
                       onCheckedChange={(checked) => onToggleMonitoring(account, checked)}
-                      className="data-[state=checked]:bg-green-600"
                     />
                   </div>
                 </TableCell>
@@ -310,8 +306,8 @@ function AccountList({
                   <div className="flex justify-end gap-2">
                     {account.oauth_provider && (
                       <Button
-                        variant="ghost"
-                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
                         onClick={async () => {
                           try {
                             const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
@@ -336,15 +332,15 @@ function AccountList({
                       </Button>
                     )}
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
                       onClick={() => onTest(account)}
                     >
                       Test
                     </Button>
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
                       onClick={() => onEdit(account)}
                     >
                       Edit
@@ -352,9 +348,8 @@ function AccountList({
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          variant="destructive"
+                          className="h-7 px-2 text-xs"
                           disabled={deletingId === account.id}
                         >
                           {deletingId === account.id ? (
