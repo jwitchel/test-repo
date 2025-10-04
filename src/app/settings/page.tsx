@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth-context'
-import Link from 'next/link'
 import { Separator } from '@/components/ui/separator'
 import { SignaturePatterns } from '@/components/settings/signature-patterns'
 import { TypedNameSettings } from '@/components/settings/typed-name-settings'
@@ -426,30 +425,6 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Email Accounts</CardTitle>
-                <CardDescription>Manage your connected email accounts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/settings/email-accounts">
-                  <Button variant="outline">Manage Email Accounts</Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>LLM Providers</CardTitle>
-                <CardDescription>Configure AI providers for generating email replies</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/settings/llm-providers">
-                  <Button variant="outline">Manage LLM Providers</Button>
-                </Link>
               </CardContent>
             </Card>
 

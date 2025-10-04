@@ -13,18 +13,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { 
-  ChevronDown, 
-  Mail, 
-  Database, 
-  Code2, 
-  Home, 
+import {
+  ChevronDown,
+  Mail,
+  Database,
+  Code2,
+  Home,
   FileSearch,
   Sparkles,
   Settings,
   LogOut,
   User,
-  Briefcase
+  Briefcase,
+  Brain
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useEffect } from 'react'
@@ -178,6 +179,18 @@ export function Navbar() {
                   <Link href="/settings" className="flex items-center gap-2 cursor-pointer">
                     <Settings className="h-4 w-4" />
                     Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/email-accounts" className="flex items-center gap-2 cursor-pointer">
+                    <Mail className="h-4 w-4" />
+                    Email Accounts
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/llm-providers" className="flex items-center gap-2 cursor-pointer">
+                    <Brain className="h-4 w-4" />
+                    LLM Providers
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
