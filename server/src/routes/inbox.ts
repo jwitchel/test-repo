@@ -22,6 +22,13 @@ router.post('/process-single', requireAuth, async (req, res): Promise<void> => {
     generatedDraft
   } = req.body;
 
+  // Debug: Log whether draft was provided
+  console.log(`[/api/inbox/process-single] generatedDraft provided: ${!!generatedDraft}`);
+  if (generatedDraft) {
+    console.log(`[/api/inbox/process-single] Draft subject: ${generatedDraft.subject}`);
+    console.log(`[/api/inbox/process-single] Draft body length: ${generatedDraft.body?.length || 0}`);
+  }
+
   // Validate required fields
   if (!emailAccountId || !rawMessage || !providerId || !messageUid) {
     res.status(400).json({
@@ -46,15 +53,20 @@ router.post('/process-single', requireAuth, async (req, res): Promise<void> => {
       generatedDraft
     });
 
+    console.log(`[/api/inbox/process-single] Result:`, { success: result.success, destination: result.destination, action: result.action });
+
     if (result.success) {
-      res.json({
+      const response = {
         success: true,
         folder: result.destination,
         message: result.actionDescription,
         action: result.action,
         draftId: result.draftId
-      });
+      };
+      console.log(`[/api/inbox/process-single] Sending success response:`, response);
+      res.json(response);
     } else {
+      console.log(`[/api/inbox/process-single] Sending error response:`, result.error);
       res.status(500).json({
         error: 'Failed to process email',
         message: result.error

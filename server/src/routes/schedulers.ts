@@ -4,11 +4,11 @@ import { jobSchedulerManager, SchedulerId } from '../lib/job-scheduler-manager';
 
 const router = express.Router();
 
-// Get all schedulers for the authenticated user
+// Get global scheduler summary for the authenticated user
 router.get('/', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
-    const schedulers = await jobSchedulerManager.getAllSchedulerStatuses(userId);
+    const schedulers = await jobSchedulerManager.getSchedulerSummary(userId);
 
     res.json({
       schedulers,
@@ -23,7 +23,51 @@ router.get('/', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// Get specific scheduler status for an account
+// Toggle scheduler globally (enable/disable for all monitored accounts)
+router.put('/:id', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const schedulerId = req.params.id;
+    const { enabled } = req.body;
+
+    // Validate scheduler ID
+    if (!Object.values(SchedulerId).includes(schedulerId as SchedulerId)) {
+      res.status(400).json({ error: `Invalid scheduler ID: ${schedulerId}` });
+      return;
+    }
+
+    // Validate enabled parameter
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+
+    let affectedCount: number;
+    if (enabled) {
+      affectedCount = await jobSchedulerManager.enableSchedulerGlobally(schedulerId, userId);
+    } else {
+      affectedCount = await jobSchedulerManager.disableSchedulerGlobally(schedulerId, userId);
+    }
+
+    // Get updated summary
+    const schedulers = await jobSchedulerManager.getSchedulerSummary(userId);
+    const updatedScheduler = schedulers.find(s => s.id === schedulerId);
+
+    res.json({
+      success: true,
+      message: `Scheduler ${schedulerId} ${enabled ? 'enabled' : 'disabled'} for ${affectedCount} account(s)`,
+      scheduler: updatedScheduler
+    });
+  } catch (error) {
+    console.error(`Error updating scheduler ${req.params.id}:`, error);
+    res.status(500).json({
+      error: 'Failed to update scheduler',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get specific scheduler status for an account (per-account management)
 router.get('/:id/:accountId', requireAuth, async (req, res): Promise<void> => {
   try {
     const schedulerId = req.params.id;
@@ -46,7 +90,7 @@ router.get('/:id/:accountId', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// Update scheduler (enable/disable) for a specific account
+// Update scheduler (enable/disable) for a specific account (per-account management)
 router.put('/:id/:accountId', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;

@@ -8,6 +8,7 @@ import {
   addInboxJob,
   addTrainingJob
 } from '../lib/queue';
+import { pool } from '../server';
 
 const router = express.Router();
 
@@ -29,11 +30,11 @@ router.post('/queue', requireAuth, async (req, res): Promise<void> => {
       'normal': JobPriority.NORMAL,
       'low': JobPriority.LOW
     };
-    
+
     const jobPriority = priorityMap[priority.toLowerCase()] || JobPriority.NORMAL;
 
     let job;
-    
+
     // Queue the job based on type
     switch (type) {
       case JobType.PROCESS_INBOX:
@@ -150,12 +151,26 @@ router.get('/list', requireAuth, async (req, res): Promise<void> => {
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, Number(limit));
 
-    // Format jobs for response - include queue information
+    // Format jobs for response - include queue information and job data
     const formattedJobs = await Promise.all(allJobs.map(async (job) => {
       // Determine queue name based on which queue the job came from
       const isEmailJob = emailJobs.includes(job);
       const queueName = isEmailJob ? 'email-processing' : 'tone-profile';
-      
+
+      // Get email address from accountId if available
+      let emailAddress: string | undefined;
+      if (job.data?.accountId) {
+        try {
+          const result = await pool.query(
+            'SELECT email_address FROM email_accounts WHERE id = $1',
+            [job.data.accountId]
+          );
+          emailAddress = result.rows[0]?.email_address;
+        } catch (err) {
+          console.error('Error fetching email address for job:', err);
+        }
+      }
+
       return {
         jobId: job.id,
         queueName,
@@ -167,7 +182,8 @@ router.get('/list', requireAuth, async (req, res): Promise<void> => {
         createdAt: new Date(job.timestamp).toISOString(),
         processedAt: job.processedOn ? new Date(job.processedOn).toISOString() : null,
         completedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
-        duration: job.finishedOn && job.processedOn ? job.finishedOn - job.processedOn : null
+        duration: job.finishedOn && job.processedOn ? job.finishedOn - job.processedOn : null,
+        emailAddress // Add email address to response
       };
     }));
 

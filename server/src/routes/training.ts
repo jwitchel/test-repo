@@ -3,28 +3,26 @@ import { requireAuth } from '../middleware/auth';
 import { ImapOperations } from '../lib/imap-operations';
 import { withImapContext } from '../lib/imap-context';
 import { ToneLearningOrchestrator } from '../lib/pipeline/tone-learning-orchestrator';
-import { VectorStore } from '../lib/vector/qdrant-client';
+import { VectorStore, SENT_COLLECTION } from '../lib/vector/qdrant-client';
 import { imapLogger } from '../lib/imap-logger';
-import { EmailProcessor } from '../lib/email-processor';
-import { ProcessedEmail } from '../lib/pipeline/types';
 import { WritingPatternAnalyzer } from '../lib/pipeline/writing-pattern-analyzer';
 import { RegexSignatureDetector } from '../lib/regex-signature-detector';
 import { pool } from '../server';
 import { EmbeddingService } from '../lib/vector/embedding-service';
+import { emailStorageService } from '../lib/email-storage-service';
 
 const router = express.Router();
 const regexSignatureDetector = new RegexSignatureDetector(pool);
-const emailProcessor = new EmailProcessor(pool);
 
 // Load sent emails into vector DB
 router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
     const { emailAccountId, limit = 1000, startDate } = req.body;
-    
-    
-    if (!emailAccountId || !startDate) {
-      res.status(400).json({ error: 'emailAccountId and startDate are required' });
+
+
+    if (!emailAccountId) {
+      res.status(400).json({ error: 'emailAccountId is required' });
       return;
     }
 
@@ -33,9 +31,13 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
     await withImapContext(emailAccountId, userId, async () => {
       imapOps = await ImapOperations.fromAccountId(emailAccountId, userId);
       const orchestrator = new ToneLearningOrchestrator();
-      // Convert startDate to Date object and add 1 day to make it inclusive
-      const beforeDate = new Date(startDate);
-      beforeDate.setDate(beforeDate.getDate() + 1);
+
+      // If startDate is provided, search before that date
+      // Otherwise, search for most recent emails (no date filter)
+      const beforeDate = startDate ? new Date(startDate) : undefined;
+      if (beforeDate) {
+        beforeDate.setDate(beforeDate.getDate() + 1); // Make it inclusive
+      }
 
       // Search for sent emails
       imapLogger.log(userId, {
@@ -52,21 +54,26 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       const sentFolders = ['Sent', 'Sent Items', 'Sent Mail', '[Gmail]/Sent Mail'];
       let messages: any[] = [];
       let folderUsed = '';
-    
+
+    console.log(`[Training] Searching for sent emails ${beforeDate ? `before ${beforeDate.toISOString()}` : '(most recent)'}, limit ${limit}`);
+
     for (const folder of sentFolders) {
       try {
-        
-        // Search with date criteria
-        const searchResults = await imapOps!.searchMessages(folder, {
-          before: beforeDate
-        }, { limit });
-        
+        console.log(`[Training] Trying folder: ${folder}`);
+
+        // Search with or without date criteria
+        const searchCriteria = beforeDate ? { before: beforeDate } : {};
+        const searchResults = await imapOps!.searchMessages(folder, searchCriteria, { limit });
+
+        console.log(`[Training] Folder ${folder}: found ${searchResults.length} messages`);
+
         if (searchResults.length > 0) {
           messages = searchResults;
           folderUsed = folder;
           break;
         }
       } catch (err) {
+        console.log(`[Training] Folder ${folder} error:`, err instanceof Error ? err.message : err);
         // This is expected when searching for the correct folder name
         // Different email providers use different folder names
         continue;
@@ -74,9 +81,12 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
     }
 
       if (messages.length === 0) {
+      console.log(`[Training] No sent emails found in any folder. Tried: ${sentFolders.join(', ')}`);
       res.status(404).json({ error: 'No sent emails found' });
         return;
       }
+
+      console.log(`[Training] Found ${messages.length} emails in folder ${folderUsed}`);
 
       imapLogger.log(userId, {
       userId,
@@ -101,70 +111,69 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
 
 
 
-    // Simple sequential processing
+    // Batch fetch and process using EmailStorageService
       let processed = 0;
+      let saved = 0;
       let errors = 0;
       const startTime = Date.now();
       const totalMessages = messages.length;
 
-    
-    // Simple for loop - process one email at a time
-    for (let i = 0; i < totalMessages; i++) {
-      const message = messages[i];
-      
-      try {
-        // Fetch full message with body content
-        const fullMessage = await imapOps!.getMessage(folderUsed, message.uid);
-        
-        if (fullMessage.parsed && fullMessage.rawMessage) {
-          // Get the ORIGINAL text from the parsed email (before any processing)
-          const originalText = fullMessage.parsed.text || '';
-          const originalHtml = fullMessage.parsed.html || null;
-          
-          // Process to extract user content
-          const processedContent = await emailProcessor.processEmail(fullMessage.parsed, {
-            userId,
-            emailAccountId
-          });
+      // Initialize email storage service
+      await emailStorageService.initialize();
 
-          // Convert to ProcessedEmail format for pipeline
-          const pipelineEmail: ProcessedEmail = {
-            uid: message.uid.toString(),
-            messageId: fullMessage.parsed.messageId || `${message.uid}@${emailAccountId}`,
-            inReplyTo: fullMessage.parsed.inReplyTo as string | null || null,
-            date: fullMessage.parsed.date || new Date(),
-            from: fullMessage.parsed.from ? [{
-              address: fullMessage.parsed.from.value[0]?.address || '',
-              name: fullMessage.parsed.from.value[0]?.name || ''
-            }] : [],
-            to: fullMessage.parsed.to ? 
-              (Array.isArray(fullMessage.parsed.to) ? fullMessage.parsed.to : fullMessage.parsed.to.value).map((addr: any) => ({
-                address: addr.address || '',
-                name: addr.name || ''
-              })) : [],
-            cc: [],
-            bcc: [],
-            subject: fullMessage.parsed.subject || '',
-            textContent: originalText,  // ORIGINAL text (with quotes, signatures, etc)
-            htmlContent: originalHtml,   // ORIGINAL HTML
-            userReply: processedContent.userReply,  // Just what the user wrote (no signatures, no quotes)
-            respondedTo: processedContent.respondedTo,  // The quoted content the user was responding to
-            rawMessage: fullMessage.rawMessage  // Raw RFC 5322 message
-          };
+      // Collect UIDs for batch fetching
+      const uids = messages.map(msg => msg.uid);
 
-          // Process ONE email at a time through the orchestrator - sequential method
-          const result = await orchestrator.ingestSingleEmail(
+      // Batch fetch all messages with getMessagesRaw() (includes bodystructure, flags, size)
+      console.log(`[Training] Batch fetching ${uids.length} messages from ${folderUsed}`);
+      const fullMessages = await imapOps!.getMessagesRaw(folderUsed, uids);
+      console.log(`[Training] Fetched ${fullMessages.length} full messages`);
+
+      // Process each message with EmailStorageService
+      for (let i = 0; i < fullMessages.length; i++) {
+        const fullMessage = fullMessages[i];
+
+        try {
+          // Validate message has required data
+          if (!fullMessage.rawMessage) {
+            errors++;
+            console.error(`[Training] Email ${fullMessage.uid} missing raw message`);
+            imapLogger.log(userId, {
+              userId,
+              emailAccountId,
+              level: 'error',
+              command: 'TRAINING_EMAIL_ERROR',
+              data: {
+                error: 'Missing raw RFC 5322 message',
+                parsed: { uid: fullMessage.uid, index: i }
+              }
+            });
+            continue;
+          }
+
+          // Save to Qdrant using EmailStorageService
+          const result = await emailStorageService.saveEmail({
             userId,
             emailAccountId,
-            pipelineEmail  // Single email, not array
-          );
-          
-          processed += result.processed;
-          errors += result.errors;
-          
-          
+            emailData: fullMessage,  // Complete EmailMessageWithRaw data
+            emailType: 'sent',
+            folderName: folderUsed
+          });
+
+          if (result.success) {
+            if (result.skipped) {
+              console.log(`[Training] Email ${fullMessage.messageId} skipped (duplicate or no content)`);
+            } else {
+              processed++;
+              saved += result.saved || 0;
+            }
+          } else {
+            errors++;
+            console.error(`[Training] Failed to save email ${fullMessage.messageId}:`, result.error);
+          }
+
           // Log progress every 10 emails
-          if ((i + 1) % 10 === 0 || i === totalMessages - 1) {
+          if ((i + 1) % 10 === 0 || i === fullMessages.length - 1) {
             imapLogger.log(userId, {
               userId,
               emailAccountId,
@@ -174,46 +183,32 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
                 parsed: {
                   processed: i + 1,
                   total: totalMessages,
+                  saved,
                   errors,
                   percentage: Math.round(((i + 1) / totalMessages) * 100)
                 }
               }
             });
           }
-          
+
           // Small delay to prevent overwhelming the system
           await new Promise(resolve => setTimeout(resolve, 10));
-        } else {
-          // Log error if raw message is missing
+
+        } catch (err) {
           errors++;
-          const errorMsg = !fullMessage.parsed ? 'Failed to parse email' : 'Missing raw RFC 5322 message';
-          console.error(`Error processing email ${message.uid}: ${errorMsg}`);
+          console.error(`[Training] Error processing email ${i + 1}:`, err);
           imapLogger.log(userId, {
             userId,
             emailAccountId,
             level: 'error',
             command: 'TRAINING_EMAIL_ERROR',
-            data: { 
-              error: errorMsg,
-              parsed: { uid: message.uid, index: i }
+            data: {
+              error: err instanceof Error ? err.message : 'Unknown error',
+              parsed: { uid: fullMessage.uid, index: i }
             }
           });
         }
-      } catch (err) {
-        errors++;
-        console.error(`Error processing email ${i + 1}:`, err);
-        imapLogger.log(userId, {
-          userId,
-          emailAccountId,
-          level: 'error',
-          command: 'TRAINING_EMAIL_ERROR',
-          data: { 
-            error: err instanceof Error ? err.message : 'Unknown error',
-            parsed: { uid: message.uid, index: i }
-          }
-        });
       }
-    }
     
     
     // Aggregate styles after all emails are processed
@@ -230,18 +225,19 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       emailAccountId,
       level: 'info',
       command: 'TRAINING_COMPLETE',
-      data: { 
-        parsed: { processed, errors, duration }
+      data: {
+        parsed: { processed, saved, errors, duration }
       }
       });
-    
+
     // Give WebSocket time to send the completion message before responding
     await new Promise(resolve => setTimeout(resolve, 100));
-    
-    
+
+
       res.json({
       success: true,
       processed,
+      saved,  // Number of Qdrant entries created (can be > processed for sent emails with multiple recipients)
       errors,
       duration
       });
@@ -314,8 +310,9 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       }
     });
     
-    // Get ALL emails for the user across ALL accounts and relationships
-    const scrollResult = await vectorStore['client'].scroll(vectorStore['collectionName'], {
+    // Get ALL sent emails for the user across ALL accounts and relationships
+    // (Pattern analysis uses sent emails to learn the user's writing style)
+    const scrollResult = await vectorStore['client'].scroll(SENT_COLLECTION, {
       filter: {
         must: [
           { key: 'userId', match: { value: userId } }
