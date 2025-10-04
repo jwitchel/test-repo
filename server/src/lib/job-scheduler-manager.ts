@@ -221,9 +221,9 @@ export class JobSchedulerManager {
     // Import pool here to avoid circular dependencies
     const { pool } = await import('../server');
 
-    // Get all active email accounts for this user
+    // Get all email accounts for this user
     const result = await pool.query(
-      'SELECT id FROM email_accounts WHERE user_id = $1 AND is_active = true',
+      'SELECT id FROM email_accounts WHERE user_id = $1',
       [userId]
     );
 
@@ -248,6 +248,121 @@ export class JobSchedulerManager {
   }
 
   /**
+   * Get global scheduler summary for a user
+   * Returns aggregate information for each scheduler type
+   */
+  async getSchedulerSummary(userId: string): Promise<Array<{
+    id: string;
+    enabled: boolean;
+    monitoredAccounts: number;
+    interval: number;
+    description: string;
+    nextRun?: Date;
+  }>> {
+    const summary = [];
+
+    // Import pool here to avoid circular dependencies
+    const { pool } = await import('../server');
+
+    // Get all monitored accounts for this user
+    const result = await pool.query(
+      'SELECT id FROM email_accounts WHERE user_id = $1 AND monitoring_enabled = true',
+      [userId]
+    );
+    const monitoredAccountIds = result.rows.map(r => r.id);
+
+    // For each scheduler type, get aggregate status
+    for (const [schedulerId, config] of this.schedulerConfigs.entries()) {
+      let enabled = false;
+      let earliestNextRun: Date | undefined;
+
+      // Check if ANY monitored account has this scheduler enabled
+      for (const accountId of monitoredAccountIds) {
+        const status = await this.getSchedulerStatus(schedulerId, accountId);
+        if (status && status.enabled) {
+          enabled = true;
+          if (status.nextRun) {
+            if (!earliestNextRun || status.nextRun < earliestNextRun) {
+              earliestNextRun = status.nextRun;
+            }
+          }
+        }
+      }
+
+      summary.push({
+        id: schedulerId,
+        enabled,
+        monitoredAccounts: enabled ? monitoredAccountIds.length : 0,
+        interval: config.interval,
+        description: config.description,
+        nextRun: earliestNextRun
+      });
+    }
+
+    return summary;
+  }
+
+  /**
+   * Enable a scheduler globally for all monitored accounts
+   */
+  async enableSchedulerGlobally(schedulerId: string, userId: string): Promise<number> {
+    // Import pool here to avoid circular dependencies
+    const { pool } = await import('../server');
+
+    // Get all monitored accounts
+    const result = await pool.query(
+      'SELECT id, email_address FROM email_accounts WHERE user_id = $1 AND monitoring_enabled = true',
+      [userId]
+    );
+
+    console.log(`[JobSchedulerManager] Enabling ${schedulerId} globally for ${result.rows.length} monitored accounts`);
+
+    // Enable scheduler for each monitored account
+    for (const row of result.rows) {
+      try {
+        await this.enableScheduler(schedulerId, userId, row.id);
+      } catch (error) {
+        console.error(`[JobSchedulerManager] Failed to enable ${schedulerId} for ${row.email_address}:`, error);
+      }
+    }
+
+    return result.rows.length;
+  }
+
+  /**
+   * Disable a scheduler globally for all accounts
+   */
+  async disableSchedulerGlobally(schedulerId: string, userId: string): Promise<number> {
+    // Import pool here to avoid circular dependencies
+    const { pool } = await import('../server');
+
+    // Get all accounts (not just monitored - we want to disable any that have it enabled)
+    const result = await pool.query(
+      'SELECT id, email_address FROM email_accounts WHERE user_id = $1',
+      [userId]
+    );
+
+    console.log(`[JobSchedulerManager] Disabling ${schedulerId} globally for ${result.rows.length} accounts`);
+
+    let disabledCount = 0;
+    // Disable scheduler for each account
+    for (const row of result.rows) {
+      try {
+        // Check if scheduler exists before trying to disable
+        const status = await this.getSchedulerStatus(schedulerId, row.id);
+        if (status && status.enabled) {
+          await this.disableScheduler(schedulerId, userId, row.id);
+          disabledCount++;
+        }
+      } catch (error) {
+        console.error(`[JobSchedulerManager] Failed to disable ${schedulerId} for ${row.email_address}:`, error);
+      }
+    }
+
+    return disabledCount;
+  }
+
+  /**
    * Initialize schedulers for a user based on email_accounts.monitoring_enabled
    * This syncs the schedulers with the database state by:
    * 1. Enabling schedulers for accounts with monitoring_enabled = true
@@ -261,7 +376,7 @@ export class JobSchedulerManager {
 
     // Query ALL accounts for this user with email addresses
     const result = await pool.query(
-      'SELECT id, email_address, monitoring_enabled FROM email_accounts WHERE user_id = $1 AND is_active = true',
+      'SELECT id, email_address, monitoring_enabled FROM email_accounts WHERE user_id = $1',
       [userId]
     );
 

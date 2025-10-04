@@ -14,7 +14,6 @@ interface EmailAccount {
   id: string
   email_address: string
   monitoring_enabled: boolean
-  is_active: boolean
 }
 
 interface LLMProvider {
@@ -119,7 +118,6 @@ export default function DashboardPage() {
                       <TableRow>
                         <TableHead>Email</TableHead>
                         <TableHead>Monitoring</TableHead>
-                        <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -137,11 +135,6 @@ export default function DashboardPage() {
                                 {account.monitoring_enabled ? 'Enabled' : 'Paused'}
                               </span>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={account.is_active ? 'default' : 'secondary'}>
-                              {account.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))}

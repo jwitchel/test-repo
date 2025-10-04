@@ -12,7 +12,6 @@ describe('Email Accounts GET/DELETE Endpoints', () => {
           imap_host: 'imap.example.com',
           imap_port: 993,
           imap_username: 'user@example.com',
-          is_active: true,
           last_sync: new Date('2024-01-15T10:00:00Z'),
           created_at: new Date('2024-01-01T10:00:00Z')
         },
@@ -22,7 +21,6 @@ describe('Email Accounts GET/DELETE Endpoints', () => {
           imap_host: 'imap.gmail.com',
           imap_port: 993,
           imap_username: 'user2@gmail.com',
-          is_active: false,
           last_sync: null,
           created_at: new Date('2024-01-02T10:00:00Z')
         }
@@ -36,7 +34,6 @@ describe('Email Accounts GET/DELETE Endpoints', () => {
         imap_port: row.imap_port,
         imap_secure: row.imap_port === 993 || row.imap_port === 1993,
         imap_username: row.imap_username,
-        is_active: row.is_active,
         last_sync: row.last_sync ? row.last_sync.toISOString() : null,
         created_at: row.created_at.toISOString(),
         updated_at: row.created_at.toISOString()
@@ -79,7 +76,6 @@ describe('Email Accounts GET/DELETE Endpoints', () => {
         imap_port: 993,
         imap_username: 'user@example.com',
         imap_password_encrypted: 'encrypted_password_here',
-        is_active: true,
         last_sync: null as Date | null,
         created_at: new Date()
       };
@@ -92,7 +88,6 @@ describe('Email Accounts GET/DELETE Endpoints', () => {
         imap_port: mockRow.imap_port,
         imap_secure: mockRow.imap_port === 993,
         imap_username: mockRow.imap_username,
-        is_active: mockRow.is_active,
         last_sync: mockRow.last_sync ? mockRow.last_sync.toISOString() : null,
         created_at: mockRow.created_at.toISOString(),
         updated_at: mockRow.created_at.toISOString()

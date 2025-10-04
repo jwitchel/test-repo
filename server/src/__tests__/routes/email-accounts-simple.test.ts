@@ -126,7 +126,6 @@ describe('Email Account Components', () => {
         imap_port: 1143,
         imap_secure: false,
         imap_username: 'test@example.com',
-        is_active: true,
         last_sync: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

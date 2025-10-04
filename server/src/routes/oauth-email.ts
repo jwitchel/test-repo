@@ -91,11 +91,11 @@ router.post('/complete', requireAuth, async (req, res): Promise<void> => {
       const imapPort = 993;
 
       await client.query(
-        `INSERT INTO email_accounts 
+        `INSERT INTO email_accounts
          (user_id, email_address, imap_host, imap_port, imap_username,
-          oauth_provider, oauth_refresh_token, oauth_access_token, 
-          oauth_token_expires_at, oauth_user_id, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)`,
+          oauth_provider, oauth_refresh_token, oauth_access_token,
+          oauth_token_expires_at, oauth_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           userId,
           email,

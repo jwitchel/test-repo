@@ -100,14 +100,14 @@ router.get('/', requireAuth, async (req, res) => {
     const userId = (req as any).user.id;
     
     const result = await pool.query(
-      `SELECT id, email_address, imap_host, imap_port, imap_username, 
-              is_active, last_sync, created_at, oauth_provider, monitoring_enabled
-       FROM email_accounts 
-       WHERE user_id = $1 
+      `SELECT id, email_address, imap_host, imap_port, imap_username,
+              last_sync, created_at, oauth_provider, monitoring_enabled
+       FROM email_accounts
+       WHERE user_id = $1
        ORDER BY created_at DESC`,
       [userId]
     );
-    
+
     const accounts: EmailAccountResponse[] = result.rows.map(row => ({
       id: row.id,
       email_address: row.email_address,
@@ -115,7 +115,6 @@ router.get('/', requireAuth, async (req, res) => {
       imap_port: row.imap_port,
       imap_secure: row.imap_port === 993 || row.imap_port === 1993, // Infer from port
       imap_username: row.imap_username,
-      is_active: row.is_active,
       monitoring_enabled: row.monitoring_enabled || false,
       last_sync: row.last_sync ? row.last_sync.toISOString() : null,
       created_at: row.created_at.toISOString(),
@@ -183,9 +182,9 @@ router.post('/', requireAuth, validateEmailAccount, async (req, res): Promise<vo
     // Insert into database
     const result = await pool.query(
       `INSERT INTO email_accounts
-       (user_id, email_address, imap_host, imap_port, imap_username, imap_password_encrypted, is_active, monitoring_enabled)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, email_address, imap_host, imap_port, imap_username, is_active, monitoring_enabled, last_sync, created_at`,
+       (user_id, email_address, imap_host, imap_port, imap_username, imap_password_encrypted, monitoring_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, email_address, imap_host, imap_port, imap_username, monitoring_enabled, last_sync, created_at`,
       [
         userId,
         accountData.email_address,
@@ -193,7 +192,6 @@ router.post('/', requireAuth, validateEmailAccount, async (req, res): Promise<vo
         accountData.imap_port,
         accountData.imap_username,
         encryptedPassword,
-        true, // Set as active by default
         accountData.monitoring_enabled || false // Default to false if not specified
       ]
     );
@@ -214,7 +212,6 @@ router.post('/', requireAuth, validateEmailAccount, async (req, res): Promise<vo
       imap_port: result.rows[0].imap_port,
       imap_secure: accountData.imap_secure, // Not stored in DB, return from request
       imap_username: result.rows[0].imap_username,
-      is_active: result.rows[0].is_active,
       monitoring_enabled: monitoringEnabled,
       last_sync: result.rows[0].last_sync ? result.rows[0].last_sync.toISOString() : null,
       created_at: result.rows[0].created_at.toISOString(),

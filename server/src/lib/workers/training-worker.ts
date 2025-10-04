@@ -18,8 +18,55 @@ const connection = new Redis({
 
 // Handler for building tone profiles
 async function buildToneProfile(job: Job<BuildToneProfileJobData>) {
-  const { userId, accountId } = job.data;
+  const { userId, accountId, fanOut } = job.data;
 
+  // Check if this is a fan-out job (parent job that spawns child jobs)
+  if (fanOut || !accountId) {
+    console.log(`[TrainingWorker] Processing fan-out job ${job.id}: Rebuilding tone profiles for all accounts`);
+
+    try {
+      // Import here to avoid circular dependencies
+      const { pool } = await import('../../server');
+      const { addTrainingJob } = await import('../queue');
+      const { JobPriority } = await import('../queue');
+
+      // Get all email accounts for this user
+      const result = await pool.query(
+        'SELECT id, email_address FROM email_accounts WHERE user_id = $1',
+        [userId]
+      );
+
+      console.log(`[TrainingWorker] Fan-out job ${job.id}: Found ${result.rows.length} accounts to process`);
+
+      // Create child jobs for each account
+      const childJobs = [];
+      for (const row of result.rows) {
+        const childJob = await addTrainingJob(
+          JobType.BUILD_TONE_PROFILE,
+          {
+            userId,
+            accountId: row.id,
+            historyDays: job.data.historyDays || 30
+          },
+          JobPriority.HIGH
+        );
+        childJobs.push(childJob.id);
+        console.log(`[TrainingWorker] Created child job ${childJob.id} for ${row.email_address}`);
+      }
+
+      return {
+        success: true,
+        fanOut: true,
+        accountsProcessed: result.rows.length,
+        childJobs
+      };
+    } catch (error) {
+      console.error(`[TrainingWorker] Fan-out job ${job.id} failed:`, error);
+      throw error;
+    }
+  }
+
+  // Regular single-account tone profile building
   console.log(`[TrainingWorker] Processing job ${job.id}: Building tone profile for user ${userId}, account ${accountId}`);
 
   try {

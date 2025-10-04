@@ -56,11 +56,11 @@ async function setupTestAccounts() {
       const encryptedPassword = Buffer.from(account.password).toString('base64');
       
       const result = await pool.query(
-        `INSERT INTO email_accounts 
-         (user_id, email_address, imap_host, imap_port, imap_username, imap_password_encrypted, imap_secure, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO email_accounts
+         (user_id, email_address, imap_host, imap_port, imap_username, imap_password_encrypted, imap_secure)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id`,
-        [userId, account.email, 'localhost', 1143, account.username, encryptedPassword, false, true]
+        [userId, account.email, 'localhost', 1143, account.username, encryptedPassword, false]
       );
       
       console.log(`Created test account: ${account.email} (ID: ${result.rows[0].id})`);

@@ -47,9 +47,9 @@ async function initializeSchedulers() {
   try {
     const { jobSchedulerManager } = await import('./lib/job-scheduler-manager');
 
-    // Get all unique users with active email accounts
+    // Get all unique users with email accounts
     const result = await pool.query(
-      'SELECT DISTINCT user_id FROM email_accounts WHERE is_active = true'
+      'SELECT DISTINCT user_id FROM email_accounts'
     );
 
     console.log(`🔄 Initializing schedulers for ${result.rows.length} users...`);

@@ -252,7 +252,6 @@ function AccountList({
             <TableRow>
               <TableHead>Email</TableHead>
               <TableHead>Server</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead>Monitoring</TableHead>
               <TableHead>Last Sync</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -277,11 +276,6 @@ function AccountList({
                     <Server className="h-3 w-3" />
                     {account.imap_host}:{account.imap_port}
                   </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={account.is_active ? 'default' : 'secondary'}>
-                    {account.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">

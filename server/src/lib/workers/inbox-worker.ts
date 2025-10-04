@@ -17,8 +17,52 @@ const connection = new Redis({
 });
 
 async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
-  const { userId, accountId } = job.data;
+  const { userId, accountId, fanOut, folderName } = job.data;
 
+  // Check if this is a fan-out job (parent job that spawns child jobs)
+  if (fanOut || !accountId) {
+    console.log(`[InboxWorker] Processing fan-out job ${job.id}: Checking all monitored accounts`);
+
+    try {
+      // Get all monitored email accounts for this user
+      const result = await pool.query(
+        'SELECT id, email_address FROM email_accounts WHERE user_id = $1 AND monitoring_enabled = true',
+        [userId]
+      );
+
+      console.log(`[InboxWorker] Fan-out job ${job.id}: Found ${result.rows.length} monitored accounts`);
+
+      // Create child jobs for each monitored account
+      const { addInboxJob } = await import('../queue');
+      const { JobPriority } = await import('../queue');
+
+      const childJobs = [];
+      for (const row of result.rows) {
+        const childJob = await addInboxJob(
+          {
+            userId,
+            accountId: row.id,
+            folderName: folderName || 'INBOX'
+          },
+          JobPriority.HIGH
+        );
+        childJobs.push(childJob.id);
+        console.log(`[InboxWorker] Created child job ${childJob.id} for ${row.email_address}`);
+      }
+
+      return {
+        success: true,
+        fanOut: true,
+        accountsProcessed: result.rows.length,
+        childJobs
+      };
+    } catch (error) {
+      console.error(`[InboxWorker] Fan-out job ${job.id} failed:`, error);
+      throw error;
+    }
+  }
+
+  // Regular single-account inbox processing
   // Log start
   imapLogger.log(userId, {
     userId,
@@ -46,7 +90,7 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
 
   // Process batch
   const result = await inboxProcessor.processBatch({
-    accountId,
+    accountId: accountId!,
     userId,
     providerId,
     batchSize,

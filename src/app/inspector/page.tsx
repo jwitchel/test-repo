@@ -32,7 +32,6 @@ interface EmailAccount {
   id: string
   email_address: string
   imap_host: string
-  is_active: boolean
 }
 
 // Demo account ID for testing without real email accounts
@@ -248,10 +247,9 @@ export default function ImapLogsDemoPage() {
           const accounts = await response.json()
           setEmailAccounts(accounts)
           
-          // Select first active account
-          const firstActive = accounts.find((a: EmailAccount) => a.is_active)
-          if (firstActive) {
-            setSelectedEmailAccountId(firstActive.id)
+          // Select first account
+          if (accounts.length > 0) {
+            setSelectedEmailAccountId(accounts[0].id)
           }
         }
       } catch (err) {

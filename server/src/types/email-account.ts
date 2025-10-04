@@ -15,7 +15,6 @@ export interface EmailAccountResponse {
   imap_port: number;
   imap_secure: boolean;
   imap_username: string;
-  is_active: boolean;
   monitoring_enabled?: boolean;
   last_sync: string | null;
   created_at: string;
@@ -32,7 +31,6 @@ export interface EmailAccountDb {
   imap_secure: boolean;
   imap_username: string;
   imap_password_encrypted: string;
-  is_active: boolean;
   last_sync: Date | null;
   created_at: Date;
   updated_at: Date;

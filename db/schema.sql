@@ -13,7 +13,6 @@ CREATE TABLE email_accounts (
   imap_port INTEGER NOT NULL,
   imap_username VARCHAR(255) NOT NULL,
   imap_password_encrypted TEXT NOT NULL,
-  is_active BOOLEAN DEFAULT true,
   last_sync TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
 );

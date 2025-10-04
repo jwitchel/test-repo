@@ -126,7 +126,6 @@ describe('Email Account GET/DELETE Endpoints', () => {
         imap_port: 1143,
         imap_secure: false,
         imap_username: 'test@example.com',
-        is_active: true,
         last_sync: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -146,7 +145,6 @@ describe('Email Account GET/DELETE Endpoints', () => {
         imap_host: 'localhost',
         imap_port: 993,
         imap_username: 'test@example.com',
-        is_active: true,
         last_sync: new Date('2024-01-01'),
         created_at: new Date('2023-12-01')
       };
@@ -158,7 +156,6 @@ describe('Email Account GET/DELETE Endpoints', () => {
         imap_port: dbRow.imap_port,
         imap_secure: dbRow.imap_port === 993 || dbRow.imap_port === 1993,
         imap_username: dbRow.imap_username,
-        is_active: dbRow.is_active,
         last_sync: dbRow.last_sync ? dbRow.last_sync.toISOString() : null,
         created_at: dbRow.created_at.toISOString(),
         updated_at: dbRow.created_at.toISOString()
@@ -223,14 +220,12 @@ describe('Email Account GET/DELETE Endpoints', () => {
         imap_port: 993,
         imap_username: 'test@example.com',
         imap_password_encrypted: 'encrypted:iv:authTag:data',
-        is_active: true,
         last_sync: null,
         created_at: new Date()
       };
 
       expect(account.email_address).toBe('test@example.com');
       expect(account.imap_port).toBe(993);
-      expect(account.is_active).toBe(true);
     });
   });
 });
