@@ -8,6 +8,18 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -108,7 +120,6 @@ export default function LLMProvidersPage() {
   const { success, error: showError } = useToast()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider | null>(null)
   const [isTesting, setIsTesting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -250,7 +261,6 @@ export default function LLMProvidersPage() {
 
       if (response.ok) {
         success('LLM provider deleted successfully')
-        setIsDeleteDialogOpen(false)
         setSelectedProvider(null)
         mutate('http://localhost:3002/api/llm-providers')
       } else {
@@ -276,9 +286,9 @@ export default function LLMProvidersPage() {
     setIsEditDialogOpen(true)
   }
 
-  const openDeleteDialog = (provider: LLMProvider) => {
-    setSelectedProvider(provider)
-    setIsDeleteDialogOpen(true)
+  const openAddDialog = () => {
+    resetForm()
+    setIsAddDialogOpen(true)
   }
 
   const resetForm = () => {
@@ -321,8 +331,8 @@ export default function LLMProvidersPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-6xl">
-      
+    <div className="container mx-auto py-6 px-4 md:px-6">
+
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">LLM Providers</h1>
         <p className="text-muted-foreground">
@@ -330,113 +340,110 @@ export default function LLMProvidersPage() {
         </p>
       </div>
 
-      <div className="mb-6">
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Provider
-        </Button>
-      </div>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold">Connected Providers</h2>
+          <Button onClick={openAddDialog}>Add Provider</Button>
+        </div>
 
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-4 w-[200px]" />
-                <Skeleton className="h-3 w-[150px]" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-20 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : providers && providers.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {providers.map((provider) => (
-            <Card key={provider.id} className="relative">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{getProviderIcon(provider.provider_type)}</span>
-                    <div>
-                      <CardTitle className="text-lg">{provider.provider_name}</CardTitle>
-                      <CardDescription>
+        {isLoading ? (
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </CardContent>
+          </Card>
+        ) : providers && providers.length > 0 ? (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Provider Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Model</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Default</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {providers.map((provider) => (
+                  <TableRow key={provider.id}>
+                    <TableCell className="font-medium">
+                      {provider.provider_name}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
                         {PROVIDER_INFO[provider.provider_type].name}
-                      </CardDescription>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {provider.is_default && (
-                      <Badge variant="default" className="bg-indigo-600">Default</Badge>
-                    )}
-                    <Badge variant={provider.is_active ? "default" : "secondary"}>
-                      {provider.is_active ? (
-                        <><Zap className="mr-1 h-3 w-3" /> Active</>
-                      ) : (
-                        <><WifiOff className="mr-1 h-3 w-3" /> Inactive</>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">{provider.model_name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={provider.is_active ? 'default' : 'secondary'}>
+                        {provider.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {provider.is_default && (
+                        <Badge variant="default">Default</Badge>
                       )}
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Model:</span>{' '}
-                    <span className="font-medium">{provider.model_name}</span>
-                  </div>
-                  {provider.api_endpoint && (
-                    <div>
-                      <span className="text-muted-foreground">Endpoint:</span>{' '}
-                      <span className="font-medium text-xs">{provider.api_endpoint}</span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-muted-foreground">Added:</span>{' '}
-                    <span className="font-medium">
-                      {new Date(provider.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-4 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(provider)}
-                  >
-                    <Edit className="mr-1 h-3 w-3" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openDeleteDialog(provider)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="mr-1 h-3 w-3" />
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className="max-w-md mx-auto">
-          <CardContent className="pt-6">
-            <div className="text-center">
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => openEditDialog(provider)}
+                        >
+                          Edit
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              className="h-7 px-2 text-xs"
+                            >
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete LLM Provider</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete &quot;{provider.provider_name}&quot;? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => {
+                                setSelectedProvider(provider)
+                                handleDelete()
+                              }}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="text-center py-8">
+              <Plus className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground mb-4">
-                No LLM providers configured yet.
+                No LLM providers configured yet
               </p>
-              <Button onClick={() => setIsAddDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Your First Provider
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              <Button onClick={openAddDialog}>Add Provider</Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Add Provider Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -699,32 +706,6 @@ export default function LLMProvidersPage() {
               ) : (
                 'Save Changes'
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete LLM Provider</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete &quot;{selectedProvider?.provider_name}&quot;? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-            >
-              Delete Provider
             </Button>
           </DialogFooter>
         </DialogContent>
