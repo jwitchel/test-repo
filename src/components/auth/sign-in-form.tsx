@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import Image from 'next/image'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert } from '@/components/ui/alert'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/hooks/use-toast'
 
 const signInSchema = z.object({
@@ -50,7 +51,17 @@ export function SignInForm() {
 
   return (
     <Card className="w-full max-w-md">
-      <CardHeader>
+      <CardHeader className="text-center space-y-4">
+        <div className="flex flex-col items-center space-y-3">
+          <Image
+            src="/logo.png"
+            alt="AI Email Assistant Logo"
+            width={48}
+            height={48}
+            className="object-contain"
+          />
+          <h1 className="text-2xl font-bold">AI Email Assistant</h1>
+        </div>
         <CardTitle>Sign In</CardTitle>
         <CardDescription>
           Enter your email and password to access your account
@@ -60,7 +71,7 @@ export function SignInForm() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {error && (
             <Alert variant="destructive">
-              {error}
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
           
