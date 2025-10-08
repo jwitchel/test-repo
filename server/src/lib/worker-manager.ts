@@ -201,11 +201,13 @@ export class WorkerManager {
     const queuesPaused = await this.areQueuesPaused();
 
     const workerStatuses = await Promise.all(
-      Array.from(this.workers.entries()).map(async ([name, worker]) => ({
-        name,
-        isPaused: worker.isPaused(),
-        isRunning: worker.isRunning()
-      }))
+      Array.from(this.workers.entries())
+        .filter(([_, worker]) => worker !== undefined) // Filter out undefined workers
+        .map(async ([name, worker]) => ({
+          name,
+          isPaused: worker.isPaused(),
+          isRunning: worker.isRunning()
+        }))
     );
 
     const queueStatuses = await Promise.all(

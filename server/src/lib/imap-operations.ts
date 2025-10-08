@@ -315,7 +315,7 @@ export class ImapOperations {
 
       // Log summary for monitoring (only if we're actually fetching messages)
       if (paginatedUids.length > 0) {
-        console.log(`[ImapOperations] Fetching ${paginatedUids.length} messages from ${folderName} (total: ${uids.length}, offset: ${offset})`);
+        console.log(`[ImapOperations] Fetching ${paginatedUids.length} messages from ${this.account.email} ${folderName} (total: ${uids.length}, offset: ${offset})`);
       }
 
       if (paginatedUids.length === 0) {

@@ -24,6 +24,24 @@ async function startWorkers() {
   // Initialize worker manager (restores pause state from Redis)
   await workerManager.initialize();
 
+  // Get status for display
+  const status = await workerManager.getStatus();
+
+  // Large colored status display
+  if (status.workersPaused) {
+    console.log('\n' + '='.repeat(60));
+    console.log('\x1b[31m%s\x1b[0m', '🛑 WORKERS ARE PAUSED - No background jobs will process');
+    console.log('\x1b[31m%s\x1b[0m', '   Enable workers via Dashboard → Jobs page');
+    console.log('='.repeat(60) + '\n');
+  } else {
+    console.log('\n' + '='.repeat(60));
+    console.log('\x1b[32m%s\x1b[0m', '✅ WORKERS ARE RUNNING - Background jobs will process');
+    status.workers.forEach(w => {
+      const runStatus = w.isRunning ? '▶️  Running' : '⏸️  Not Running';
+      console.log('\x1b[32m%s\x1b[0m', `   ${w.name}: ${runStatus}`);
+    });
+    console.log('='.repeat(60) + '\n');
+  }
 }
 
 startWorkers().catch(console.error);
