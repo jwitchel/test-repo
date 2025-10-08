@@ -34,13 +34,9 @@ interface EmailAccount {
   imap_host: string
 }
 
-// Demo account ID for testing without real email accounts
-const DEMO_ACCOUNT_ID = 'demo-account-001'
-
 export default function ImapLogsDemoPage() {
   const { user } = useAuth()
   const { success, error: showError } = useToast()
-  const [] = useState<string>(DEMO_ACCOUNT_ID)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   
   // LLM Provider state
@@ -498,8 +494,8 @@ export default function ImapLogsDemoPage() {
             </div>
             {!isSidebarCollapsed && (
               <div className="p-2 overflow-y-auto flex flex-col gap-2">
-                <TrainingPanel 
-                  emailAccountId={DEMO_ACCOUNT_ID}
+                <TrainingPanel
+                  emailAccountId={selectedEmailAccountId}
                   userId={user?.id || ''}
                 />
               </div>
@@ -511,7 +507,7 @@ export default function ImapLogsDemoPage() {
             <ResizableSplit
               defaultTopHeight={70}
               minTopHeight={200}
-              minBottomHeight={100}
+              minBottomHeight={400}
               className="flex-1"
               topContent={
                 /* Full width Analysis Pipeline */
@@ -793,8 +789,8 @@ export default function ImapLogsDemoPage() {
           bottomContent={
             /* IMAP Logs Panel - Full Width */
             <div className="h-full p-2 overflow-hidden">
-              <ImapLogViewer 
-                emailAccountId={DEMO_ACCOUNT_ID} 
+              <ImapLogViewer
+                emailAccountId={selectedEmailAccountId}
                 className="h-full"
               />
             </div>

@@ -351,7 +351,7 @@ export class DraftGenerator {
         [userId]
       );
 
-      let userNames;
+      let userNames: { name: string; nicknames: string } | undefined;
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
         const preferences = user.preferences || {};
@@ -363,54 +363,24 @@ export class DraftGenerator {
         };
       }
 
-      // Generate the draft using the orchestrator with retry logic
-      let draft;
-      let retryCount = 0;
-      const maxRetries = 1;
+      // Generate the draft using the orchestrator with timeout protection
+      const llmTimeout = parseInt(process.env.EMAIL_PROCESSING_LLM_TIMEOUT || '20000');
 
-      while (retryCount <= maxRetries) {
-        try {
-          draft = await orchestrator!.generateDraft({
-            incomingEmail: processedEmail,
-            recipientEmail: fromAddress,
-            config: {
-              userId,
-              userNames
-            }
-          });
-          break; // Success, exit the loop
-        } catch (error: any) {
-          // Check if it's the specific JSON structure error
-          if (error.message?.includes('Invalid response structure: missing meta or message') &&
-              retryCount < maxRetries) {
-            retryCount++;
-
-            imapLogger.log(userId, {
-              userId,
-              emailAccountId,
-              level: 'warn',
-              command: 'DRAFT_GENERATION_RETRY',
-              data: {
-                parsed: {
-                  error: error.message,
-                  retryAttempt: retryCount,
-                  emailSubject: subject,
-                  emailFrom: fromAddress
-                }
-              }
-            });
-
-            // Continue to next iteration for retry
-            continue;
-          }
-          // If it's not the specific error or we've exhausted retries, throw
-          throw error;
+      const draftPromise = orchestrator!.generateDraft({
+        incomingEmail: processedEmail,
+        recipientEmail: fromAddress,
+        config: {
+          userId,
+          userNames
         }
-      }
+      });
 
-      if (!draft) {
-        throw new Error('Failed to generate draft after retries');
-      }
+      // Wrap draft generation with timeout to prevent infinite hangs
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`LLM timeout after ${llmTimeout}ms`)), llmTimeout);
+      });
+
+      const draft = await Promise.race([draftPromise, timeoutPromise]);
 
       // Check if this is a silent action
       const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];

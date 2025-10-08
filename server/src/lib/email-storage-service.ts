@@ -82,34 +82,19 @@ export class EmailStorageService {
         })) || []
       };
 
-      // Debug: Log original email content
-      const originalText = parsedEmail.text || parsedEmail.html || '';
-      const originalLength = originalText.length;
-      console.log(`[EmailStorage] Processing ${emailData.messageId}:`);
-      console.log(`  Original text length: ${originalLength}`);
-      console.log(`  Subject: ${parsedEmail.subject}`);
-      console.log(`  First 200 chars: ${originalText.substring(0, 200)}`);
-
       // Process email to extract user content (remove signatures, quotes)
       const processedContent = await this.emailProcessor.processEmail(parsedEmail, {
         userId,
         emailAccountId
       });
 
-      // Debug: Log processed content
-      console.log(`  Processed userReply length: ${processedContent.userReply?.length || 0}`);
-      console.log(`  Processed userReply: ${processedContent.userReply?.substring(0, 200) || '(empty)'}`);
-
       // Validate that we have content to store
       if (!processedContent.userReply || processedContent.userReply.trim() === '') {
-        console.log(`[EmailStorage] ❌ Skipping email ${emailData.messageId} - no user content after processing`);
         return {
           success: true,
           skipped: true
         };
       }
-
-      console.log(`[EmailStorage] ✅ Email ${emailData.messageId} has content, proceeding to save`);
 
       // Redact names from user reply
       const redactionResult = nameRedactor.redactNames(processedContent.userReply);
@@ -277,7 +262,6 @@ export class EmailStorageService {
       // Check if already exists (deduplication)
       const exists = await this.vectorStore.pointExists(emailId, collectionName);
       if (exists) {
-        console.log(`[EmailStorage] Skipping duplicate: ${emailId}`);
         return false;
       }
 
@@ -361,7 +345,6 @@ export class EmailStorageService {
         collectionName
       });
 
-      console.log(`[EmailStorage] Saved email: ${emailId} to ${collectionName} (type: ${emailType}, ${folderName})`);
       return true;
 
     } catch (error) {

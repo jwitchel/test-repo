@@ -22,13 +22,6 @@ router.post('/process-single', requireAuth, async (req, res): Promise<void> => {
     generatedDraft
   } = req.body;
 
-  // Debug: Log whether draft was provided
-  console.log(`[/api/inbox/process-single] generatedDraft provided: ${!!generatedDraft}`);
-  if (generatedDraft) {
-    console.log(`[/api/inbox/process-single] Draft subject: ${generatedDraft.subject}`);
-    console.log(`[/api/inbox/process-single] Draft body length: ${generatedDraft.body?.length || 0}`);
-  }
-
   // Validate required fields
   if (!emailAccountId || !rawMessage || !providerId || !messageUid) {
     res.status(400).json({
@@ -53,23 +46,21 @@ router.post('/process-single', requireAuth, async (req, res): Promise<void> => {
       generatedDraft
     });
 
-    console.log(`[/api/inbox/process-single] Result:`, { success: result.success, destination: result.destination, action: result.action });
-
     if (result.success) {
-      const response = {
+      // Email was successfully processed
+      res.json({
         success: true,
         folder: result.destination,
         message: result.actionDescription,
         action: result.action,
         draftId: result.draftId
-      };
-      console.log(`[/api/inbox/process-single] Sending success response:`, response);
-      res.json(response);
+      });
     } else {
-      console.log(`[/api/inbox/process-single] Sending error response:`, result.error);
-      res.status(500).json({
-        error: 'Failed to process email',
-        message: result.error
+      // Email processing failed (including skipped due to lock)
+      const statusCode = result.action === 'skipped' ? 409 : 500;  // 409 Conflict for lock contention
+      res.status(statusCode).json({
+        error: result.action === 'skipped' ? 'Email is being processed by another request' : 'Failed to process email',
+        message: result.error || result.actionDescription
       });
     }
   } catch (error) {
@@ -83,13 +74,10 @@ router.post('/process-single', requireAuth, async (req, res): Promise<void> => {
 
 // Get inbox emails for a specific account
 router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> => {
-  const startTime = Date.now();
   try {
     const userId = (req as any).user.id;
     const { accountId } = req.params;
     const { offset = 0, limit = 1, showAll = 'false' } = req.query;
-
-    console.log(`[inbox] === START === offset: ${offset}, limit: ${limit}, showAll: ${showAll}`);
 
     await withImapJson(res, accountId, userId, async () => {
       // Account validation happens in ImapOperations.fromAccountId()
@@ -99,8 +87,6 @@ router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> =>
       const targetLimit = Number(limit);
       const BATCH_SIZE = parseInt(process.env.INBOX_BATCH_SIZE || '10', 10);
       let totalCount = -1;
-
-      console.log(`Fetching ${BATCH_SIZE} messages from IMAP starting at offset 0`);
       const messages = await imapOps.getMessages('INBOX', {
         offset: 0,
         limit: BATCH_SIZE,
@@ -141,15 +127,11 @@ router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> =>
         try {
           const folderInfo = await imapOps.getFolderMessageCount('INBOX');
           totalCount = folderInfo.total;
-          console.log(`Total messages in INBOX: ${totalCount}`);
         } catch (err) {
           console.error('Failed to get total count:', err);
           totalCount = -1;
         }
       }
-
-      const elapsed = Date.now() - startTime;
-      console.log(`[inbox] === COMPLETE === ${elapsed}ms`);
 
       // Now apply filtering and pagination on the enriched dataset
       let resultMessages: any[] = [];
@@ -159,18 +141,10 @@ router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> =>
         const unprocessedMessages = enrichedMessages.filter(msg =>
           msg.actionTaken === 'none' || !msg.actionTaken
         );
-        console.log(`Filtered from ${enrichedMessages.length} to ${unprocessedMessages.length} messages`);
 
         // For filtered mode, skip to the target offset in the filtered list
         // and take the requested limit
         resultMessages = unprocessedMessages.slice(targetOffset, targetOffset + targetLimit);
-
-        // If we don't have enough messages, we need to fetch more from IMAP
-        // This is a limitation of the current approach - we'd need to implement
-        // continuous fetching to handle all cases properly
-        if (resultMessages.length < targetLimit && messages.length === BATCH_SIZE) {
-          console.log(`Warning: May need to fetch more messages. Got ${resultMessages.length}, wanted ${targetLimit}`);
-        }
       } else {
         // For show-all mode, pagination is straightforward
         resultMessages = enrichedMessages.slice(0, targetLimit);
@@ -185,8 +159,7 @@ router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> =>
     }, 'Failed to fetch inbox');
 
   } catch (error: any) {
-    const elapsed = Date.now() - startTime;
-    console.error(`[inbox] === ERROR === ${elapsed}ms`, error);
+    console.error('[inbox] Error fetching inbox:', error);
     // Map OAuth refresh failures to 401 so client can prompt re-auth
     if (error?.code === 'AUTH_REFRESH_FAILED') {
       res.status(401).json({

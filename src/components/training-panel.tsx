@@ -35,7 +35,6 @@ import {
 interface EmailAccount {
   id: string
   email_address: string
-  is_active: boolean
   oauth_provider?: string
 }
 
@@ -79,7 +78,7 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: Trai
         })
         if (response.ok) {
           const accounts = await response.json()
-          setEmailAccounts(accounts.filter((acc: EmailAccount) => acc.is_active))
+          setEmailAccounts(accounts)
           setIsLoadingAccounts(false)
         } else {
           console.error('Failed to fetch email accounts')

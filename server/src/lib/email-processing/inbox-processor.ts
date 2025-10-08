@@ -10,6 +10,7 @@ import { draftGenerator } from './draft-generator';
 import { emailMover } from './email-mover';
 import { withImapContext } from '../imap-context';
 import { emailStorageService } from '../email-storage-service';
+import { emailLockManager } from '../email-lock-manager';
 
 // Silent actions that don't require draft creation
 const SILENT_ACTIONS = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
@@ -61,9 +62,36 @@ export interface BatchProcessResult {
 
 export class InboxProcessor {
   /**
-   * Process a single email - follows the exact logic from /inbox page
+   * Process a single email with distributed lock protection
+   * Prevents duplicate drafts when same email is processed concurrently
    */
   async processEmail(params: ProcessEmailParams): Promise<ProcessEmailResult> {
+    const { message, accountId } = params;
+    const emailId = message.messageId || `${message.uid}@${accountId}`;
+
+    // Acquire distributed lock - prevents concurrent processing of same email
+    const lockResult = await emailLockManager.processWithLock(
+      emailId,
+      accountId,
+      (signal) => this._executeProcessing(params, signal)
+    );
+
+    // Lock already held by another process - skip to avoid duplicate
+    if (!lockResult.acquired) {
+      return this._createSkippedResult(message, lockResult.reason);
+    }
+
+    return lockResult.result!;
+  }
+
+  /**
+   * Execute email processing with lock held
+   * @private
+   */
+  private async _executeProcessing(
+    params: ProcessEmailParams,
+    signal: AbortSignal
+  ): Promise<ProcessEmailResult> {
     const { message, accountId, userId, providerId, generatedDraft: existingDraft } = params;
 
     try {
@@ -71,11 +99,9 @@ export class InboxProcessor {
 
       // Step 1: Use existing draft if provided, otherwise generate new one
       if (existingDraft) {
-        console.log(`[InboxProcessor] Using pre-generated draft for message ${message.messageId}`);
         generatedDraft = existingDraft;
       } else {
-        console.log(`[InboxProcessor] Generating draft for message ${message.messageId}`);
-
+        // Generate draft (timeout is handled internally by draftGenerator)
         const draftResponse = await draftGenerator.generateDraft({
           rawMessage: message.rawMessage,
           emailAccountId: accountId,
@@ -90,18 +116,41 @@ export class InboxProcessor {
         generatedDraft = draftResponse.draft;
       }
 
+      // Critical check: Abort if lock expired during draft generation
+      // This prevents duplicate drafts when operations run long
+      if (signal.aborted) {
+        throw new Error('Lock expired during draft generation - aborting to prevent duplicate');
+      }
+
       const recommendedAction = generatedDraft.meta.recommendedAction; // Always present
 
       let moved = false;
       let destination = 'INBOX';
       let actionDescription = 'Reply sent';
 
-      // Step 2: Process based on action type (matching /inbox page logic exactly)
+      // Step 2: Record action tracking BEFORE IMAP operations (optimistic locking)
+      // This prevents duplicates if process crashes after IMAP but before tracking
+      try {
+        await EmailActionTracker.recordAction(
+          userId,
+          accountId,
+          message.messageId || `${message.uid}@${accountId}`,
+          'draft_created'  // Optimistically mark as processed
+        );
+      } catch (trackingError) {
+        console.error(`[InboxProcessor] Failed to record action tracking:`, trackingError);
+        throw trackingError;
+      }
+
+      // Step 3: Check signal before IMAP operations (lock may have expired during draft generation)
+      if (signal.aborted) {
+        throw new Error('Lock expired before IMAP operations - aborting to prevent duplicate');
+      }
+
+      // Step 4: Process based on action type (matching /inbox page logic exactly)
       try {
         if (SILENT_ACTIONS.includes(recommendedAction)) {
           // For silent actions, just move the email (no draft to upload)
-          console.log(`[InboxProcessor] Silent action ${recommendedAction} - moving message ${message.uid}`);
-
           const moveResponse = await emailMover.moveEmail({
             emailAccountId: accountId,
             userId,
@@ -117,9 +166,7 @@ export class InboxProcessor {
             actionDescription = moveResponse.message || `Moved to ${destination}`;
           }
         } else {
-          // For other actions (reply, etc), upload the draft which also moves the original
-          console.log(`[InboxProcessor] Uploading draft for message ${message.messageId}`);
-
+          // For other actions (reply, etc), upload the draft (original stays in INBOX)
           const uploadResponse = await emailMover.uploadDraft({
             emailAccountId: accountId,
             userId,
@@ -141,13 +188,17 @@ export class InboxProcessor {
         }
       } catch (moveError) {
         console.error(`[InboxProcessor] Failed to process message ${message.messageId}:`, moveError);
+        // Rollback action tracking on failure
+        try {
+          await EmailActionTracker.resetAction(accountId, message.messageId || `${message.uid}@${accountId}`);
+        } catch (rollbackError) {
+          console.error(`[InboxProcessor] Failed to rollback action tracking:`, rollbackError);
+        }
         throw moveError;
       }
 
-      // Step 3: Save incoming email to Qdrant (same as processBatch)
+      // Step 5: Save incoming email to Qdrant (same as processBatch)
       try {
-        console.log(`[InboxProcessor] Saving incoming email ${message.messageId} to Qdrant`);
-
         // Construct full email data structure matching EmailMessageWithRaw
         const emailData = {
           uid: message.uid,
@@ -169,8 +220,6 @@ export class InboxProcessor {
           emailType: 'incoming',
           folderName: 'INBOX'
         });
-
-        console.log(`[InboxProcessor] Successfully saved email ${message.messageId} to Qdrant`);
       } catch (storageError) {
         // Log error but don't fail inbox processing
         console.error(`[InboxProcessor] Failed to save email ${message.messageId} to Qdrant:`, storageError);
@@ -205,14 +254,34 @@ export class InboxProcessor {
   }
 
   /**
+   * Create a "skipped" result when lock cannot be acquired
+   * @private
+   */
+  private _createSkippedResult(
+    message: ProcessEmailParams['message'],
+    reason?: string
+  ): ProcessEmailResult {
+    const errorMsg = reason || 'Lock not acquired';
+    return {
+      success: false,
+      messageId: message.messageId,
+      subject: message.subject,
+      from: message.from,
+      action: 'skipped',
+      actionDescription: errorMsg,
+      destination: 'INBOX',
+      moved: false,
+      error: errorMsg
+    };
+  }
+
+  /**
    * Process a batch of emails
    * Wrapped in withImapContext to ensure single connection reuse and guaranteed cleanup
    */
   async processBatch(params: BatchProcessParams): Promise<BatchProcessResult> {
     const startTime = Date.now();
     const { accountId, userId, providerId, batchSize, offset, force } = params;
-
-    console.log(`[SERVER] [InboxProcessor] Processing batch: accountId=${accountId}, batchSize=${batchSize}, offset=${offset}`);
 
     // Wrap entire batch operation in IMAP context to ensure:
     // 1. Single connection reused across all IMAP operations
@@ -224,7 +293,6 @@ export class InboxProcessor {
         const results: ProcessEmailResult[] = [];
 
         // Fetch messages from inbox with pagination
-        console.log(`[InboxProcessor] Fetching ${batchSize} messages from INBOX starting at offset ${offset}`);
         const messages = await imapOps.getMessages('INBOX', {
           offset: Number(offset),
           limit: Number(batchSize),
@@ -232,7 +300,6 @@ export class InboxProcessor {
         });
 
         if (messages.length === 0) {
-          console.log('[InboxProcessor] No messages found in INBOX');
           return {
             success: true,
             processed: 0,
@@ -245,33 +312,20 @@ export class InboxProcessor {
 
         // Batch fetch full message details
         const uids = messages.map(msg => msg.uid);
-        console.log(`[InboxProcessor] Batch fetching ${uids.length} messages`);
         const fullMessages = await imapOps.getMessagesRaw('INBOX', uids);
-
-        console.log(`[InboxProcessor] Fetched ${fullMessages.length} full messages`);
-        console.log(`[InboxProcessor] Message details:`, fullMessages.map(m => ({ uid: m.uid, messageId: m.messageId, hasMessageId: !!m.messageId })));
 
         // Get action tracking for all messages to filter already processed
         const messageIds = fullMessages.map(msg => msg.messageId).filter((id): id is string => !!id);
-        console.log(`[InboxProcessor] Extracted ${messageIds.length} message IDs from ${fullMessages.length} messages`);
         const actionTracking = await EmailActionTracker.getActionsForMessages(accountId, messageIds);
-        console.log(`[InboxProcessor] Action tracking results:`, actionTracking);
 
         // Filter to unprocessed messages (unless force is true)
         const toProcess = fullMessages.filter(msg => {
           if (!msg.messageId) {
-            console.log(`[InboxProcessor] Skipping - no messageId: UID ${msg.uid}`);
             return false;
           }
           const tracked = actionTracking[msg.messageId];
-          const shouldProcess = force || !tracked || tracked.actionTaken === 'none';
-          if (!shouldProcess) {
-            console.log(`[InboxProcessor] Skipping already processed: ${msg.messageId}, action: ${tracked?.actionTaken}`);
-          }
-          return shouldProcess;
+          return force || !tracked || tracked.actionTaken === 'none';
         });
-
-        console.log(`[InboxProcessor] Processing ${toProcess.length} of ${fullMessages.length} messages`);
 
         // Process each email
         // Note: processEmail now handles Qdrant storage internally (DRY)

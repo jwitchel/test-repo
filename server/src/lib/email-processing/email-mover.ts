@@ -171,14 +171,12 @@ export class EmailMover {
         await imapOps.appendMessage(draftsFolderPath, emailMessage, ['\\Draft'], true);
       });
 
-      // Record that a draft was created for this email (if replying to a message)
-      if (inReplyTo) {
-        await EmailActionTracker.recordAction(userId, emailAccountId, inReplyTo, 'draft_created');
-      }
+      // NOTE: Action tracking is now handled by caller (inbox-processor) BEFORE upload
+      // This ensures atomicity and prevents duplicates on crash
 
       return {
         success: true,
-        message: `Email uploaded to ${draftsFolderPath}`,
+        message: `Draft uploaded to ${draftsFolderPath}`,
         folder: draftsFolderPath,
         action: recommendedAction
       };
