@@ -51,21 +51,19 @@ router.post('/profile', requireAuth, async (req, res) => {
     
     // Update preferences JSONB with new profile data
     const result = await pool.query(
-      `UPDATE "user" 
+      `UPDATE "user"
        SET preferences = jsonb_set(
          jsonb_set(
            jsonb_set(
-             jsonb_set(
-               COALESCE(preferences, '{}'::jsonb),
-               '{name}',
-               $2::jsonb
-             ),
-             '{nicknames}',
-             $3::jsonb
+             COALESCE(preferences, '{}'::jsonb),
+             '{name}',
+             $2::jsonb
            ),
-           '{signatureBlock}',
-           $4::jsonb
+           '{nicknames}',
+           $3::jsonb
          ),
+         '{signatureBlock}',
+         $4::jsonb
        )
        WHERE id = $1
        RETURNING preferences`,
