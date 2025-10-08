@@ -41,7 +41,10 @@ export function TypedNameSettings() {
       }
 
       const data = await response.json()
-      setPreferences(data.preferences)
+      setPreferences({
+        removalRegex: data.preferences?.removalRegex || '',
+        appendString: data.preferences?.appendString || ''
+      })
     } catch (err) {
       console.error('Error fetching preferences:', err)
       error('Failed to load typed name preferences')

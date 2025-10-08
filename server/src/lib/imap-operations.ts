@@ -299,8 +299,6 @@ export class ImapOperations {
       // Search for all messages
       const uids = await conn.search(['ALL']);
 
-      console.log(`[ImapOperations] Found ${uids.length} total messages. First 10 UIDs: [${uids.slice(0, 10).join(', ')}]`);
-
       if (uids.length === 0) {
         return [];
       }
@@ -309,14 +307,16 @@ export class ImapOperations {
       let sortedUids = [...uids];
       if (options.descending !== false) {
         sortedUids.reverse(); // Default to newest first
-        console.log(`[ImapOperations] After reverse - First 10 UIDs: [${sortedUids.slice(0, 10).join(', ')}]`);
       }
 
       const offset = options.offset || 0;
       const limit = options.limit || 50;
       const paginatedUids = sortedUids.slice(offset, offset + limit);
 
-      console.log(`[ImapOperations] Paginated UIDs (offset=${offset}, limit=${limit}): [${paginatedUids.join(', ')}]`);
+      // Log summary for monitoring (only if we're actually fetching messages)
+      if (paginatedUids.length > 0) {
+        console.log(`[ImapOperations] Fetching ${paginatedUids.length} messages from ${folderName} (total: ${uids.length}, offset: ${offset})`);
+      }
 
       if (paginatedUids.length === 0) {
         return [];
