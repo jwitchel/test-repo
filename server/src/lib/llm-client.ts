@@ -278,8 +278,8 @@ export class LLMClient {
         maxTokens: options?.maxTokens ?? 300,
       });
       
-      // Log the raw response for debugging
-      console.log('[LLMClient] Spam check raw response:', text.substring(0, 500) + '...');
+      // Log verbose response disabled for cleaner console output
+      // console.log('[LLMClient] Spam check raw response:', text.substring(0, 500) + '...');
       
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -331,8 +331,8 @@ export class LLMClient {
         maxTokens: options?.maxTokens ?? 500,
       });
       
-      // Log the raw response for debugging
-      console.log('[LLMClient] Meta-context analysis raw response:', text.substring(0, 500) + '...');
+      // Log verbose response disabled for cleaner console output
+      // console.log('[LLMClient] Meta-context analysis raw response:', text.substring(0, 500) + '...');
       
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -384,8 +384,8 @@ export class LLMClient {
         maxTokens: options?.maxTokens ?? 1000,
       });
       
-      // Log the raw response for debugging
-      console.log('[LLMClient] Action analysis raw response:', text.substring(0, 500) + '...');
+      // Log verbose response disabled for cleaner console output
+      // console.log('[LLMClient] Action analysis raw response:', text.substring(0, 500) + '...');
       
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -437,8 +437,8 @@ export class LLMClient {
         maxTokens: options?.maxTokens ?? 2000,
       });
       
-      // Log the raw response for debugging
-      console.log('[LLMClient] Response generation raw response:', text.substring(0, 500) + '...');
+      // Log verbose response disabled for cleaner console output
+      // console.log('[LLMClient] Response generation raw response:', text.substring(0, 500) + '...');
       
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);

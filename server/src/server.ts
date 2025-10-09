@@ -82,9 +82,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
 }));
 
-// Request logging middleware
+// Request logging middleware (suppress frequently polled endpoints)
 app.use((req, _res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  // Skip logging for polling endpoints to reduce console noise
+  const skipPaths = ['/api/jobs/stats', '/health'];
+  if (!skipPaths.includes(req.path)) {
+    console.log(`${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })} - ${req.method} ${req.path}`);
+  }
   next();
 });
 

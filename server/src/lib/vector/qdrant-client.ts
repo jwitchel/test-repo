@@ -392,20 +392,6 @@ export class VectorStore {
         with_vector: true
       });
 
-      console.log(`[VectorStore Debug] Found ${results.points.length} emails for userId: ${userId} in ${collection}`);
-      results.points.forEach((point, idx) => {
-        const payload = point.payload as any;
-        console.log(`[VectorStore Debug] Email ${idx + 1}:`, {
-          id: payload.emailId,
-          userId: payload.userId,
-          recipientEmail: payload.recipientEmail,
-          relationship: payload.relationship,
-          subject: payload.subject?.substring(0, 50) + '...',
-          hasVector: point.vector ? 'yes' : 'no',
-          vectorLength: point.vector ? (Array.isArray(point.vector) ? point.vector.length : 'object') : 0
-        });
-      });
-
       // Also check total count without userId filter
       const allResults = await this.client.scroll(collection, {
         limit: 1000,
@@ -413,7 +399,15 @@ export class VectorStore {
         with_vector: false
       });
 
-      console.log(`[VectorStore Debug] Total emails in ${collection}: ${allResults.points.length}`);
+      // Count emails by relationship type
+      const relationshipCounts: Record<string, number> = {};
+      results.points.forEach(point => {
+        const payload = point.payload as any;
+        const relType = payload.relationship?.type || 'unknown';
+        relationshipCounts[relType] = (relationshipCounts[relType] || 0) + 1;
+      });
+
+      console.log(`[VectorStore] Retrieved ${results.points.length} emails from ${collection} (total: ${allResults.points.length}) - ${Object.entries(relationshipCounts).map(([type, count]) => `${type}:${count}`).join(', ')}`);
     } catch (error) {
       console.error('[VectorStore Debug] Error:', error);
     }

@@ -98,6 +98,13 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
 
             // Use a more unique ID with random component to avoid duplicates
             const uniqueId = `job-${jobEvent.jobId}-${jobEvent.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            // Format header (easy to read) and body (detailed debugging)
+            const eventTypeShort = jobEvent.type?.replace('JOB_', '').toLowerCase() || 'event';
+            const header = jobEvent.emailAddress
+              ? `${eventTypeShort}: ${jobTypeDisplay}`
+              : `${eventTypeShort}: ${jobTypeDisplay}`;
+
             const log: ImapLogEntry = {
               id: uniqueId,
               timestamp: data.timestamp || new Date().toISOString(),
@@ -106,8 +113,14 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
               level: 'info',
               command: jobEvent.type || 'JOB_EVENT',
               data: {
-                raw: `[Job ${jobEvent.jobId}] ${jobEvent.type}: ${jobTypeDisplay}`,
-                parsed: jobEvent
+                raw: header,  // Clean readable header
+                parsed: {
+                  jobId: jobEvent.jobId,
+                  type: jobEvent.type,
+                  queue: jobEvent.queueName,
+                  email: jobEvent.emailAddress,
+                  ...jobEvent
+                }  // Detailed data for expanded view
               }
             };
             setLogs(prev => [...(prev || []), log]);
@@ -373,6 +386,9 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
                           log.command?.startsWith('JOB_') && "border-indigo-500 text-indigo-600",
                           log.command === 'JOB_COMPLETED' && "border-green-500 text-green-600",
                           log.command === 'JOB_FAILED' && "border-red-500 text-red-600",
+                          // Worker events
+                          log.command?.startsWith('WORKER_') && "border-cyan-500 text-cyan-600",
+                          log.command === 'WORKER_INBOX_COMPLETE' && "border-green-500 text-green-600",
                           // Monitoring events
                           log.command?.includes('MONITORING') && "border-blue-500 text-blue-600",
                           // IMAP operations

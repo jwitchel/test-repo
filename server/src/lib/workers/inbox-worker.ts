@@ -63,15 +63,22 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
   }
 
   // Regular single-account inbox processing
+  // Get email account info for logging
+  const accountResult = await pool.query(
+    'SELECT email_address FROM email_accounts WHERE id = $1',
+    [accountId]
+  );
+  const emailAddress = accountResult.rows[0]?.email_address || 'unknown';
+
   // Log start
   imapLogger.log(userId, {
     userId,
     emailAccountId: accountId,
     level: 'info',
-    command: 'worker.process_inbox.start',
+    command: 'WORKER_INBOX_START',
     data: {
-      raw: `Starting inbox processing for account ${accountId}`,
-      parsed: { accountId }
+      raw: `Starting inbox processing for ${emailAddress}`,
+      parsed: { accountId, emailAddress }
     }
   });
 
@@ -103,10 +110,12 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
     userId,
     emailAccountId: accountId,
     level: 'info',
-    command: 'worker.process_inbox.complete',
+    command: 'WORKER_INBOX_COMPLETE',
     data: {
-      raw: `Processed ${result.processed} emails in ${result.elapsed}ms`,
+      raw: `Processed ${result.processed} emails for ${emailAddress} in ${result.elapsed}ms`,
       parsed: {
+        accountId,
+        emailAddress,
         processed: result.processed,
         elapsed: result.elapsed,
         results: result.results

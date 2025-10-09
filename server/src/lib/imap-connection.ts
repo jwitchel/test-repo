@@ -317,10 +317,11 @@ export class ImapConnection extends EventEmitter {
       }
 
       this.logOperation('SEARCH', {
-        response: `Found ${uids.length} messages`,
+        response: `Found ${uids.length} messages on ${this.config.user}`,
         parsed: {
           count: uids.length,
-          uids: uidSample
+          uids: uidSample,
+          email: this.config.user
         },
         duration: Date.now() - startTime
       });
