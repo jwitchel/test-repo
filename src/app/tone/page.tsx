@@ -309,11 +309,21 @@ export default function TonePage() {
             <CardHeader>
               <CardTitle>No Tone Profile Found</CardTitle>
               <CardDescription>
-                You haven&apos;t analyzed any emails yet. Use the Training tab to load and analyze your emails.
+                Get started by loading sent emails from your account and analyzing your writing patterns.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button onClick={() => setMainTab('training')}>Go to Training</Button>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-zinc-600">
+                <p className="mb-2">To build your tone profile:</p>
+                <ol className="list-decimal list-inside space-y-1 ml-2">
+                  <li>Select an email account</li>
+                  <li>Click "Load Emails" to import your sent messages</li>
+                  <li>Click "Analyze Patterns" to build your tone profile</li>
+                </ol>
+              </div>
+              <Button onClick={() => setMainTab('training')} className="bg-indigo-600 hover:bg-indigo-700">
+                Start Training
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -341,25 +351,27 @@ export default function TonePage() {
             Analyze your writing style from {toneData.totalEmailsAnalyzed} emails
           </p>
         </div>
+      </div>
 
-        {/* Main Tabs */}
-        <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as 'training' | 'tuning' | 'results')}>
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+      {/* Main Tabs */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as 'training' | 'tuning' | 'results')} className="flex flex-col flex-1 min-h-0">
+          <TabsList className="grid w-full grid-cols-3 mb-4 flex-shrink-0">
             <TabsTrigger value="training">Training</TabsTrigger>
             <TabsTrigger value="tuning">Tuning</TabsTrigger>
             <TabsTrigger value="results">Results</TabsTrigger>
           </TabsList>
 
           {/* Training Tab */}
-          <TabsContent value="training" className="mt-0">
-            <Card>
-              <CardHeader>
+          <TabsContent value="training" className="mt-0 flex-1 flex flex-col min-h-0">
+            <Card className="flex flex-col flex-1 min-h-0">
+              <CardHeader className="flex-shrink-0">
                 <CardTitle>Training</CardTitle>
                 <CardDescription>Load and analyze emails from your account</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 flex flex-col flex-1 min-h-0">
                 {/* Compact Toolbar */}
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-shrink-0">
                   {/* Email Account Selector */}
                   <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
                     <SelectTrigger className="w-[280px] h-7 text-xs">
@@ -454,7 +466,7 @@ export default function TonePage() {
                 </div>
 
                 {/* Real-Time Logs */}
-                <div className="flex-1 min-h-[500px] overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <ImapLogViewer emailAccountId="" className="h-full" />
                 </div>
               </CardContent>
@@ -475,7 +487,7 @@ export default function TonePage() {
           </TabsContent>
 
           {/* Results Tab */}
-          <TabsContent value="results" className="mt-0">
+          <TabsContent value="results" className="mt-0 overflow-y-auto">
             <div className="space-y-6">
               {/* Sentence Patterns */}
               <Card>

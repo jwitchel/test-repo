@@ -391,8 +391,8 @@ export default function JobsPage() {
   
   return (
     <div className="container mx-auto py-6 px-4 md:px-6 flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
-      <div className="mb-6 flex-shrink-0">
-        <div className="mb-4">
+      <div className="mb-4 flex-shrink-0">
+        <div className="mb-3">
           <h1 className="text-3xl font-bold text-zinc-900">Background Jobs</h1>
           <p className="text-zinc-600 mt-1">Monitor and manage background processing tasks</p>
         </div>
@@ -599,16 +599,17 @@ export default function JobsPage() {
           </div>
         </div>
       </div>
-      
-      <div className="flex-shrink-0">
+
+      <div className="flex-shrink-0 mb-4">
         <JobsMonitor refreshTrigger={refreshKey} forceRefresh={forceRefresh} onJobComplete={fetchStats} />
       </div>
 
-      {/* Real-Time Logs Panel */}
-      <div className="mt-6 flex-1 min-h-[400px] overflow-hidden">
+      {/* Real-Time Logs Panel - grows to fill remaining space */}
+      <div className="flex-1 min-h-0">
         <ImapLogViewer
           emailAccountId="monitoring"
           className="h-full"
+          hideHeader={false}
         />
       </div>
     </div>

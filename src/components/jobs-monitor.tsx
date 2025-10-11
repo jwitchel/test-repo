@@ -439,7 +439,7 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="h-[120px] overflow-y-auto">
+          <div className="h-[200px] overflow-y-auto">
             {sortedJobs.length > 0 ? (
               <div>
                 {sortedJobs.slice(0, 20).map((job, index) => (

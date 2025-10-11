@@ -27,9 +27,10 @@ interface ImapLogEntry {
 interface ImapLogViewerProps {
   emailAccountId: string;
   className?: string;
+  hideHeader?: boolean;
 }
 
-export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps) {
+export function ImapLogViewer({ emailAccountId, className, hideHeader = false }: ImapLogViewerProps) {
   // TODO: Use emailAccountId to filter logs for specific email account
   const [logs, setLogs] = useState<ImapLogEntry[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -272,55 +273,107 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
   };
 
   return (
-    <Card className={cn("flex flex-col h-full overflow-hidden pt-0", className)}>
-      <div className="flex items-center justify-between px-2 py-1 border-b flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">Real-Time Logs</h3>
-          <Badge variant={isConnected ? "default" : "secondary"} className="text-xs py-0">
-            {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAutoScroll(!autoScroll)}
-            className={cn(autoScroll && "bg-zinc-100")}
-          >
-            Auto-scroll: {autoScroll ? 'On' : 'Off'}
-          </Button>
-          {!isConnected ? (
+    <Card className={cn("flex flex-col h-full overflow-hidden", hideHeader ? "pt-0" : "", className)}>
+      {!hideHeader && (
+        <div className="flex items-center justify-between px-2 py-1 border-b flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Real-Time Logs</h3>
+            <Badge variant={isConnected ? "default" : "secondary"} className="text-xs py-0">
+              {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={connect}
-              disabled={isConnecting}
+              onClick={() => setAutoScroll(!autoScroll)}
+              className={cn(autoScroll && "bg-zinc-100")}
             >
-              {isConnecting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <PlayCircle className="h-4 w-4" />
-              )}
+              Auto-scroll: {autoScroll ? 'On' : 'Off'}
             </Button>
-          ) : (
+            {!isConnected ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={connect}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PlayCircle className="h-4 w-4" />
+                )}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={disconnect}
+              >
+                <StopCircle className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
-              onClick={disconnect}
+              onClick={clearLogs}
+              disabled={!isConnected || !logs || logs.length === 0}
             >
-              <StopCircle className="h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearLogs}
-            disabled={!isConnected || !logs || logs.length === 0}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {hideHeader && (
+        <div className="flex items-center justify-between px-2 py-1 border-b flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Badge variant={isConnected ? "default" : "secondary"} className="text-xs py-0">
+              {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAutoScroll(!autoScroll)}
+              className={cn(autoScroll && "bg-zinc-100")}
+            >
+              Auto-scroll: {autoScroll ? 'On' : 'Off'}
+            </Button>
+            {!isConnected ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={connect}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PlayCircle className="h-4 w-4" />
+                )}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={disconnect}
+              >
+                <StopCircle className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearLogs}
+              disabled={!isConnected || !logs || logs.length === 0}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <Alert variant="destructive" className="m-4 flex-shrink-0">
