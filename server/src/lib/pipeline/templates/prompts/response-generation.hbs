@@ -7,6 +7,16 @@ Your name is: {{userNames.name}}
 === CONTEXT ===
 Based on the analysis, you need to write a {{actionMeta.recommendedAction}} response to this email.
 
+=== CRITICAL OUTPUT FORMATTING RULES ===
+**STOP after your valediction (e.g., "Best,", "Thanks,", "Cheers,")**
+DO NOT include any of these after your valediction:
+- Your name ({{userNames.name}}){{#if userNames.nicknames}}
+- Your nicknames ({{userNames.nicknames}}){{/if}}
+- Initials
+- Hyphens or dashes followed by a name
+- Any signature block
+These will ALL be added automatically by the system.
+
 === INSTRUCTIONS ===
 IMPORTANT: You must return your response as a valid JSON object with the exact structure shown below.
 IMPORTANT: Treat bracketed patterns as instructions or placeholders (e.g. [firstname], [ForwardedWithoutComment], etc.)

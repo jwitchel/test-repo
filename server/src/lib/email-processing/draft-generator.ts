@@ -12,6 +12,7 @@ import { pool } from '../../server';
 import { VectorStore } from '../vector/qdrant-client';
 import { EmbeddingService } from '../vector/embedding-service';
 import { EmailAttachmentStripper } from '../email-attachment-stripper';
+import { TypedNameRemover } from '../typed-name-remover';
 
 // Initialize services (singleton pattern)
 let orchestrator: ToneLearningOrchestrator | null = null;
@@ -381,6 +382,11 @@ export class DraftGenerator {
       });
 
       const draft = await Promise.race([draftPromise, timeoutPromise]);
+
+      // Clean any typed name that the LLM may have added despite instructions
+      const typedNameRemover = new TypedNameRemover(pool);
+      const cleanedDraft = await typedNameRemover.removeTypedName(draft.body, userId);
+      draft.body = cleanedDraft.cleanedText;
 
       // Check if this is a silent action
       const ignoreActions = ['silent-fyi-only', 'silent-large-list', 'silent-unsubscribe', 'silent-spam'];
