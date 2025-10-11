@@ -168,11 +168,17 @@ const inboxWorker = new Worker(
 );
 
 inboxWorker.on('completed', (job) => {
-  console.log(`[InboxWorker] Job ${job.id} completed`);
+  const shortId = typeof job.id === 'string' && job.id.includes(':')
+    ? job.id.split(':').slice(-1)[0]
+    : job.id;
+  console.log(`[InboxWorker] Job ${shortId} completed`);
 });
 
 inboxWorker.on('failed', (job, err) => {
-  console.error(`[InboxWorker] Job ${job?.id} failed:`, err);
+  const shortId = job?.id && typeof job.id === 'string' && job.id.includes(':')
+    ? job.id.split(':').slice(-1)[0]
+    : job?.id;
+  console.error(`[InboxWorker] Job ${shortId} failed:`, err);
 });
 
 export default inboxWorker;
