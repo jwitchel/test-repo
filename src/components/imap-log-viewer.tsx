@@ -233,12 +233,11 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { 
+    return date.toLocaleTimeString('en-US', {
       hour12: false,
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3
+      second: '2-digit'
     });
   };
 
@@ -272,8 +271,8 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
   };
 
   return (
-    <Card className={cn("flex flex-col h-full overflow-hidden", className)}>
-      <div className="flex items-center justify-between p-2 border-b flex-shrink-0">
+    <Card className={cn("flex flex-col h-full overflow-hidden pt-0", className)}>
+      <div className="flex items-center justify-between px-2 py-1 border-b flex-shrink-0">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">Real-Time Logs</h3>
           <Badge variant={isConnected ? "default" : "secondary"} className="text-xs py-0">

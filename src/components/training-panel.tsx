@@ -42,9 +42,10 @@ interface TrainingPanelProps {
   emailAccountId: string
   userId: string
   emailAddress?: string
+  collapsible?: boolean
 }
 
-export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: TrainingPanelProps) {
+export function TrainingPanel({ emailAccountId: defaultAccountId, userId, collapsible = true }: TrainingPanelProps) {
   const [isOpen, setIsOpen] = useState(true)
   const [isWiping, setIsWiping] = useState(false)
   const [showWipeDialog, setShowWipeDialog] = useState(false)
@@ -230,29 +231,30 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: Trai
 
 
   return (
-    <Card>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="pb-3">
-          <CollapsibleTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-between p-0 h-auto hover:bg-transparent"
-            >
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Training Panel
-              </CardTitle>
-              {isOpen ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </Button>
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent className="space-y-3 pt-0">
+    <Card className="pt-0 flex flex-col h-full overflow-hidden">
+      {collapsible ? (
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+          <CardHeader className="pb-3">
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between p-0 h-auto hover:bg-transparent"
+              >
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Training Panel
+                </CardTitle>
+                {isOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
         <Alert className="py-2">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="text-xs">
@@ -419,9 +421,173 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId }: Trai
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : (
+        <>
+          <div className="flex items-center justify-between px-2 py-1 h-10 border-b flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold">Training</h3>
+            </div>
+          </div>
+          <CardContent className="space-y-2 pt-0 px-2">
+        {/* Email Account Selection */}
+        <div className="space-y-1">
+          <Label htmlFor="email-account-nc" className="text-xs">
+            Account
+          </Label>
+          <Select
+            value={selectedAccountId}
+            onValueChange={setSelectedAccountId}
+            disabled={isLoadingAccounts || emailAccounts.length === 0}
+          >
+            <SelectTrigger id="email-account-nc" className="h-7 text-xs">
+              <SelectValue placeholder={
+                isLoadingAccounts ? "Loading..." :
+                emailAccounts.length === 0 ? "No accounts" :
+                "Select account"
+              } />
+            </SelectTrigger>
+            <SelectContent>
+              {emailAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  <span className="text-xs">{account.email_address}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selectedAccountId === 'demo-account-001' && (
+          <Alert className="py-1" variant="destructive">
+            <AlertDescription className="text-[10px]">
+              Select a real account
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-1">
+          <div>
+            <Label htmlFor="email-count-nc" className="text-xs">
+              Count
+            </Label>
+            <Input
+              id="email-count-nc"
+              type="number"
+              min="1"
+              max="5000"
+              value={emailCount}
+              onChange={(e) => setEmailCount(e.target.value)}
+              className="h-7 text-xs"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="start-date-nc" className="text-xs">
+              Up To Date
+            </Label>
+            <Input
+              id="start-date-nc"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-7 text-xs"
+            />
+          </div>
+        </div>
+
+        {progress && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-[10px] text-zinc-600">
+              <span>{progress.processed}/{progress.total}</span>
+              <span>{progress.percentage}%</span>
+            </div>
+            <Progress value={progress.percentage} className="h-1.5" />
+            {progress.errors > 0 && (
+              <p className="text-[10px] text-red-600">
+                {progress.errors} errors
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-1 pt-1">
+          <Button
+            onClick={handleLoadEmails}
+            disabled={selectedAccountId === 'demo-account-001' || emailAccounts.length === 0}
+            size="sm"
+            className="w-full h-7 text-xs"
+          >
+            <Upload className="h-3 w-3 mr-1" />
+            Load Emails
+          </Button>
+
+          <Button
+            onClick={handleAnalyzePatterns}
+            disabled={isAnalyzingPatterns}
+            size="sm"
+            variant="secondary"
+            className="w-full h-7 text-xs"
+            title="Analyze writing patterns from loaded emails"
+          >
+            {isAnalyzingPatterns ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Brain className="h-3 w-3 mr-1" />
+                Analyze
+              </>
+            )}
+          </Button>
+
+          <Button
+            onClick={() => setShowWipeDialog(true)}
+            disabled={isWiping}
+            size="sm"
+            variant="destructive"
+            className="w-full h-7 text-xs"
+          >
+            {isWiping ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Wiping...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-3 w-3 mr-1" />
+                Wipe Data
+              </>
+            )}
+          </Button>
+        </div>
+
+        <AlertDialog open={showWipeDialog} onOpenChange={setShowWipeDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Wipe Training Data?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all your training data from the vector database.
+                You&apos;ll need to re-load your emails to use tone learning features.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleWipeData}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Wipe Data
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
           </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+        </>
+      )}
     </Card>
   )
 }

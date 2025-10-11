@@ -103,9 +103,9 @@ If you get "email/username not valid" error:
 
 1. Fix encryption if needed: `npm run mail:fix-encryption-simple`
 2. Load Johns emails: `npm run mail:load-johns`
-3. Access the Training Panel at: http://localhost:3001/inspector
+3. Access the Training Panel at: http://localhost:3001/tone (Training tab)
 4. Click "Load Emails" to import sent emails into the vector database
-5. Monitor progress in the Training Panel
+5. Monitor progress in the Training Panel and real-time logs
 6. View emails in Roundcube to verify what's being processed
 
 ## Architecture Notes

@@ -67,7 +67,7 @@ async function setupTestAccounts() {
     }
     
     console.log('\nTest accounts created successfully!');
-    console.log('You can now use these accounts in the Inspector.');
+    console.log('You can now use these accounts in the Training panel (Tone page > Training tab).');
     
   } catch (error) {
     console.error('Error setting up test accounts:', error);

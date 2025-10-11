@@ -3,14 +3,12 @@ import { requireAuth } from '../middleware/auth';
 import { pool } from '../server';
 
 import { decryptPassword } from '../lib/crypto';
-import { TypedNameRemover } from '../lib/typed-name-remover';
-import { 
+import {
   LLMGenerateRequest,
-  LLMGenerateFromPipelineRequest,
   LLMGenerateResponse,
-  LLMProviderConfig 
+  LLMProviderConfig
 } from '../types/llm-provider';
-import { LLMClient, PipelineOutput } from '../lib/llm-client';
+import { LLMClient } from '../lib/llm-client';
 
 const router = express.Router();
 
@@ -54,111 +52,6 @@ async function getProviderConfig(userId: string, providerId?: string): Promise<L
     modelName: provider.model_name
   };
 }
-
-// Generate email reply from pipeline output
-router.post('/email-reply', requireAuth, async (req, res): Promise<void> => {
-  try {
-    const userId = (req as any).user.id;
-    const data = req.body as LLMGenerateFromPipelineRequest;
-    
-    // Validate request
-    if (!data.llm_prompt || data.llm_prompt.trim().length === 0) {
-      res.status(400).json({ error: 'LLM prompt is required' });
-      return;
-    }
-    
-    // Get provider config
-    const providerConfig = await getProviderConfig(userId, data.provider_id);
-    
-    if (!providerConfig) {
-      res.status(404).json({ 
-        error: 'No LLM provider found',
-        message: data.provider_id 
-          ? 'The specified provider was not found or is inactive'
-          : 'No default provider configured. Please add an LLM provider in settings.'
-      });
-      return;
-    }
-    
-    // Create LLM client
-    const client = new LLMClient(providerConfig);
-    
-    // Prepare pipeline output
-    const pipelineOutput: PipelineOutput = {
-      llmPrompt: data.llm_prompt,
-      nlpFeatures: data.nlp_features,
-      relationship: data.relationship,
-      enhancedProfile: data.enhanced_profile
-    };
-    
-    // Generate reply using pipeline context
-    let reply = await client.generateFromPipeline(pipelineOutput);
-    
-    // Post-process: Add typed name if configured
-    const typedNameRemover = new TypedNameRemover(pool);
-    const appendString = await typedNameRemover.getTypedNameAppend(userId);
-    
-    if (appendString) {
-      // Add the typed name to the end of the reply
-      reply = reply.trim();
-      
-      // Check if reply ends with a newline, if not add one
-      if (!reply.endsWith('\n')) {
-        reply += '\n';
-      }
-      
-      // Add another newline if the reply doesn't already have double newline at the end
-      if (!reply.endsWith('\n\n')) {
-        reply += '\n';
-      }
-      
-      // Append the typed name
-      reply += appendString;
-    }
-    
-    // Get model info for response
-    const modelInfo = client.getModelInfo();
-    
-    const response: LLMGenerateResponse = {
-      reply,
-      provider_id: providerConfig.id,
-      model: modelInfo.name,
-      // Note: Real token usage would come from provider response
-      // This is a rough estimate based on typical tokenization
-      usage: {
-        prompt_tokens: Math.ceil(data.llm_prompt.length / 4),
-        completion_tokens: Math.ceil(reply.length / 4),
-        total_tokens: Math.ceil((data.llm_prompt.length + reply.length) / 4)
-      }
-    };
-    
-    res.json(response);
-  } catch (error: any) {
-    console.error('Error generating email reply:', error);
-    
-    if (error.code === 'INVALID_API_KEY') {
-      res.status(401).json({ 
-        error: 'Invalid API key',
-        message: 'The API key for this provider is invalid. Please update it in settings.'
-      });
-    } else if (error.code === 'RATE_LIMIT') {
-      res.status(429).json({ 
-        error: 'Rate limit exceeded',
-        message: 'Too many requests. Please try again later.'
-      });
-    } else if (error.code === 'MODEL_NOT_FOUND') {
-      res.status(404).json({ 
-        error: 'Model not found',
-        message: 'The configured model is not available. Please update your provider settings.'
-      });
-    } else {
-      res.status(500).json({ 
-        error: 'Generation failed',
-        message: 'An error occurred while generating the reply. Please try again.'
-      });
-    }
-  }
-});
 
 // Generic generation endpoint (for testing or direct use)
 router.post('/', requireAuth, async (req, res): Promise<void> => {

@@ -44,12 +44,12 @@ async function testDraftUpload() {
     const testEmail = [
       'From: user1@testmail.local',
       'To: user2@testmail.local',
-      'Subject: Test Draft from Inspector',
+      'Subject: Test Draft from Training Panel',
       'Date: ' + new Date().toUTCString(),
       'Message-ID: <test-' + Date.now() + '@testmail.local>',
       'Content-Type: text/plain; charset=utf-8',
       '',
-      'This is a test draft email uploaded from the AI Email Assistant Inspector.',
+      'This is a test draft email uploaded from the AI Email Assistant Training Panel.',
       '',
       'This email was created to verify that the draft upload functionality works correctly.',
       '',
@@ -74,7 +74,7 @@ async function testDraftUpload() {
     console.log(`Folder ${targetFolder} contains ${boxInfo.messages.total} messages`);
     
     console.log('\n✅ Draft upload test completed successfully!');
-    console.log('You can now test the feature in the Inspector UI.');
+    console.log('You can now test the feature in the Training Panel (Tone page > Training tab).');
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);

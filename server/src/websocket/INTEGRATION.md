@@ -4,7 +4,7 @@ This document describes how the WebSocket real-time logging is integrated with t
 
 ## Overview
 
-The WebSocket integration provides real-time visibility into email processing operations through the inspector page at `http://localhost:3001/inspector`.
+The WebSocket integration provides real-time visibility into email processing operations through the Tone Analysis page at `http://localhost:3001/tone` (Training tab).
 
 ## Key Components
 
@@ -27,7 +27,7 @@ The WebSocket integration provides real-time visibility into email processing op
 
 ### 4. Frontend Components
 - **ImapLogViewer** (`src/components/imap-log-viewer.tsx`): Real-time log display
-- **Inspector Page** (`src/app/inspector/page.tsx`): Full inspection interface
+- **Tone Analysis Page** (`src/app/tone/page.tsx`): Training tab with TrainingPanel and real-time logs
 
 ## Log Types
 
@@ -50,7 +50,7 @@ This runs a standalone demo showing how email processing generates WebSocket log
 ### 2. Using the Web Interface
 1. Start the servers: `npm run dev:all`
 2. Sign in at `http://localhost:3001`
-3. Visit `http://localhost:3001/inspector`
+3. Visit `http://localhost:3001/tone` and click the "Training" tab
 4. Use the Training Panel to load and process emails
 5. Click "Load Emails" to see email extraction in action
 

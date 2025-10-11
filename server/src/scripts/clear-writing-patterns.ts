@@ -40,7 +40,7 @@ async function clearWritingPatterns() {
     console.log(chalk.gray(`  Cleared ${profileResult.rowCount} user patterns`));
     
     console.log(chalk.green('\n✓ All writing patterns cleared successfully!'));
-    console.log(chalk.gray('\nNext time you use the Inspector, it will:'));
+    console.log(chalk.gray('\nNext time you use the Training panel, it will:'));
     console.log(chalk.gray('  1. Fetch up to 200 emails for the relationship'));
     console.log(chalk.gray('  2. Analyze them to extract new patterns'));
     console.log(chalk.gray('  3. Save the patterns for future use'));

@@ -51,10 +51,14 @@ export class ImapLogger extends EventEmitter {
       return;
     }
 
+    // Format timestamp without milliseconds: "2025-01-11T10:16:42Z"
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
+
     const logEntry: ImapLogEntry = {
       ...entry,
       id: crypto.randomUUID(),
-      timestamp: new Date().toISOString()
+      timestamp
     };
 
     // Sanitize the log entry

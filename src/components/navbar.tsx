@@ -19,7 +19,6 @@ import {
   Database,
   Code2,
   Home,
-  FileSearch,
   Sparkles,
   Settings,
   LogOut,
@@ -65,7 +64,6 @@ export function Navbar() {
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/inbox', label: 'Inbox', icon: Mail },
-    { href: '/inspector', label: 'Inspector', icon: FileSearch },
     { href: '/tone', label: 'Tone Analysis', icon: Sparkles },
     { href: '/dashboard/jobs', label: 'Jobs', icon: Briefcase },
   ]
