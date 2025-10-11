@@ -6,7 +6,7 @@
 
 import { ToneLearningOrchestrator } from '../pipeline/tone-learning-orchestrator';
 import { ProcessedEmail } from '../pipeline/types';
-import { imapLogger } from '../imap-logger';
+import { realTimeLogger } from '../real-time-logger';
 import PostalMime from 'postal-mime';
 import { pool } from '../../server';
 import { VectorStore } from '../vector/qdrant-client';
@@ -236,7 +236,7 @@ export class DraftGenerator {
       const userEmail = accountResult.rows[0].email_address;
 
       // Log the start of draft generation
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId,
         level: 'info',
@@ -257,7 +257,7 @@ export class DraftGenerator {
       await orchestrator!['patternAnalyzer'].initialize(providerId);
 
       // Store incoming email in Qdrant
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId,
         level: 'info',
@@ -431,7 +431,7 @@ export class DraftGenerator {
           : `Re: ${subject}`;
       }
 
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId,
         level: 'info',
@@ -447,7 +447,7 @@ export class DraftGenerator {
 
       // Store LLM metadata back to Qdrant
       if (draft.meta) {
-        imapLogger.log(userId, {
+        realTimeLogger.log(userId, {
           userId,
           emailAccountId,
           level: 'info',
@@ -568,7 +568,7 @@ export class DraftGenerator {
     } catch (error) {
       console.error('Error generating draft:', error);
 
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId: emailAccountId,
         level: 'error',

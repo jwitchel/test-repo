@@ -1,15 +1,15 @@
-import { ImapLogger } from '../lib/imap-logger';
+import { RealTimeLogger } from '../lib/real-time-logger';
 
-describe('ImapLogger', () => {
-  let logger: ImapLogger;
+describe('RealTimeLogger', () => {
+  let logger: RealTimeLogger;
 
   beforeEach(() => {
-    logger = new ImapLogger({ maxLogsPerUser: 5, logLevel: 'debug' });
+    logger = new RealTimeLogger({ maxLogsPerUser: 5, logLevel: 'debug' });
   });
 
   describe('log levels', () => {
     it('should log entries at or above the configured log level', () => {
-      const logger = new ImapLogger({ logLevel: 'info' });
+      const logger = new RealTimeLogger({ logLevel: 'info' });
       const userId = 'test-user';
       
       logger.log(userId, {

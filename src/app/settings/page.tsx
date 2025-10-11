@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth-context'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SignaturePatterns } from '@/components/settings/signature-patterns'
 import { TypedNameSettings } from '@/components/settings/typed-name-settings'

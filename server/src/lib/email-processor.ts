@@ -1,7 +1,7 @@
 import { ParsedMail } from 'mailparser';
 import { emailContentParser, ParsedEmailContent } from './email-content-parser';
 import { replyExtractor } from './reply-extractor';
-import { imapLogger } from './imap-logger';
+import { realTimeLogger } from './real-time-logger';
 import { Pool } from 'pg';
 import { RegexSignatureDetector } from './regex-signature-detector';
 import { TypedNameRemover } from './typed-name-remover';
@@ -36,7 +36,7 @@ export class EmailProcessor {
     
     // Log the start of processing
     if (context) {
-      imapLogger.log(context.userId, {
+      realTimeLogger.log(context.userId, {
         userId: context.userId,
         emailAccountId: context.emailAccountId,
         level: 'info',
@@ -69,7 +69,7 @@ export class EmailProcessor {
       userReplyClean = signatureResult.cleanedText;
       
       if (signatureResult.signature) {
-        imapLogger.log(context.userId, {
+        realTimeLogger.log(context.userId, {
           userId: context.userId,
           emailAccountId: context.emailAccountId,
           level: 'info',
@@ -89,7 +89,7 @@ export class EmailProcessor {
       userReplyClean = typedNameResult.cleanedText;
       
       if (typedNameResult.removedText) {
-        imapLogger.log(context.userId, {
+        realTimeLogger.log(context.userId, {
           userId: context.userId,
           emailAccountId: context.emailAccountId,
           level: 'info',
@@ -125,7 +125,7 @@ export class EmailProcessor {
     // Log the completion of processing
     if (context) {
       const duration = Date.now() - startTime;
-      imapLogger.log(context.userId, {
+      realTimeLogger.log(context.userId, {
         userId: context.userId,
         emailAccountId: context.emailAccountId,
         level: 'info',

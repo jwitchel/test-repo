@@ -7,7 +7,7 @@ import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { JobType, BuildToneProfileJobData, LearnFromEditJobData } from '../queue';
 import { makeServiceRequest } from '../../middleware/service-auth';
-import { imapLogger } from '../imap-logger';
+import { realTimeLogger } from '../real-time-logger';
 
 // Redis connection for worker
 const connection = new Redis({
@@ -113,7 +113,7 @@ async function learnFromEdit(job: Job<LearnFromEditJobData>) {
   console.warn(`[TrainingWorker] Would learn from edit for user ${userId}`);
 
   // Send to real-time logs
-  imapLogger.log(userId, {
+  realTimeLogger.log(userId, {
     userId,
     emailAccountId: 'learning-system',
     level: 'warn',

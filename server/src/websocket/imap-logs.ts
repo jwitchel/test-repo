@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server as HTTPServer } from 'http';
 import { auth } from '../lib/auth';
-import { imapLogger, ImapLogEntry } from '../lib/imap-logger';
+import { realTimeLogger, RealTimeLogEntry } from '../lib/real-time-logger';
 
 interface AuthenticatedWebSocket extends WebSocket {
   userId?: string;
@@ -32,7 +32,7 @@ export class ImapLogsWebSocketServer {
 
     this.setupEventHandlers();
     this.setupHeartbeat();
-    this.setupImapLoggerListeners();
+    this.setupRealTimeLoggerListeners();
   }
 
   private setupEventHandlers(): void {
@@ -134,9 +134,9 @@ export class ImapLogsWebSocketServer {
     });
   }
 
-  private setupImapLoggerListeners(): void {
+  private setupRealTimeLoggerListeners(): void {
     // Listen for all log events
-    imapLogger.on('log', (logEntry: ImapLogEntry) => {
+    realTimeLogger.on('log', (logEntry: RealTimeLogEntry) => {
       this.broadcastToUser(logEntry.userId, {
         type: 'new-log',  // Changed from 'log' to 'new-log' to match client
         log: logEntry     // Changed from 'data' to 'log' to match client
@@ -144,7 +144,7 @@ export class ImapLogsWebSocketServer {
     });
 
     // Listen for logs cleared events
-    imapLogger.on('logs-cleared', ({ userId }: { userId: string }) => {
+    realTimeLogger.on('logs-cleared', ({ userId }: { userId: string }) => {
       this.broadcastToUser(userId, {
         type: 'logs-cleared'
       });
@@ -153,7 +153,7 @@ export class ImapLogsWebSocketServer {
 
   private sendInitialLogs(ws: AuthenticatedWebSocket, userId: string): void {
     try {
-      const logs = imapLogger.getLogs(userId, 100);
+      const logs = realTimeLogger.getLogs(userId, 100);
       ws.send(JSON.stringify({
         type: 'initial-logs',
         logs: logs  // Changed from 'data' to 'logs' to match client expectation
@@ -177,14 +177,14 @@ export class ImapLogsWebSocketServer {
 
       case 'clear-logs':
         if (ws.userId) {
-          imapLogger.clearLogs(ws.userId);
+          realTimeLogger.clearLogs(ws.userId);
         }
         break;
 
       case 'get-logs':
         if (ws.userId) {
           const limit = payload.limit || 100;
-          const logs = imapLogger.getLogs(ws.userId, limit);
+          const logs = realTimeLogger.getLogs(ws.userId, limit);
           ws.send(JSON.stringify({
             type: 'logs',
             data: logs

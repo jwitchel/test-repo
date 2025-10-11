@@ -1,7 +1,7 @@
 import Imap from 'imap';
 import { EventEmitter } from 'events';
 import { promisify } from 'util';
-import { imapLogger } from './imap-logger';
+import { realTimeLogger } from './real-time-logger';
 
 export interface ImapConfig {
   user: string;
@@ -164,7 +164,7 @@ export class ImapConnection extends EventEmitter {
     }>,
     level: 'debug' | 'info' | 'warn' | 'error' = 'info'
   ): void {
-    imapLogger.log(this.userId, {
+    realTimeLogger.log(this.userId, {
       userId: this.userId,
       emailAccountId: this.emailAccountId,
       level,

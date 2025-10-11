@@ -11,8 +11,8 @@ describe('BullMQ Queue Configuration', () => {
   afterAll(async () => {
     // Clean up after tests
     try {
-      await emailProcessingQueue.pause(true);
-      await toneProfileQueue.pause(true);
+      await emailProcessingQueue.pause();
+      await toneProfileQueue.pause();
       await emailProcessingQueue.obliterate({ force: true });
       await toneProfileQueue.obliterate({ force: true });
     } catch (error) {

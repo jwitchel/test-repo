@@ -11,7 +11,7 @@ The IMAP implementation provides a robust, production-ready interface for connec
 1. **ImapConnection** (`imap-connection.ts`)
    - Low-level IMAP client wrapper
    - Handles connection lifecycle
-   - Logs all operations via ImapLogger
+   - Logs all operations via RealTimeLogger
    - Emits events for real-time monitoring
 
 2. **ImapConnectionPool** (`imap-pool.ts`)

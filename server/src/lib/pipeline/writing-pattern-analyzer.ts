@@ -1,7 +1,7 @@
 import { LLMClient } from '../llm-client';
 import { ProcessedEmail } from './types';
 import { pool as db } from '../../server';
-import { imapLogger } from '../imap-logger';
+import { realTimeLogger } from '../real-time-logger';
 import { TemplateManager } from './template-manager';
 import { decryptPassword } from '../crypto';
 import { nameRedactor } from '../name-redactor';
@@ -441,7 +441,7 @@ export class WritingPatternAnalyzer {
     const startTime = Date.now();
 
     // Log the analysis start
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-analysis',
       level: 'info',
@@ -500,7 +500,7 @@ export class WritingPatternAnalyzer {
     const duration = Math.round((endTime - startTime) / 1000);
 
     // Log completion with metadata
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-analysis',
       level: 'info',

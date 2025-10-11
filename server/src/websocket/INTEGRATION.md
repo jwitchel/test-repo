@@ -8,7 +8,7 @@ The WebSocket integration provides real-time visibility into email processing op
 
 ## Key Components
 
-### 1. IMAP Logger (`lib/imap-logger.ts`)
+### 1. Real-Time Logger (`lib/real-time-logger.ts`)
 - Centralized logging service for all IMAP and email processing operations
 - Emits events that are broadcast via WebSocket to connected clients
 - Maintains a circular buffer of logs per user (default: 1000 logs)
@@ -57,7 +57,7 @@ This runs a standalone demo showing how email processing generates WebSocket log
 ### 3. Programmatic Testing
 ```typescript
 import { emailProcessor, ProcessingContext } from './lib/email-processor';
-import { imapLogger } from './lib/imap-logger';
+import { realTimeLogger } from './lib/real-time-logger';
 
 const context: ProcessingContext = {
   userId: 'user-123',

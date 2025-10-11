@@ -46,9 +46,9 @@ export default function JobsPage() {
   
   // API URL used throughout the component
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-  
+
   // Shared method for consistent API request handling
-  const handleApiRequest = async (config: {
+  const handleApiRequest = useCallback(async (config: {
     endpoint: string;
     method?: string;
     body?: unknown;
@@ -111,7 +111,7 @@ export default function JobsPage() {
     } finally {
       if (loadingStateSetter) loadingStateSetter(false);
     }
-  };
+  }, [apiUrl, success, error, setRefreshKey]);
 
   const queueJob = async (jobConfig: {
     type: string;
@@ -368,12 +368,12 @@ export default function JobsPage() {
     checkWorkerStatus();
     fetchStats();
     fetchSchedulers();
-  }, []);
+  }, [handleApiRequest, fetchStats, fetchSchedulers]);
   
   // Refresh stats when refreshKey changes
   useEffect(() => {
     fetchStats();
-  }, [refreshKey]);
+  }, [refreshKey, fetchStats]);
   
   // Reset forceRefresh flag after it's been used
   useEffect(() => {

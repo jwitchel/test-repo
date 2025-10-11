@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { imapLogger } from '../lib/imap-logger';
+import { realTimeLogger } from '../lib/real-time-logger';
 
 /**
  * Test script for WebSocket IMAP logs
@@ -60,7 +60,7 @@ async function testWebSocketConnection() {
     console.log('\n📝 Simulating IMAP logs...');
     
     // This would normally come from actual IMAP operations
-    imapLogger.log('test-user-id', {
+    realTimeLogger.log('test-user-id', {
       userId: 'test-user-id',
       emailAccountId: 'test-email-account',
       level: 'info',
@@ -71,7 +71,7 @@ async function testWebSocketConnection() {
       }
     });
 
-    imapLogger.log('test-user-id', {
+    realTimeLogger.log('test-user-id', {
       userId: 'test-user-id',
       emailAccountId: 'test-email-account',
       level: 'debug',

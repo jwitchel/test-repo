@@ -11,7 +11,7 @@ import {
 } from '../types/email-account';
 import { ImapOperations } from '../lib/imap-operations';
 import { withImapContext } from '../lib/imap-context';
-import { imapLogger } from '../lib/imap-logger';
+import { realTimeLogger } from '../lib/real-time-logger';
 import { jobSchedulerManager, SchedulerId } from '../lib/job-scheduler-manager';
 
 const router = express.Router();
@@ -323,7 +323,7 @@ router.post('/:id/monitoring', requireAuth, async (req, res): Promise<void> => {
     }
 
     // Log account monitoring toggle
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: result.rows[0].id,
       level: 'info',

@@ -8,7 +8,7 @@ import { EventEmitter } from 'events';
 import { ImapOperations } from './imap-operations';
 import { addInboxJob, JobPriority } from './queue';
 import { pool } from '../server';
-import { imapLogger } from './imap-logger';
+import { realTimeLogger } from './real-time-logger';
 
 // Monitoring configuration
 interface MonitorConfig {
@@ -216,7 +216,7 @@ class MonitorInstance {
       this.parent.emit('connection:established', this.accountId);
       
       // Log to IMAP logger
-      imapLogger.log(this.userId, {
+      realTimeLogger.log(this.userId, {
         userId: this.userId,
         emailAccountId: this.accountId,
         level: 'info',
@@ -236,7 +236,7 @@ class MonitorInstance {
       this.parent.emit('connection:lost', this.accountId, error as Error);
       
       // Log error
-      imapLogger.log(this.userId, {
+      realTimeLogger.log(this.userId, {
         userId: this.userId,
         emailAccountId: this.accountId,
         level: 'error',
@@ -270,7 +270,7 @@ class MonitorInstance {
         this.status.messagesProcessed += event.count;
         
         // Log event
-        imapLogger.log(this.userId, {
+        realTimeLogger.log(this.userId, {
           userId: this.userId,
           emailAccountId: this.accountId,
           level: 'info',

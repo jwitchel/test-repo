@@ -6,7 +6,7 @@
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { JobType, ProcessInboxJobData } from '../queue';
-import { imapLogger } from '../imap-logger';
+import { realTimeLogger } from '../real-time-logger';
 import { inboxProcessor } from '../email-processing/inbox-processor';
 import { pool } from '../../server';
 
@@ -71,7 +71,7 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
   const emailAddress = accountResult.rows[0]?.email_address || 'unknown';
 
   // Log start
-  imapLogger.log(userId, {
+  realTimeLogger.log(userId, {
     userId,
     emailAccountId: accountId,
     level: 'info',
@@ -106,7 +106,7 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
   });
 
   // Log completion
-  imapLogger.log(userId, {
+  realTimeLogger.log(userId, {
     userId,
     emailAccountId: accountId,
     level: 'info',
@@ -148,7 +148,7 @@ const inboxWorker = new Worker(
 
     } catch (error) {
       // Log error once
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId: (job.data as ProcessInboxJobData).accountId || 'unknown',
         level: 'error',

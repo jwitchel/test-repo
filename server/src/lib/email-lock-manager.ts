@@ -21,7 +21,7 @@ export interface LockResult<T> {
 }
 
 export class EmailLockManager {
-  private redlock: Redlock;
+  private redlock: InstanceType<typeof Redlock>;
 
   constructor(redis: Redis = lockRedisConnection) {
     // Initialize Redlock with no retries - fail fast if lock is held or Redis unavailable
@@ -32,7 +32,7 @@ export class EmailLockManager {
     });
 
     // Log Redlock errors for monitoring
-    this.redlock.on('error', (error) => {
+    this.redlock.on('error', (error: Error) => {
       // Don't log ExecutionError (failed to acquire lock) - these are expected
       if (error.name !== 'ExecutionError') {
         console.error('[EmailLockManager] Redlock error:', error);
@@ -59,7 +59,7 @@ export class EmailLockManager {
 
     try {
       // Use Redlock's "using" pattern for automatic acquire/release
-      const result = await this.redlock.using([lockKey], lockTTL, async (signal) => {
+      const result = await this.redlock.using([lockKey], lockTTL, async (signal: AbortSignal) => {
         return await fn(signal);
       });
 

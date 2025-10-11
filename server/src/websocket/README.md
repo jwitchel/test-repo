@@ -43,7 +43,7 @@ Sent immediately after connection with the last 100 logs.
 ```json
 {
   "type": "initial-logs",
-  "data": [/* array of ImapLogEntry */]
+  "data": [/* array of RealTimeLogEntry */]
 }
 ```
 

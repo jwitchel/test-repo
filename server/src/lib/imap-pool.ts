@@ -1,6 +1,6 @@
 import { ImapConnection, ImapConfig, ImapConnectionError } from './imap-connection';
 import { EventEmitter } from 'events';
-import { imapLogger } from './imap-logger';
+import { realTimeLogger } from './real-time-logger';
 
 interface PooledConnection {
   connection: ImapConnection;
@@ -296,7 +296,7 @@ export class ImapConnectionPool extends EventEmitter {
     data: any
   ): void {
     if (userId && accountId) {
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId: accountId,
         level: 'debug',

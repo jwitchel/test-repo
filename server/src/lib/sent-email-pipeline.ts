@@ -1,6 +1,6 @@
 import _ from 'highland';
 import { ParsedMail } from 'mailparser';
-import { imapLogger } from './imap-logger';
+import { realTimeLogger } from './real-time-logger';
 import { EmailProcessor, ProcessedEmail, ProcessingContext } from './email-processor';
 import { pool } from '../server';
 
@@ -45,7 +45,7 @@ export class SentEmailPipeline {
    */
   createPipeline(emailStream: Highland.Stream<ParsedMail>): Highland.Stream<ProcessedEmail[]> {
     // Log pipeline start
-    imapLogger.log(this.options.userId, {
+    realTimeLogger.log(this.options.userId, {
       userId: this.options.userId,
       emailAccountId: this.options.emailAccountId,
       level: 'info',
@@ -61,7 +61,7 @@ export class SentEmailPipeline {
     return _(emailStream)
       // Add logging for each email
       .tap((email: ParsedMail) => {
-        imapLogger.log(this.options.userId, {
+        realTimeLogger.log(this.options.userId, {
           userId: this.options.userId,
           emailAccountId: this.options.emailAccountId,
           level: 'debug',
@@ -84,7 +84,7 @@ export class SentEmailPipeline {
       .errors((err: Error, push: (err: Error | null, x?: ProcessedEmail) => void) => {
         this.metrics.errorCount++;
         
-        imapLogger.log(this.options.userId, {
+        realTimeLogger.log(this.options.userId, {
           userId: this.options.userId,
           emailAccountId: this.options.emailAccountId,
           level: 'error',
@@ -109,7 +109,7 @@ export class SentEmailPipeline {
         this.metrics.processedCount += batch.length;
         
         // Log batch completion
-        imapLogger.log(this.options.userId, {
+        realTimeLogger.log(this.options.userId, {
           userId: this.options.userId,
           emailAccountId: this.options.emailAccountId,
           level: 'info',
@@ -167,7 +167,7 @@ export class SentEmailPipeline {
     const duration = this.metrics.endTime - this.metrics.startTime;
     const emailsPerSecond = this.metrics.processedCount / (duration / 1000);
     
-    imapLogger.log(this.options.userId, {
+    realTimeLogger.log(this.options.userId, {
       userId: this.options.userId,
       emailAccountId: this.options.emailAccountId,
       level: 'info',

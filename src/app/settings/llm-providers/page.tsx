@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   AlertDialog,
@@ -36,7 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Plus, Trash2, Edit, Check, Zap, WifiOff } from 'lucide-react'
+import { Loader2, Plus, Check } from 'lucide-react'
 import useSWR, { mutate } from 'swr'
 
 interface LLMProvider {
@@ -301,21 +300,6 @@ export default function LLMProvidersPage() {
       is_default: false,
     })
     setConnectionTested(false)
-  }
-
-  const getProviderIcon = (type: string) => {
-    switch (type) {
-      case 'openai':
-        return '🤖'
-      case 'anthropic':
-        return '🧠'
-      case 'google':
-        return '✨'
-      case 'local':
-        return '💻'
-      default:
-        return '🔮'
-    }
   }
 
   if (error) {

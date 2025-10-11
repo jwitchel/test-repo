@@ -17,8 +17,8 @@ describe('Queue Integration Tests', () => {
     // Clean up all jobs
     try {
       // BullMQ requires queues to be paused before obliteration
-      await emailProcessingQueue.pause(true);
-      await toneProfileQueue.pause(true);
+      await emailProcessingQueue.pause();
+      await toneProfileQueue.pause();
       await emailProcessingQueue.obliterate({ force: true });
       await toneProfileQueue.obliterate({ force: true });
     } catch (error) {

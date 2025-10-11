@@ -4,7 +4,7 @@ import { ImapOperations } from '../lib/imap-operations';
 import { withImapContext } from '../lib/imap-context';
 import { ToneLearningOrchestrator } from '../lib/pipeline/tone-learning-orchestrator';
 import { VectorStore, SENT_COLLECTION } from '../lib/vector/qdrant-client';
-import { imapLogger } from '../lib/imap-logger';
+import { realTimeLogger } from '../lib/real-time-logger';
 import { WritingPatternAnalyzer } from '../lib/pipeline/writing-pattern-analyzer';
 import { RegexSignatureDetector } from '../lib/regex-signature-detector';
 import { pool } from '../server';
@@ -40,7 +40,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       }
 
       // Search for sent emails
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -88,7 +88,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
 
       console.log(`[Training] Found ${messages.length} emails in folder ${folderUsed}`);
 
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -99,7 +99,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
       });
 
     // First, collect a sample of emails to detect signature
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -138,7 +138,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
           if (!fullMessage.rawMessage) {
             errors++;
             console.error(`[Training] Email ${fullMessage.uid} missing raw message`);
-            imapLogger.log(userId, {
+            realTimeLogger.log(userId, {
               userId,
               emailAccountId,
               level: 'error',
@@ -174,7 +174,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
 
           // Log progress every 10 emails
           if ((i + 1) % 10 === 0 || i === fullMessages.length - 1) {
-            imapLogger.log(userId, {
+            realTimeLogger.log(userId, {
               userId,
               emailAccountId,
               level: 'info',
@@ -197,7 +197,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
         } catch (err) {
           errors++;
           console.error(`[Training] Error processing email ${i + 1}:`, err);
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId,
             level: 'error',
@@ -220,7 +220,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
 
       const duration = Date.now() - startTime;
     
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
       userId,
       emailAccountId,
       level: 'info',
@@ -287,7 +287,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     
     
     // Clear existing patterns to make the operation idempotent
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-training',
       level: 'info',
@@ -300,7 +300,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     await patternAnalyzer.clearPatterns(userId);
     
     // Log the start of pattern analysis
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-training',
       level: 'info',
@@ -336,7 +336,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       return;
     }
     
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-training',
       level: 'info',
@@ -362,7 +362,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     
     const relationships = Object.keys(emailsByRelationship);
     
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-training',
       level: 'info',
@@ -420,7 +420,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
         
         // Skip this relationship if there are no emails to analyze
         if (emailsForAnalysis.length === 0) {
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId: 'pattern-training',
             level: 'info',
@@ -435,7 +435,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
           continue; // Skip to next relationship
         }
         
-        imapLogger.log(userId, {
+        realTimeLogger.log(userId, {
           userId,
           emailAccountId: 'pattern-training',
           level: 'info',
@@ -466,7 +466,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
         allPatterns[relationship] = patterns;
         totalEmailsAnalyzed += emailsForAnalysis.length;
         
-        imapLogger.log(userId, {
+        realTimeLogger.log(userId, {
           userId,
           emailAccountId: 'pattern-training',
           level: 'info',
@@ -518,7 +518,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
           };
         }));
       
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId: 'pattern-training',
         level: 'info',
@@ -548,7 +548,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       
       allPatterns['aggregate'] = aggregatePatterns;
       
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId: 'pattern-training',
         level: 'info',
@@ -569,7 +569,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
         
     } catch (error) {
       console.error('Error analyzing patterns:', error);
-      imapLogger.log(userId, {
+      realTimeLogger.log(userId, {
         userId,
         emailAccountId: 'pattern-training',
         level: 'error',
@@ -609,7 +609,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
       patternsByRelationship: allPatterns
     };
     
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-training',
       level: 'info',
@@ -625,7 +625,7 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
     });
     
     // Output consolidated patterns JSON to logs
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'pattern-training',
       level: 'info',
@@ -660,7 +660,7 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
     const userId = (req as any).user.id;
     
     // Log the start of cleaning
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'info',
@@ -697,7 +697,7 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
         
         if (result.signature && result.cleanedText.trim()) {
           // Log the email that was cleaned
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId: 'all',
             level: 'info',
@@ -741,7 +741,7 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
           });
         } else {
           // Log emails that didn't need cleaning
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId: 'all',
             level: 'info',
@@ -762,7 +762,7 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
     }
     
     // Log completion
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'info',
@@ -788,7 +788,7 @@ router.post('/clean-emails', requireAuth, async (req, res): Promise<void> => {
     console.error('Error cleaning emails:', error);
     
     const userId = (req as any).user.id;
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'error',
@@ -816,7 +816,7 @@ router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
     const { nameRedactor } = await import('../lib/name-redactor');
     
     // Log the start
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'info',
@@ -862,7 +862,7 @@ router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
         // Only update if something changed
         if (signatureResult.signature || redactionResult.namesFound.length > 0 || redactionResult.emailsFound.length > 0) {
           // Log the processing
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId: 'all',
             level: 'info',
@@ -918,7 +918,7 @@ router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
         
         // Log progress every 50 emails
         if (totalProcessed % 50 === 0) {
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId: 'all',
             level: 'info',
@@ -938,7 +938,7 @@ router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
     }
     
     // Log completion
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'info',
@@ -972,7 +972,7 @@ router.post('/process-emails', requireAuth, async (req, res): Promise<void> => {
     console.error('Error processing emails:', error);
     
     const userId = (req as any).user.id;
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'error',
@@ -1000,7 +1000,7 @@ router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
     const { nameRedactor } = await import('../lib/name-redactor');
     
     // Log the start of redaction
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'info',
@@ -1048,7 +1048,7 @@ router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
         
         if (redactionResult.namesFound.length > 0) {
           // Log the email that was redacted
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId: 'all',
             level: 'info',
@@ -1110,7 +1110,7 @@ router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
         
         // Log progress every 50 emails
         if (totalProcessed % 50 === 0) {
-          imapLogger.log(userId, {
+          realTimeLogger.log(userId, {
             userId,
             emailAccountId: 'all',
             level: 'info',
@@ -1128,7 +1128,7 @@ router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
     }
     
     // Log completion
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'info',
@@ -1156,7 +1156,7 @@ router.post('/redact-names', requireAuth, async (req, res): Promise<void> => {
     console.error('Error redacting names:', error);
     
     const userId = (req as any).user.id;
-    imapLogger.log(userId, {
+    realTimeLogger.log(userId, {
       userId,
       emailAccountId: 'all',
       level: 'error',

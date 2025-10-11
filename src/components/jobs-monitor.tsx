@@ -171,7 +171,13 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
   const [isConnected, setIsConnected] = useState(false);
   const loadJobsRef = useRef<((forceReplace?: boolean) => Promise<void>) | undefined>(undefined);
   const pendingLoadJobs = useRef<Set<string>>(new Set()); // Track pending loadJobs calls
-  
+  const onJobCompleteRef = useRef(onJobComplete);
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    onJobCompleteRef.current = onJobComplete;
+  }, [onJobComplete]);
+
   // Load jobs from API - memoized to be called from multiple places
   const loadJobs = async (forceReplace: boolean = false) => {
     try {
@@ -325,8 +331,8 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                   emailAddress: event.emailAddress || existingJob.emailAddress
                 });
                 // Trigger stats refresh when a job completes
-                if (onJobComplete) {
-                  onJobComplete();
+                if (onJobCompleteRef.current) {
+                  onJobCompleteRef.current();
                 }
                 break;
 
@@ -343,8 +349,8 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
                   emailAddress: event.emailAddress || existingJob.emailAddress
                 });
                 // Trigger stats refresh when a job fails
-                if (onJobComplete) {
-                  onJobComplete();
+                if (onJobCompleteRef.current) {
+                  onJobCompleteRef.current();
                 }
                 break;
                 

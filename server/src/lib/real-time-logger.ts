@@ -3,7 +3,7 @@ import crypto from 'crypto';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-export interface ImapLogEntry {
+export interface RealTimeLogEntry {
   id: string;
   timestamp: string;
   userId: string;
@@ -19,7 +19,7 @@ export interface ImapLogEntry {
   };
 }
 
-export interface ImapLoggerOptions {
+export interface RealTimeLoggerOptions {
   maxLogsPerUser?: number;
   logLevel?: LogLevel;
 }
@@ -31,12 +31,12 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3
 };
 
-export class ImapLogger extends EventEmitter {
-  private logs: Map<string, ImapLogEntry[]> = new Map();
+export class RealTimeLogger extends EventEmitter {
+  private logs: Map<string, RealTimeLogEntry[]> = new Map();
   private maxLogsPerUser: number;
   private logLevel: LogLevel;
 
-  constructor(options: ImapLoggerOptions = {}) {
+  constructor(options: RealTimeLoggerOptions = {}) {
     super();
     this.maxLogsPerUser = options.maxLogsPerUser || 1000;
     this.logLevel = options.logLevel || 'info';
@@ -45,7 +45,7 @@ export class ImapLogger extends EventEmitter {
   /**
    * Log an IMAP operation
    */
-  log(userId: string, entry: Omit<ImapLogEntry, 'id' | 'timestamp'>): void {
+  log(userId: string, entry: Omit<RealTimeLogEntry, 'id' | 'timestamp'>): void {
     // Check if we should log based on level
     if (LOG_LEVELS[entry.level] < LOG_LEVELS[this.logLevel]) {
       return;
@@ -55,7 +55,7 @@ export class ImapLogger extends EventEmitter {
     const now = new Date();
     const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
-    const logEntry: ImapLogEntry = {
+    const logEntry: RealTimeLogEntry = {
       ...entry,
       id: crypto.randomUUID(),
       timestamp
@@ -85,7 +85,7 @@ export class ImapLogger extends EventEmitter {
   /**
    * Get logs for a specific user
    */
-  getLogs(userId: string, limit?: number): ImapLogEntry[] {
+  getLogs(userId: string, limit?: number): RealTimeLogEntry[] {
     const userLogs = this.logs.get(userId) || [];
     if (limit && limit > 0) {
       return userLogs.slice(-limit);
@@ -111,7 +111,7 @@ export class ImapLogger extends EventEmitter {
   /**
    * Sanitize log entry to remove sensitive information
    */
-  private sanitizeLogEntry(entry: ImapLogEntry): ImapLogEntry {
+  private sanitizeLogEntry(entry: RealTimeLogEntry): RealTimeLogEntry {
     const sanitized = { ...entry };
     
     if (sanitized.data.raw) {
@@ -193,7 +193,7 @@ export class ImapLogger extends EventEmitter {
 }
 
 // Create a singleton instance
-export const imapLogger = new ImapLogger({
+export const realTimeLogger = new RealTimeLogger({
   maxLogsPerUser: parseInt(process.env.IMAP_MAX_LOGS_PER_USER || '1000'),
   logLevel: (process.env.IMAP_LOG_LEVEL as LogLevel) || 'info'
 });

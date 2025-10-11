@@ -57,7 +57,7 @@ async function testMessageIdExtraction() {
     console.log('='.repeat(80));
 
     for (let i = 0; i < fullMessages.length; i++) {
-      const msg = fullMessages[i];
+      const msg = fullMessages[i] as any; // Cast to any to access additional properties
       console.log(`\nMessage ${i + 1}:`);
       console.log(`  UID: ${msg.uid}`);
       console.log(`  Message-ID: ${msg.messageId || 'UNDEFINED ❌'}`);

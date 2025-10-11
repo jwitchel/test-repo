@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server as HTTPServer } from 'http';
 import { auth } from '../lib/auth';
-import { imapLogger, ImapLogEntry } from '../lib/imap-logger';
+import { realTimeLogger, RealTimeLogEntry } from '../lib/real-time-logger';
 import { EventEmitter } from 'events';
 
 interface AuthenticatedWebSocket extends WebSocket {
@@ -27,8 +27,8 @@ export interface WebSocketMessage {
   type: EventType;
   channel?: string;
   data?: any;
-  log?: ImapLogEntry;
-  logs?: ImapLogEntry[];
+  log?: RealTimeLogEntry;
+  logs?: RealTimeLogEntry[];
   error?: string;
   timestamp?: string;
 }
@@ -168,8 +168,8 @@ export class UnifiedWebSocketServer extends EventEmitter {
   }
 
   private setupLoggerListeners(): void {
-    // Listen for all log events from imapLogger
-    imapLogger.on('log', (logEntry: ImapLogEntry) => {
+    // Listen for all log events from realTimeLogger
+    realTimeLogger.on('log', (logEntry: RealTimeLogEntry) => {
       this.broadcastToUser(logEntry.userId, {
         type: 'log',
         log: logEntry,
@@ -178,7 +178,7 @@ export class UnifiedWebSocketServer extends EventEmitter {
     });
 
     // Listen for logs cleared events
-    imapLogger.on('logs-cleared', ({ userId }: { userId: string }) => {
+    realTimeLogger.on('logs-cleared', ({ userId }: { userId: string }) => {
       this.broadcastToUser(userId, {
         type: 'logs-cleared',
         timestamp: new Date().toISOString()
@@ -188,7 +188,7 @@ export class UnifiedWebSocketServer extends EventEmitter {
 
   private sendInitialLogs(ws: AuthenticatedWebSocket, userId: string): void {
     try {
-      const logs = imapLogger.getLogs(userId, 100);
+      const logs = realTimeLogger.getLogs(userId, 100);
       ws.send(JSON.stringify({
         type: 'initial-logs',
         logs: logs,
@@ -213,7 +213,7 @@ export class UnifiedWebSocketServer extends EventEmitter {
 
       case 'clear-logs':
         if (ws.userId) {
-          imapLogger.clearLogs(ws.userId);
+          realTimeLogger.clearLogs(ws.userId);
         }
         break;
 
