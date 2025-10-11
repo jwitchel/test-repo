@@ -7,7 +7,7 @@
 import Redis from 'ioredis';
 import Redlock from 'redlock';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
+const REDIS_URL = process.env.REDIS_URL!;
 
 // Shared Redis connection for lock manager (same pattern as queue-events.ts)
 const lockRedisConnection = new Redis(REDIS_URL, {

@@ -76,7 +76,7 @@ initializeDatabase().then(() => {
 
 // CORS configuration for Next.js frontend
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  origin: process.env.FRONTEND_URL!,
   credentials: true, // Enable cookies for sessions
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],

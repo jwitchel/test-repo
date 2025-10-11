@@ -2,9 +2,7 @@ import { Queue, Job } from 'bullmq';
 import Redis from 'ioredis';
 
 // Redis connection configuration
-const connection = new Redis({
-  host: 'localhost',
-  port: 6380,
+const connection = new Redis(process.env.REDIS_URL!, {
   maxRetriesPerRequest: null
 });
 

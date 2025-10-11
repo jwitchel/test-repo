@@ -10,9 +10,7 @@ import { makeServiceRequest } from '../../middleware/service-auth';
 import { realTimeLogger } from '../real-time-logger';
 
 // Redis connection for worker
-const connection = new Redis({
-  host: 'localhost',
-  port: 6380,
+const connection = new Redis(process.env.REDIS_URL!, {
   maxRetriesPerRequest: null
 });
 
@@ -72,7 +70,7 @@ async function buildToneProfile(job: Job<BuildToneProfileJobData>) {
   try {
     // Use the service auth helper to call the API endpoint
     const result = await makeServiceRequest(
-      'http://localhost:3002/api/training/analyze-patterns',
+      `${process.env.BACKEND_URL!}/api/training/analyze-patterns`,
       'POST',
       { force: true },  // Force re-analysis even if patterns exist
       userId

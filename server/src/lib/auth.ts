@@ -13,7 +13,7 @@ const pool = new Pool({
 
 const auth = betterAuth({
   database: pool,
-  baseURL: 'http://localhost:3002',
+  baseURL: process.env.BACKEND_URL!,
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false, // Disable for development
@@ -22,7 +22,7 @@ const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-      redirectURI: 'http://localhost:3002/api/auth/callback/google',
+      redirectURI: `${process.env.BACKEND_URL!}/api/auth/callback/google`,
       scope: ['openid', 'email', 'profile', 'https://mail.google.com/'],
       accessType: 'offline',
       prompt: 'consent',
@@ -38,10 +38,10 @@ const auth = betterAuth({
     },
   },
   redirects: {
-    afterSignIn: 'http://localhost:3001/settings/email-accounts/oauth-callback',
-    afterError: 'http://localhost:3001/settings/email-accounts',
+    afterSignIn: process.env.OAUTH_CALLBACK_URI!,
+    afterError: process.env.OAUTH_ERROR_REDIRECT_URI!,
   },
-  trustedOrigins: ['http://localhost:3001', 'http://localhost:3002'],
+  trustedOrigins: process.env.TRUSTED_ORIGINS!.split(','),
 });
 
 // Named export

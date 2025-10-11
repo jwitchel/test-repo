@@ -3,14 +3,17 @@
  * This tests that jobs can be queued and would be processed by workers
  */
 
-import { 
-  emailProcessingQueue, 
+import {
+  emailProcessingQueue,
   toneProfileQueue,
   addEmailJob,
   addToneProfileJob,
   JobType,
   JobPriority
 } from '../queue';
+
+// Increase timeout for Redis operations
+jest.setTimeout(30000);
 
 describe('Queue Integration Tests', () => {
   afterAll(async () => {

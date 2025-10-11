@@ -40,9 +40,7 @@ export class JobSchedulerManager {
   private schedulerConfigs: Map<string, SchedulerConfig> = new Map();
 
   private constructor() {
-    this.redis = new Redis({
-      host: 'localhost',
-      port: 6380,
+    this.redis = new Redis(process.env.REDIS_URL!, {
       maxRetriesPerRequest: null
     });
 

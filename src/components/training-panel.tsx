@@ -74,7 +74,7 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId, collap
   useEffect(() => {
     const fetchEmailAccounts = async () => {
       try {
-        const response = await fetch('http://localhost:3002/api/email-accounts', {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts`, {
           credentials: 'include'
         })
         if (response.ok) {
@@ -101,8 +101,10 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId, collap
 
   // Listen for WebSocket progress updates
   const connectWebSocket = () => {
-    const ws = new WebSocket(`ws://localhost:3002/ws`)
-    
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = process.env.NEXT_PUBLIC_API_URL!.replace(/^https?:\/\//, '');
+    const ws = new WebSocket(`${protocol}//${host}/ws`)
+
     ws.onopen = () => {
       ws.send(JSON.stringify({ userId }))
     }
@@ -150,7 +152,7 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId, collap
     const ws = connectWebSocket()
 
     try {
-      const response = await fetch('http://localhost:3002/api/training/load-sent-emails', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/training/load-sent-emails`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +184,7 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId, collap
     setIsWiping(true)
 
     try {
-      const response = await fetch('http://localhost:3002/api/training/wipe', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/training/wipe`, {
         method: 'DELETE',
         credentials: 'include',
       })
@@ -204,7 +206,7 @@ export function TrainingPanel({ emailAccountId: defaultAccountId, userId, collap
     setIsAnalyzingPatterns(true)
 
     try {
-      const response = await fetch('http://localhost:3002/api/training/analyze-patterns', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/training/analyze-patterns`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

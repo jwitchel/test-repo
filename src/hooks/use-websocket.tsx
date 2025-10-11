@@ -19,7 +19,7 @@ export function useWebSocket(path: string = '/ws') {
       try {
         // Use the same host but with ws:// protocol
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') || 'localhost:3002';
+        const host = process.env.NEXT_PUBLIC_API_URL!.replace(/^https?:\/\//, '');
         const wsUrl = `${protocol}//${host}${path}`;
         
         console.log('Attempting WebSocket connection to:', wsUrl);

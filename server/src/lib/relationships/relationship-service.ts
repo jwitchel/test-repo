@@ -7,7 +7,7 @@ import { AggregatedStyle } from '../style/style-aggregation-service';
 import { EnhancedRelationshipProfile } from '../pipeline/template-manager';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://aiemailuser:aiemailpass@localhost:5434/aiemaildb',
+  connectionString: process.env.DATABASE_URL!,
 });
 
 export interface VectorSearchContext {

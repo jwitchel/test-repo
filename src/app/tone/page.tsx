@@ -155,7 +155,7 @@ export default function TonePage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   const { success, error } = useToast()
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL!
 
   useEffect(() => {
     if (!authLoading && !user) {

@@ -31,7 +31,7 @@ router.post('/authorize', requireAuth, async (req, res): Promise<void> => {
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = 'http://localhost:3002/api/oauth-direct/callback';
+    const redirectUri = process.env.OAUTH_REDIRECT_URI!;
 
     if (!clientId) {
       res.status(500).json({ error: 'Google OAuth not configured' });
@@ -69,19 +69,19 @@ router.get('/callback', async (req, res): Promise<void> => {
 
     if (oauthError) {
       console.error('OAuth error:', oauthError);
-      res.redirect('http://localhost:3001/settings/email-accounts?error=oauth_denied');
+      res.redirect(`${process.env.OAUTH_ERROR_REDIRECT_URI!}?error=oauth_denied`);
       return;
     }
 
     if (!code || !state) {
-      res.redirect('http://localhost:3001/settings/email-accounts?error=invalid_callback');
+      res.redirect(`${process.env.OAUTH_ERROR_REDIRECT_URI!}?error=invalid_callback`);
       return;
     }
 
     // Verify state
     const stateData = oauthStates.get(state as string);
     if (!stateData) {
-      res.redirect('http://localhost:3001/settings/email-accounts?error=invalid_state');
+      res.redirect(`${process.env.OAUTH_ERROR_REDIRECT_URI!}?error=invalid_state`);
       return;
     }
 
@@ -91,10 +91,10 @@ router.get('/callback', async (req, res): Promise<void> => {
     // Exchange code for tokens
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = 'http://localhost:3002/api/oauth-direct/callback';
+    const redirectUri = process.env.OAUTH_REDIRECT_URI!;
 
     if (!clientId || !clientSecret) {
-      res.redirect('http://localhost:3001/settings/email-accounts?error=oauth_config');
+      res.redirect(`${process.env.OAUTH_ERROR_REDIRECT_URI!}?error=oauth_config`);
       return;
     }
 
@@ -115,7 +115,7 @@ router.get('/callback', async (req, res): Promise<void> => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error('Token exchange failed:', errorText);
-      res.redirect('http://localhost:3001/settings/email-accounts?error=token_exchange');
+      res.redirect(`${process.env.OAUTH_ERROR_REDIRECT_URI!}?error=token_exchange`);
       return;
     }
 
@@ -129,7 +129,7 @@ router.get('/callback', async (req, res): Promise<void> => {
     });
 
     if (!userInfoResponse.ok) {
-      res.redirect('http://localhost:3001/settings/email-accounts?error=user_info');
+      res.redirect(`${process.env.OAUTH_ERROR_REDIRECT_URI!}?error=user_info`);
       return;
     }
 
@@ -167,10 +167,10 @@ router.get('/callback', async (req, res): Promise<void> => {
     );
 
     // Redirect to frontend with session token
-    res.redirect(`http://localhost:3001/settings/email-accounts/oauth-complete?session=${sessionToken}`);
+    res.redirect(`${process.env.OAUTH_COMPLETE_REDIRECT_URI!}?session=${sessionToken}`);
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.redirect('http://localhost:3001/settings/email-accounts?error=callback_error');
+    res.redirect(`${process.env.OAUTH_ERROR_REDIRECT_URI!}?error=callback_error`);
   }
 });
 

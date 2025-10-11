@@ -65,7 +65,7 @@ function OAuthCompleteContent() {
 
       try {
         // Complete the OAuth flow
-        const response = await fetch('http://localhost:3002/api/oauth-direct/complete', {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/oauth-direct/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

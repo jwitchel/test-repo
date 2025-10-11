@@ -1,11 +1,14 @@
-import { 
-  emailProcessingQueue, 
+import {
+  emailProcessingQueue,
   toneProfileQueue,
   addEmailJob,
   addToneProfileJob,
   JobType,
   JobPriority
 } from '../queue';
+
+// Increase timeout for Redis operations
+jest.setTimeout(30000);
 
 describe('BullMQ Queue Configuration', () => {
   afterAll(async () => {

@@ -10,9 +10,7 @@ import { realTimeLogger } from '../real-time-logger';
 import { inboxProcessor } from '../email-processing/inbox-processor';
 import { pool } from '../../server';
 
-const connection = new Redis({
-  host: 'localhost',
-  port: 6380,
+const connection = new Redis(process.env.REDIS_URL!, {
   maxRetriesPerRequest: null
 });
 

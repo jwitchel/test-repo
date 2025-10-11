@@ -37,7 +37,7 @@ function EmailAccountsContent() {
   const [isAddingAccount, setIsAddingAccount] = useState(false)
   const [editingAccount, setEditingAccount] = useState<EmailAccountResponse | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const { data: accounts, error, mutate } = useSWR<EmailAccountResponse[]>('http://localhost:3002/api/email-accounts', fetcher)
+  const { data: accounts, error, mutate } = useSWR<EmailAccountResponse[]>(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts`, fetcher)
   const { success, error: showError } = useToast()
 
   const reauthAccount = useMemo(() => (accounts || []).find(a => a.id === reauthId), [accounts, reauthId])
@@ -45,7 +45,7 @@ function EmailAccountsContent() {
   const handleDelete = async (accountId: string) => {
     setDeletingId(accountId)
     try {
-      const response = await fetch(`http://localhost:3002/api/email-accounts/${accountId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts/${accountId}`, {
         method: 'DELETE',
         credentials: 'include'
       })
@@ -66,7 +66,7 @@ function EmailAccountsContent() {
 
   const handleTest = async (account: EmailAccountResponse) => {
     try {
-      const response = await fetch(`http://localhost:3002/api/email-accounts/${account.id}/test`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts/${account.id}/test`, {
         method: 'POST',
         credentials: 'include'
       })
@@ -85,7 +85,7 @@ function EmailAccountsContent() {
   
   const handleToggleMonitoring = async (account: EmailAccountResponse, enabled: boolean) => {
     try {
-      const response = await fetch(`http://localhost:3002/api/email-accounts/${account.id}/monitoring`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts/${account.id}/monitoring`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -129,7 +129,7 @@ function EmailAccountsContent() {
                   className="h-7 px-2 text-xs"
                   onClick={async () => {
                     try {
-                      const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
+                      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/oauth-direct/authorize`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
@@ -303,7 +303,7 @@ function AccountList({
                         className="h-7 px-2 text-xs"
                         onClick={async () => {
                           try {
-                            const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
+                            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/oauth-direct/authorize`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               credentials: 'include',
@@ -432,7 +432,7 @@ function AddAccountForm({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
     setIsTesting(true)
     
     try {
-      const response = await fetch('http://localhost:3002/api/email-accounts/test', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -458,7 +458,7 @@ function AddAccountForm({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
   const onSubmit = async (data: z.infer<typeof emailAccountSchema>) => {
     setIsSubmitting(true)
     try {
-      const response = await fetch('http://localhost:3002/api/email-accounts', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -512,7 +512,7 @@ function AddAccountForm({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
               onClick={async () => {
                 try {
                   // Request OAuth URL from our dedicated email OAuth endpoint
-                  const response = await fetch('http://localhost:3002/api/oauth-direct/authorize', {
+                  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/oauth-direct/authorize`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -745,7 +745,7 @@ function EditAccountForm({ account, onSuccess, onCancel }: {
     setIsTesting(true)
     
     try {
-      const response = await fetch('http://localhost:3002/api/email-accounts/test', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -771,7 +771,7 @@ function EditAccountForm({ account, onSuccess, onCancel }: {
   const onSubmit = async (data: z.infer<typeof emailAccountSchema>) => {
     setIsSubmitting(true)
     try {
-      const response = await fetch(`http://localhost:3002/api/email-accounts/${account.id}/update-credentials`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts/${account.id}/update-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

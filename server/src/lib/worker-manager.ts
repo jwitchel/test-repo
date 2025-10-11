@@ -21,9 +21,7 @@ export class WorkerManager {
   private isPaused: boolean = false;
 
   private constructor() {
-    this.redis = new Redis({
-      host: 'localhost',
-      port: 6380,
+    this.redis = new Redis(process.env.REDIS_URL!, {
       maxRetriesPerRequest: null
     });
 

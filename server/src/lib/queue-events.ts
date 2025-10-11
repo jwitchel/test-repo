@@ -8,7 +8,7 @@ import Redis from 'ioredis';
 import { getUnifiedWebSocketServer } from '../websocket/unified-websocket';
 import { inboxQueue, trainingQueue } from './queue';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
+const REDIS_URL = process.env.REDIS_URL!;
 
 // Create queue event listeners with proper Redis config
 const inboxQueueEvents = new QueueEvents('inbox', {

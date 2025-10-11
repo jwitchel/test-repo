@@ -31,12 +31,12 @@ export default function DashboardPage() {
   const [displayName, setDisplayName] = useState<string>('')
 
   const { data: emailAccounts, isLoading: accountsLoading } = useSWR<EmailAccount[]>(
-    user ? 'http://localhost:3002/api/email-accounts' : null,
+    user ? `${process.env.NEXT_PUBLIC_API_URL!}/api/email-accounts` : null,
     fetcher
   )
 
   const { data: providers, isLoading: providersLoading } = useSWR<LLMProvider[]>(
-    user ? 'http://localhost:3002/api/llm-providers' : null,
+    user ? `${process.env.NEXT_PUBLIC_API_URL!}/api/llm-providers` : null,
     fetcher
   )
 

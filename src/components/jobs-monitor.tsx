@@ -181,7 +181,7 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
   // Load jobs from API - memoized to be called from multiple places
   const loadJobs = async (forceReplace: boolean = false) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
       const response = await fetch(`${apiUrl}/api/jobs/list`, {
         credentials: 'include'
       });
@@ -239,7 +239,7 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
   // Set up WebSocket connection for real-time updates
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') || 'localhost:3002';
+    const host = process.env.NEXT_PUBLIC_API_URL!.replace(/^https?:\/\//, '');
     const wsUrl = `${protocol}//${host}/ws`;
     
     console.log('JobsMonitor: Connecting to WebSocket:', wsUrl);
@@ -387,7 +387,7 @@ export function JobsMonitor({ refreshTrigger, forceRefresh, onJobComplete }: Job
   
   const handleRetry = async (jobId: string, queueName: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
       const response = await fetch(`${apiUrl}/api/jobs/${queueName}/${jobId}/retry`, {
         method: 'POST',
         credentials: 'include'

@@ -93,7 +93,7 @@ export class VectorStore {
   private initPromise: Promise<void> | null = null;
 
   constructor() {
-    const url = process.env.QDRANT_URL || 'http://localhost:6333';
+    const url = process.env.QDRANT_URL!;
     const apiKey = process.env.QDRANT_API_KEY;
 
     this.client = new QdrantClient({

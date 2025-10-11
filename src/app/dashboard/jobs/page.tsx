@@ -43,9 +43,9 @@ export default function JobsPage() {
     toneProfile: { active: 0, waiting: 0, prioritized: 0, completed: 0, failed: 0, delayed: 0, paused: 0, isPaused: false }
   });
   const { success, error } = useToast();
-  
+
   // API URL used throughout the component
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
 
   // Shared method for consistent API request handling
   const handleApiRequest = useCallback(async (config: {
@@ -368,12 +368,16 @@ export default function JobsPage() {
     checkWorkerStatus();
     fetchStats();
     fetchSchedulers();
-  }, [handleApiRequest, fetchStats, fetchSchedulers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
   
   // Refresh stats when refreshKey changes
   useEffect(() => {
-    fetchStats();
-  }, [refreshKey, fetchStats]);
+    if (refreshKey > 0) {
+      fetchStats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]); // Only re-run when refreshKey changes
   
   // Reset forceRefresh flag after it's been used
   useEffect(() => {

@@ -8,7 +8,7 @@ import path from 'path';
 dotenv.config({ path: path.join(__dirname, '../../../../.env') });
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://aiemailuser:aiemailpass@localhost:5434/aiemaildb'
+  connectionString: process.env.DATABASE_URL!
 });
 
 export interface AggregatedStyle {

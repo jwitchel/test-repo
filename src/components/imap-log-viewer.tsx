@@ -51,7 +51,8 @@ export function ImapLogViewer({ emailAccountId, className }: ImapLogViewerProps)
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//localhost:3002/ws`);
+      const host = process.env.NEXT_PUBLIC_API_URL!.replace(/^https?:\/\//, '');
+      const ws = new WebSocket(`${protocol}//${host}/ws`);
       wsRef.current = ws;
 
       ws.onopen = () => {

@@ -31,7 +31,7 @@ export function SignaturePatterns() {
 
   const loadPatterns = async () => {
     try {
-      const response = await fetch('http://localhost:3002/api/signature-patterns', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/signature-patterns`, {
         credentials: 'include'
       })
       
@@ -50,7 +50,7 @@ export function SignaturePatterns() {
   const savePatterns = async () => {
     setIsSaving(true)
     try {
-      const response = await fetch('http://localhost:3002/api/signature-patterns', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/signature-patterns`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -101,11 +101,11 @@ export function SignaturePatterns() {
 
     setIsTesting(true)
     try {
-      const response = await fetch('http://localhost:3002/api/signature-patterns/test', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/api/signature-patterns/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: testText,
           patterns: patterns.length > 0 ? patterns : undefined
         })
