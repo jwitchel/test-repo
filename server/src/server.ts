@@ -192,15 +192,27 @@ import { imapPool } from './lib/imap-pool';
 import './lib/queue-events';
 
 
+// Helper function to format timestamp for errors
+function errorTimestamp() {
+  return new Date().toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+}
+
 // Catch uncaught errors
 process.on('uncaughtException', (error) => {
-  console.error('💥 UNCAUGHT EXCEPTION:', error);
+  console.error(`[${errorTimestamp()}] 💥 UNCAUGHT EXCEPTION:`, error);
   console.error('Stack:', error.stack);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 UNHANDLED REJECTION at:', promise);
+  console.error(`[${errorTimestamp()}] 💥 UNHANDLED REJECTION at:`, promise);
   console.error('Reason:', reason);
   process.exit(1);
 });
