@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import useSWR from 'swr';
 import { formatDistanceToNow } from 'date-fns';
 import { useMemo } from 'react';
+import Link from 'next/link';
 
 interface RecentAction {
   id: string;
@@ -13,6 +14,7 @@ interface RecentAction {
   subject: string;
   destinationFolder?: string;
   updatedAt: string;
+  emailAccountId: string;
   emailAccount: string;
 }
 
@@ -258,13 +260,12 @@ export function RecentActionsTable() {
                       </div>
                     </td>
                     <td className="py-2 px-2">
-                      <button
-                        disabled
-                        className="text-muted-foreground cursor-not-allowed text-xs"
-                        title="Details view coming soon"
+                      <Link
+                        href={`/inbox?emailAccountId=${action.emailAccountId}&messageId=${encodeURIComponent(action.messageId)}`}
+                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs underline"
                       >
                         View
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 );

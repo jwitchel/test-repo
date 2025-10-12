@@ -9,27 +9,15 @@ import { ProcessedEmail } from '../pipeline/types';
 import { realTimeLogger } from '../real-time-logger';
 import PostalMime from 'postal-mime';
 import { pool } from '../../server';
-import { VectorStore } from '../vector/qdrant-client';
-import { EmbeddingService } from '../vector/embedding-service';
-import { EmailAttachmentStripper } from '../email-attachment-stripper';
 import { TypedNameRemover } from '../typed-name-remover';
 
 // Initialize services (singleton pattern)
 let orchestrator: ToneLearningOrchestrator | null = null;
-let vectorStore: VectorStore | null = null;
-let embeddingService: EmbeddingService | null = null;
 
 async function ensureServicesInitialized() {
   if (!orchestrator) {
     orchestrator = new ToneLearningOrchestrator();
     await orchestrator.initialize();
-  }
-  if (!vectorStore) {
-    vectorStore = new VectorStore();
-    await vectorStore.initialize();
-  }
-  if (!embeddingService) {
-    embeddingService = new EmbeddingService();
   }
 }
 
@@ -256,78 +244,6 @@ export class DraftGenerator {
       // Initialize pattern analyzer with the selected provider
       await orchestrator!['patternAnalyzer'].initialize(providerId);
 
-      // Store incoming email in Qdrant
-      realTimeLogger.log(userId, {
-        userId,
-        emailAccountId,
-        level: 'info',
-        command: 'STORING_INCOMING_EMAIL',
-        data: {
-          parsed: {
-            messageId: messageId,
-            from: fromAddress,
-            subject: subject
-          }
-        }
-      });
-
-      // Generate embedding for the email content
-      const emailVector = await embeddingService!.embedText(emailBody);
-
-      // Check if email has attachments for metadata tracking
-      const hasAttachments = EmailAttachmentStripper.hasAttachments(rawMessage);
-      let attachmentInfo: {
-        hasAttachments?: boolean;
-        attachmentSizeKB?: number;
-        attachmentCount?: number;
-      } = {};
-
-      if (hasAttachments) {
-        // Calculate size metrics for logging
-        const originalSize = rawMessage.length;
-        const strippedForStorage = await EmailAttachmentStripper.stripAttachments(rawMessage);
-        const strippedSize = strippedForStorage.length;
-        const sizeMetrics = EmailAttachmentStripper.calculateSizeReduction(originalSize, strippedSize);
-
-        attachmentInfo = {
-          hasAttachments: true,
-          attachmentSizeKB: sizeMetrics.reductionKB,
-          attachmentCount: parsed.attachments ? parsed.attachments.length : 0
-        };
-      }
-
-      // Store the incoming email in Qdrant
-      await vectorStore!.upsertEmail({
-        id: messageId,
-        userId,
-        vector: emailVector.vector,
-        metadata: {
-          emailId: messageId,
-          userId,
-          emailType: 'incoming',
-          senderEmail: fromAddress,
-          senderName: fromName || fromAddress,
-          subject: subject,
-          sentDate: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
-          rawText: emailBody,
-          features: {},
-          relationship: {
-            type: 'unknown',
-            confidence: 0,
-            detectionMethod: 'none'
-          },
-          userReply: '',
-          respondedTo: '',
-          recipientEmail: userEmail,
-          redactedNames: [],
-          redactedEmails: [],
-          wordCount: emailBody.split(/\s+/).length,
-          frequencyScore: 0,
-          eml_file: rawMessage,
-          ...attachmentInfo
-        }
-      });
-
       // Create a ProcessedEmail object for the orchestrator
       const processedEmail: ProcessedEmail = {
         uid: messageId,
@@ -440,68 +356,11 @@ export class DraftGenerator {
           parsed: {
             draftId: draft.id,
             wordCount: draft.body.split(/\s+/).length,
-            relationship: draft.relationship.type
+            relationship: draft.relationship.type,
+            recommendedAction: draft.meta?.recommendedAction
           }
         }
       });
-
-      // Store LLM metadata back to Qdrant
-      if (draft.meta) {
-        realTimeLogger.log(userId, {
-          userId,
-          emailAccountId,
-          level: 'info',
-          command: 'STORING_LLM_METADATA',
-          data: {
-            parsed: {
-              messageId: messageId,
-              inboundMsgAddressedTo: draft.meta.inboundMsgAddressedTo,
-              recommendedAction: draft.meta.recommendedAction
-            }
-          }
-        });
-
-        // Update the email in Qdrant with LLM response metadata
-        const updatedContent = `${emailBody}\n\nGenerated Response:\n${draft.body}`;
-        const updatedVector = await embeddingService!.embedText(updatedContent);
-
-        await vectorStore!.upsertEmail({
-          id: messageId,
-          userId,
-          vector: updatedVector.vector,
-          metadata: {
-            emailId: messageId,
-            userId,
-            emailType: 'incoming',
-            senderEmail: fromAddress,
-            senderName: fromName || fromAddress,
-            subject: subject,
-            sentDate: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
-            rawText: emailBody,
-            features: {},
-            relationship: draft.relationship,
-            userReply: draft.body,
-            respondedTo: emailBody,
-            recipientEmail: userEmail,
-            redactedNames: [],
-            redactedEmails: [],
-            wordCount: emailBody.split(/\s+/).length,
-            frequencyScore: 0,
-            eml_file: rawMessage,
-            ...attachmentInfo,
-            llmResponse: {
-              meta: draft.meta,
-              generatedAt: new Date().toISOString(),
-              providerId: providerId,
-              modelName: (orchestrator && orchestrator['patternAnalyzer'] && orchestrator['patternAnalyzer']['llmClient'])
-                ? orchestrator['patternAnalyzer']['llmClient'].getModelInfo().name
-                : 'unknown',
-              draftId: draft.id,
-              relationship: draft.relationship
-            }
-          }
-        });
-      }
 
       // Determine recipients based on recommended action
       let recipients = fromName && fromName !== fromAddress

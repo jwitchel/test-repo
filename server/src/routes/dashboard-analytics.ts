@@ -99,6 +99,7 @@ router.get('/recent-actions', requireAuth, async (req, res) => {
         eat.subject,
         eat.destination_folder,
         eat.updated_at,
+        eat.email_account_id,
         ea.email_address
        FROM email_action_tracking eat
        JOIN email_accounts ea ON eat.email_account_id = ea.id
@@ -125,6 +126,7 @@ router.get('/recent-actions', requireAuth, async (req, res) => {
         subject: row.subject || '(Subject unavailable for old emails)',
         destinationFolder: row.destination_folder,
         updatedAt: row.updated_at,
+        emailAccountId: row.email_account_id,
         emailAccount: row.email_address
       })),
       total: countResult.rows[0]?.total || 0

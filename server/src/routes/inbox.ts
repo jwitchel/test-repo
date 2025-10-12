@@ -240,4 +240,124 @@ router.get('/accounts', requireAuth, async (req, res): Promise<void> => {
   }
 });
 
+// Get a specific email by messageId from Qdrant
+router.get('/email/:accountId/:messageId', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const { accountId, messageId } = req.params;
+
+    console.log('[inbox-get-email] Looking for email:', { userId, accountId, messageId });
+
+    // Validate account belongs to user
+    const accountCheck = await pool.query(
+      'SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2',
+      [accountId, userId]
+    );
+
+    if (accountCheck.rows.length === 0) {
+      console.log('[inbox-get-email] Account not found or unauthorized');
+      res.status(404).json({ error: 'Email account not found' });
+      return;
+    }
+
+    // Fetch email from Qdrant
+    const { VectorStore, RECEIVED_COLLECTION } = await import('../lib/vector/qdrant-client');
+    const vectorStore = new VectorStore();
+    await vectorStore.initialize();
+
+    let email = await vectorStore.getByMessageId(userId, accountId, messageId, RECEIVED_COLLECTION);
+
+    // If not found in Qdrant, check if it exists in action tracking and has a UID we can use
+    if (!email) {
+      console.log('[inbox-get-email] Email not found in Qdrant, checking action tracking for UID...');
+
+      // Check if this email exists in the action tracking table with a UID
+      const actionRecord = await pool.query(
+        `SELECT eat.message_id, eat.uid, eat.subject, eat.created_at
+         FROM email_action_tracking eat
+         WHERE eat.email_account_id = $1 AND eat.message_id = $2
+         LIMIT 1`,
+        [accountId, messageId]
+      );
+
+      if (actionRecord.rows.length > 0 && actionRecord.rows[0].uid) {
+        const uid = actionRecord.rows[0].uid;
+        console.log('[inbox-get-email] Found UID in action tracking, fetching from IMAP:', { uid });
+
+        // Fetch from IMAP using the UID
+        try {
+          const imapOps = await ImapOperations.fromAccountId(accountId, userId);
+          const messages = await imapOps.getMessagesRaw('INBOX', [uid]);
+
+          if (messages.length > 0) {
+            const msg = messages[0];
+            console.log('[inbox-get-email] Retrieved email from IMAP');
+
+            // Return the email in the same format as Qdrant would
+            res.json({
+              success: true,
+              email: {
+                messageId: msg.messageId || messageId,
+                subject: msg.subject || actionRecord.rows[0].subject || '(No subject)',
+                from: msg.from || 'Unknown',
+                fromName: undefined,
+                to: msg.to || [],
+                cc: [], // CC not available from IMAP basic fetch
+                date: msg.date?.toISOString() || actionRecord.rows[0].created_at,
+                rawMessage: msg.rawMessage || '',
+                uid: msg.uid,
+                flags: msg.flags || [],
+                size: msg.size || 0,
+                // No LLM response available when fetching from IMAP directly
+                llmResponse: undefined,
+                relationship: undefined
+              }
+            });
+            return;
+          }
+        } catch (imapError) {
+          console.error('[inbox-get-email] Failed to fetch from IMAP:', imapError);
+        }
+      }
+
+      console.log('[inbox-get-email] Email not found in Qdrant or IMAP with filters:', { userId, accountId, messageId });
+      res.status(404).json({
+        error: 'Email not available',
+        message: 'This email was processed before the history feature was implemented. Only newly processed emails can be viewed from history. Please process new emails to see them here.'
+      });
+      return;
+    }
+
+    console.log('[inbox-get-email] Email found in Qdrant:', { emailId: email.metadata.emailId });
+
+    // Return email data with metadata
+    res.json({
+      success: true,
+      email: {
+        messageId: email.metadata.emailId,
+        subject: email.metadata.subject,
+        from: email.metadata.senderEmail || email.metadata.from,
+        fromName: email.metadata.senderName,
+        to: email.metadata.to || [],
+        cc: email.metadata.cc || [],
+        date: email.metadata.sentDate,
+        rawMessage: email.metadata.eml_file,
+        uid: email.metadata.uid,
+        flags: email.metadata.flags || [],
+        size: email.metadata.size || 0,
+        // Include LLM response metadata if available
+        llmResponse: email.metadata.llmResponse,
+        relationship: email.metadata.relationship
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching email by messageId:', error);
+    res.status(500).json({
+      error: 'Failed to fetch email',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

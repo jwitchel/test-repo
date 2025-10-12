@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +15,7 @@ import PostalMime from 'postal-mime';
 import { apiGet, apiPost } from '@/lib/api';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useSearchParams } from 'next/navigation';
 
 interface EmailAccount {
   id: string;
@@ -90,9 +91,10 @@ interface GeneratedDraft {
   };
 }
 
-export default function InboxPage() {
+function InboxContent() {
   const { error, success } = useToast();
-  
+  const searchParams = useSearchParams();
+
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [currentMessage, setCurrentMessage] = useState<EmailMessage | null>(null);
@@ -115,6 +117,11 @@ export default function InboxPage() {
   const [jumpToInput, setJumpToInput] = useState('');
   const [needsReauth, setNeedsReauth] = useState(false);
   const [showAllEmails, setShowAllEmails] = useState(false);
+
+  // URL parameter mode: viewing a specific email from Qdrant
+  const urlEmailAccountId = searchParams.get('emailAccountId');
+  const urlMessageId = searchParams.get('messageId');
+  const isViewMode = !!(urlEmailAccountId && urlMessageId);
 
   const selectedAccountEmail = accounts.find(a => a.id === selectedAccount)?.email;
   
@@ -198,17 +205,25 @@ export default function InboxPage() {
     fetchUserPreferences();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
-  // Fetch message when account or index changes
+
+  // Fetch specific email from URL parameters (view mode)
   useEffect(() => {
-    if (selectedAccount) {
+    if (isViewMode && urlEmailAccountId && urlMessageId) {
+      fetchSpecificEmail(urlEmailAccountId, urlMessageId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isViewMode, urlEmailAccountId, urlMessageId]);
+
+  // Fetch message when account or index changes (normal pagination mode)
+  useEffect(() => {
+    if (selectedAccount && !isViewMode) {
       // Clear reauth flag when switching accounts
       setNeedsReauth(false);
       fetchMessage();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount, currentIndex, showAllEmails]);
-  
+  }, [selectedAccount, currentIndex, showAllEmails, isViewMode]);
+
   // Parse message when raw message changes
   useEffect(() => {
     if (currentMessage?.rawMessage) {
@@ -229,7 +244,7 @@ export default function InboxPage() {
   
   const fetchMessage = async () => {
     if (!selectedAccount) return;
-    
+
     setLoading(true);
     try {
       const data = await apiGet<{
@@ -238,7 +253,7 @@ export default function InboxPage() {
         offset: number;
         limit: number;
       }>(`/api/inbox/emails/${selectedAccount}?offset=${currentIndex}&limit=1&showAll=${showAllEmails}`);
-      
+
       if (data.messages.length > 0) {
         setCurrentMessage(data.messages[0]);
         // Handle unknown total (-1) by not updating or using a high number
@@ -259,6 +274,107 @@ export default function InboxPage() {
         error('Failed to load message');
         console.error(err);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch a specific email from Qdrant by messageId (view mode)
+  const fetchSpecificEmail = async (accountId: string, messageId: string) => {
+    setLoading(true);
+    try {
+      const data = await apiGet<{
+        success: boolean;
+        email: {
+          messageId: string;
+          subject: string;
+          from: string;
+          fromName?: string;
+          to: string[];
+          cc?: string[];
+          date: string;
+          rawMessage: string;
+          uid?: number;
+          flags: string[];
+          size: number;
+          llmResponse?: {
+            meta: {
+              inboundMsgAddressedTo: 'you' | 'group' | 'someone-else';
+              recommendedAction: 'reply' | 'reply-all' | 'forward' | 'forward-with-comment' | 'silent-fyi-only' | 'silent-large-list' | 'silent-unsubscribe' | 'silent-spam';
+              inboundMsgIsRequesting: string | string[];
+              keyConsiderations: string[];
+              urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
+              contextFlags: {
+                isThreaded: boolean;
+                hasAttachments: boolean;
+                isGroupEmail: boolean;
+              };
+            };
+            generatedAt: string;
+            providerId: string;
+            modelName: string;
+            draftId: string;
+            relationship: {
+              type: string;
+              confidence: number;
+            };
+          };
+          relationship: {
+            type: string;
+            confidence: number;
+          };
+        };
+      }>(`/api/inbox/email/${accountId}/${encodeURIComponent(messageId)}`);
+
+      if (data.success && data.email) {
+        // Convert the Qdrant email data to the EmailMessage format
+        const emailMessage: EmailMessage = {
+          uid: data.email.uid || 0,
+          messageId: data.email.messageId,
+          from: data.email.from,
+          to: data.email.to,
+          subject: data.email.subject,
+          date: new Date(data.email.date),
+          flags: data.email.flags,
+          size: data.email.size,
+          rawMessage: data.email.rawMessage,
+          actionTaken: 'draft_created' // This email has been processed
+        };
+
+        setCurrentMessage(emailMessage);
+        setSelectedAccount(accountId);
+
+        // If llmResponse exists, convert it to GeneratedDraft format
+        if (data.email.llmResponse) {
+          const draft: GeneratedDraft = {
+            id: data.email.llmResponse.draftId,
+            from: '', // Not stored in llmResponse
+            to: data.email.to.join(', '),
+            cc: data.email.cc?.join(', '),
+            subject: data.email.subject,
+            body: '', // Not stored (body not needed for view mode)
+            bodyHtml: '',
+            inReplyTo: data.email.messageId,
+            references: data.email.messageId,
+            meta: data.email.llmResponse.meta,
+            relationship: data.email.llmResponse.relationship || data.email.relationship,
+            metadata: {
+              originalSubject: data.email.subject,
+              originalFrom: data.email.from
+            }
+          };
+
+          setGeneratedDraft(draft);
+          setActiveTab('response'); // Switch to response tab to show analysis
+        }
+      }
+    } catch (err) {
+      // Check if the error has a message field with more details
+      const errorMessage = err instanceof Error && 'message' in err
+        ? (err as any).message
+        : 'Failed to load email from history';
+      error(errorMessage);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -485,64 +601,69 @@ export default function InboxPage() {
         </div>
       )}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Inbox</h1>
-        
-        {/* Account selector */}
-        <div className="flex items-center gap-2 mb-4">
-          <Select value={selectedAccount} onValueChange={(value) => {
-            if (value) {
-              setSelectedAccount(value);
-              setCurrentIndex(0); // Reset to first message when switching accounts
-            }
-          }}>
-            <SelectTrigger className="w-[240px] h-7 text-xs">
-              <SelectValue placeholder="Select Email Account..." />
-            </SelectTrigger>
-            <SelectContent>
-              {accounts.map(account => (
-                <SelectItem key={account.id} value={account.id}>
-                  {account.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          {/* Email filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium">Show:</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="radio"
-                id="unprocessedOnly"
-                name="emailFilter"
-                checked={!showAllEmails}
-                onChange={() => {
-                  setShowAllEmails(false);
-                  setCurrentIndex(0);
-                }}
-                className="h-3 w-3"
-              />
-              <label htmlFor="unprocessedOnly" className="text-xs">
-                Unprocessed Only
-              </label>
-            </div>
-            <div className="flex items-center gap-1">
-              <input
-                type="radio"
-                id="allEmails"
-                name="emailFilter"
-                checked={showAllEmails}
-                onChange={() => {
-                  setShowAllEmails(true);
-                  setCurrentIndex(0);
-                }}
-                className="h-3 w-3"
-              />
-              <label htmlFor="allEmails" className="text-xs">
-                All Emails
-              </label>
-            </div>
-          </div>
+        <h1 className="text-2xl font-bold mb-4">
+          Inbox {isViewMode && <span className="text-sm font-normal text-muted-foreground">(Viewing from History)</span>}
+        </h1>
+
+        {/* Show pagination controls only when NOT in view mode */}
+        {!isViewMode && (
+          <>
+            {/* Account selector */}
+            <div className="flex items-center gap-2 mb-4">
+              <Select value={selectedAccount} onValueChange={(value) => {
+                if (value) {
+                  setSelectedAccount(value);
+                  setCurrentIndex(0); // Reset to first message when switching accounts
+                }
+              }}>
+                <SelectTrigger className="w-[240px] h-7 text-xs">
+                  <SelectValue placeholder="Select Email Account..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map(account => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Email filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium">Show:</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="radio"
+                    id="unprocessedOnly"
+                    name="emailFilter"
+                    checked={!showAllEmails}
+                    onChange={() => {
+                      setShowAllEmails(false);
+                      setCurrentIndex(0);
+                    }}
+                    className="h-3 w-3"
+                  />
+                  <label htmlFor="unprocessedOnly" className="text-xs">
+                    Unprocessed Only
+                  </label>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="radio"
+                    id="allEmails"
+                    name="emailFilter"
+                    checked={showAllEmails}
+                    onChange={() => {
+                      setShowAllEmails(true);
+                      setCurrentIndex(0);
+                    }}
+                    className="h-3 w-3"
+                  />
+                  <label htmlFor="allEmails" className="text-xs">
+                    All Emails
+                  </label>
+                </div>
+              </div>
           
           <div className="flex items-center gap-1 ml-auto">
             <Button
@@ -612,6 +733,8 @@ export default function InboxPage() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
       
       {/* Email display with tabs */}
@@ -661,48 +784,50 @@ export default function InboxPage() {
                   <div>Date: {new Date(parsedMessage.date).toLocaleString()}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {providers.length > 0 && (
-                  <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Select provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {providers.map(provider => (
-                        <SelectItem key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {currentMessage.actionTaken && currentMessage.actionTaken !== 'none' && (
-                  <Button 
-                    onClick={handleForceEvaluation}
-                    variant="outline"
-                    size="sm"
-                    title="Reset action taken and allow re-evaluation"
-                  >
-                    Force Evaluation
-                  </Button>
-                )}
-                <Button 
-                  onClick={handleGenerateDraft}
-                  disabled={isGenerating || !selectedProviderId}
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Generate Draft
-                    </>
+              {!isViewMode && (
+                <div className="flex items-center gap-2">
+                  {providers.length > 0 && (
+                    <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {providers.map(provider => (
+                          <SelectItem key={provider.id} value={provider.id}>
+                            {provider.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
-                </Button>
-              </div>
+                  {currentMessage.actionTaken && currentMessage.actionTaken !== 'none' && (
+                    <Button
+                      onClick={handleForceEvaluation}
+                      variant="outline"
+                      size="sm"
+                      title="Reset action taken and allow re-evaluation"
+                    >
+                      Force Evaluation
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleGenerateDraft}
+                    disabled={isGenerating || !selectedProviderId}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="mr-2 h-4 w-4" />
+                        Generate Draft
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           
@@ -791,27 +916,29 @@ export default function InboxPage() {
                       <div>Relationship: {generatedDraft.relationship.type} ({Math.round(generatedDraft.relationship.confidence * 100)}% confidence)</div>
                     </div>
                   </div>
-                  <Button 
-                    onClick={handleSendToDraft}
-                    disabled={isUploadingDraft || getDestinationFolder(generatedDraft.meta?.recommendedAction).error}
-                    variant={getDestinationFolder(generatedDraft.meta?.recommendedAction).error ? "destructive" : "default"}
-                  >
-                    {isUploadingDraft ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        {getDestinationFolder(generatedDraft.meta?.recommendedAction).error ? (
-                          <AlertCircle className="mr-2 h-4 w-4" />
-                        ) : (
-                          <Send className="mr-2 h-4 w-4" />
-                        )}
-                        {getDestinationFolder(generatedDraft.meta?.recommendedAction).buttonLabel}
-                      </>
-                    )}
-                  </Button>
+                  {!isViewMode && (
+                    <Button
+                      onClick={handleSendToDraft}
+                      disabled={isUploadingDraft || getDestinationFolder(generatedDraft.meta?.recommendedAction).error}
+                      variant={getDestinationFolder(generatedDraft.meta?.recommendedAction).error ? "destructive" : "default"}
+                    >
+                      {isUploadingDraft ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          {getDestinationFolder(generatedDraft.meta?.recommendedAction).error ? (
+                            <AlertCircle className="mr-2 h-4 w-4" />
+                          ) : (
+                            <Send className="mr-2 h-4 w-4" />
+                          )}
+                          {getDestinationFolder(generatedDraft.meta?.recommendedAction).buttonLabel}
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -954,5 +1081,13 @@ export default function InboxPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function InboxPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto p-6 max-w-6xl"><div className="text-center py-12">Loading...</div></div>}>
+      <InboxContent />
+    </Suspense>
   );
 }

@@ -622,6 +622,54 @@ export class VectorStore {
       return false;
     }
   }
+
+  /**
+   * Get an email by messageId (emailId in metadata)
+   * @param userId - The user ID (for security)
+   * @param emailAccountId - The email account ID (for security and filtering)
+   * @param messageId - The message ID (corresponds to emailId in metadata)
+   * @param collectionName - Which collection to search (defaults to received-emails)
+   * @returns Promise<EmailVector | null> - The email or null if not found
+   */
+  async getByMessageId(
+    userId: string,
+    emailAccountId: string,
+    messageId: string,
+    collectionName?: string
+  ): Promise<EmailVector | null> {
+    await this.initialize();
+
+    const collection = collectionName || RECEIVED_COLLECTION;
+
+    try {
+      // Search for email by emailId, userId, and emailAccountId
+      const results = await this.client.scroll(collection, {
+        filter: {
+          must: [
+            { key: 'userId', match: { value: userId } },
+            { key: 'emailAccountId', match: { value: emailAccountId } },
+            { key: 'emailId', match: { value: messageId } }
+          ]
+        },
+        limit: 1,
+        with_payload: true,
+        with_vector: false
+      });
+
+      if (results.points.length === 0) {
+        return null;
+      }
+
+      const point = results.points[0];
+      return {
+        id: (point.payload as any).originalId || String(point.id),
+        vector: [],
+        metadata: point.payload as unknown as EmailMetadata
+      };
+    } catch (error) {
+      throw new Error(`Failed to get email by messageId: ${error}`);
+    }
+  }
 }
 
 // Singleton instance

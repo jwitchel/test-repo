@@ -21,6 +21,18 @@ export interface SaveEmailParams {
   emailData: EmailMessageWithRaw;
   emailType: 'incoming' | 'sent';
   folderName: string;
+  llmResponse?: {  // AI evaluation metadata from draft generation
+    meta: any;
+    generatedAt: string;
+    providerId: string;
+    modelName: string;
+    draftId: string;
+    relationship: {
+      type: string;
+      confidence: number;
+      detectionMethod: string;
+    };
+  };
 }
 
 export interface SaveEmailResult {
@@ -54,7 +66,7 @@ export class EmailStorageService {
    * For incoming emails: Creates one entry with sender
    */
   async saveEmail(params: SaveEmailParams): Promise<SaveEmailResult> {
-    const { userId, emailAccountId, emailData, emailType, folderName } = params;
+    const { userId, emailAccountId, emailData, emailType, folderName, llmResponse } = params;
 
     try {
       // Validate message ID
@@ -160,7 +172,8 @@ export class EmailStorageService {
             folderName,
             bodystructure,
             otherPartyEmail: recipient.address,
-            otherPartyName: recipient.name
+            otherPartyName: recipient.name,
+            llmResponse
           });
 
           if (saved) savedCount++;
@@ -193,7 +206,8 @@ export class EmailStorageService {
           folderName,
           bodystructure,
           otherPartyEmail: senderEmail,
-          otherPartyName: senderName
+          otherPartyName: senderName,
+          llmResponse
         });
 
         if (saved) savedCount++;
@@ -234,6 +248,18 @@ export class EmailStorageService {
     bodystructure: any;
     otherPartyEmail: string;
     otherPartyName?: string;
+    llmResponse?: {
+      meta: any;
+      generatedAt: string;
+      providerId: string;
+      modelName: string;
+      draftId: string;
+      relationship: {
+        type: string;
+        confidence: number;
+        detectionMethod: string;
+      };
+    };
   }): Promise<boolean> {
     const {
       userId,
@@ -249,7 +275,8 @@ export class EmailStorageService {
       folderName,
       bodystructure,
       otherPartyEmail,
-      otherPartyName
+      otherPartyName,
+      llmResponse
     } = params;
 
     try {
@@ -331,6 +358,9 @@ export class EmailStorageService {
           detectionMethod: relationship.method
         },
         wordCount: features.stats.wordCount,
+
+        // LLM Response (AI evaluation metadata)
+        llmResponse,
 
         // Timestamps
         sentDate: (emailData.date || new Date()).toISOString()

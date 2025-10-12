@@ -137,7 +137,8 @@ export class InboxProcessor {
           message.messageId || `${message.uid}@${accountId}`,
           recommendedAction,  // Record the actual recommended action
           message.subject,     // Store subject for dashboard display
-          undefined            // Destination will be updated after IMAP operations
+          undefined,           // Destination will be updated after IMAP operations
+          message.uid          // Store UID for fallback IMAP fetching
         );
       } catch (trackingError) {
         console.error(`[InboxProcessor] Failed to record action tracking:`, trackingError);
@@ -196,7 +197,8 @@ export class InboxProcessor {
           message.messageId || `${message.uid}@${accountId}`,
           recommendedAction,  // Use the actual recommended action
           message.subject,
-          destination
+          destination,
+          message.uid          // Store UID for fallback IMAP fetching
         );
 
       } catch (moveError) {
@@ -226,12 +228,27 @@ export class InboxProcessor {
           size: message.rawMessage.length
         };
 
+        // Construct LLM response metadata from generated draft
+        const llmResponse = generatedDraft ? {
+          meta: generatedDraft.meta, // Contains recommendedAction, urgency, keyConsiderations, etc.
+          generatedAt: generatedDraft.generatedAt || new Date().toISOString(),
+          providerId: providerId,
+          modelName: generatedDraft.modelName || 'unknown',
+          draftId: generatedDraft.id || '',
+          relationship: generatedDraft.relationship || {
+            type: 'professional',
+            confidence: 0.5,
+            detectionMethod: 'default'
+          }
+        } : undefined;
+
         await emailStorageService.saveEmail({
           userId,
           emailAccountId: accountId,
           emailData,
           emailType: 'incoming',
-          folderName: 'INBOX'
+          folderName: 'INBOX',
+          llmResponse
         });
       } catch (storageError) {
         // Log error but don't fail inbox processing
