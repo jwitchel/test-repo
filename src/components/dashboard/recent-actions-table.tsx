@@ -115,6 +115,15 @@ function getActionInfo(actionTaken: string, destinationFolder?: string): {
     };
   }
 
+  // Manual action
+  if (actionTaken === 'manually_handled') {
+    return {
+      category: 'No Action',
+      label: 'Manual',
+      color: 'bg-gray-500 hover:bg-gray-600'
+    };
+  }
+
   // Unknown/No Action
   return {
     category: 'No Action',
@@ -169,10 +178,10 @@ export function RecentActionsTable() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Recent Actions</CardTitle>
+          <CardTitle>Recent Emails</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-red-500">Failed to load recent actions</div>
+          <div className="text-red-500">Failed to load recent emails</div>
         </CardContent>
       </Card>
     );
@@ -182,10 +191,10 @@ export function RecentActionsTable() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Recent Actions</CardTitle>
+          <CardTitle>Recent Emails</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-muted-foreground">Loading recent actions...</div>
+          <div className="text-muted-foreground">Loading recent emails...</div>
         </CardContent>
       </Card>
     );
@@ -195,11 +204,11 @@ export function RecentActionsTable() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Recent Actions</CardTitle>
+          <CardTitle>Recent Emails</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground text-center py-8">
-            No actions taken yet. Start processing emails to see activity here.
+            No emails processed yet. Start processing emails to see activity here.
           </div>
         </CardContent>
       </Card>
@@ -209,19 +218,20 @@ export function RecentActionsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Actions</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Recent Emails</CardTitle>
+          {/* Email Account Legend - Right Aligned */}
+          <div className="flex flex-wrap gap-3 justify-end">
+            {uniqueEmails.map(({ email, color }) => (
+              <div key={email} className="flex items-center gap-2 text-xs">
+                <div className={`w-3 h-3 rounded-full ${color}`} />
+                <span className="text-muted-foreground">{email}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        {/* Email Account Legend */}
-        <div className="mb-4 flex flex-wrap gap-3">
-          {uniqueEmails.map(({ email, color }) => (
-            <div key={email} className="flex items-center gap-2 text-xs">
-              <div className={`w-3 h-3 rounded-full ${color}`} />
-              <span className="text-muted-foreground">{email}</span>
-            </div>
-          ))}
-        </div>
-
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

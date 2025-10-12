@@ -93,84 +93,86 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Welcome back, {displayName || user.email}</p>
         </div>
 
-        {/* Analytics Section */}
+        {/* Analytics Section - 2 Column Layout */}
         <div className="mb-8 space-y-6">
-          <ActionsSummaryChart />
-          <RecentActionsTable />
-        </div>
+          {/* Chart and Account Summary - Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Actions Summary Chart - 50% width */}
+            <ActionsSummaryChart />
 
-        {/* Account Summary */}
-        <div className="max-w-2xl">
-          <Card>
-            <CardHeader>
-              <CardTitle>Account Summary</CardTitle>
-              <CardDescription>Your configuration at a glance</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Email Accounts */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  Email Accounts
-                </div>
-                {accountsLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            {/* Account Summary - 50% width */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Account Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Email Accounts */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Mail className="h-4 w-4" />
+                    Email Accounts
                   </div>
-                ) : emailAccounts && emailAccounts.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Monitoring</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {emailAccounts.map((account) => (
-                        <TableRow key={account.id}>
-                          <TableCell className="font-medium">{account.email_address}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {account.monitoring_enabled ? (
-                                <Eye className="h-4 w-4" />
-                              ) : (
-                                <EyeOff className="h-4 w-4 text-muted-foreground" />
-                              )}
-                              <span className="text-sm">
-                                {account.monitoring_enabled ? 'Enabled' : 'Paused'}
-                              </span>
-                            </div>
-                          </TableCell>
+                  {accountsLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : emailAccounts && emailAccounts.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Monitoring</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-sm text-muted-foreground py-4">No email accounts configured</div>
-                )}
-              </div>
-
-              {/* Default LLM Provider */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Brain className="h-4 w-4" />
-                  Default LLM Provider
+                      </TableHeader>
+                      <TableBody>
+                        {emailAccounts.map((account) => (
+                          <TableRow key={account.id}>
+                            <TableCell className="font-medium">{account.email_address}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {account.monitoring_enabled ? (
+                                  <Eye className="h-4 w-4" />
+                                ) : (
+                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <span className="text-sm">
+                                  {account.monitoring_enabled ? 'Enabled' : 'Paused'}
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-sm text-muted-foreground py-4">No email accounts configured</div>
+                  )}
                 </div>
-                {providersLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+
+                {/* Default LLM Provider */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Brain className="h-4 w-4" />
+                    Default LLM Provider
                   </div>
-                ) : defaultProvider ? (
-                  <div className="text-sm font-medium py-2">{defaultProvider.provider_name}</div>
-                ) : (
-                  <div className="text-sm text-muted-foreground py-2">No default provider configured</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  {providersLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : defaultProvider ? (
+                    <div className="text-sm font-medium py-2">{defaultProvider.provider_name}</div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground py-2">No default provider configured</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Actions Table - Full Width */}
+          <RecentActionsTable />
         </div>
       </div>
     </div>

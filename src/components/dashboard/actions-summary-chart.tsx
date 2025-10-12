@@ -85,7 +85,7 @@ export function ActionsSummaryChart() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Actions Summary</CardTitle>
+          <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-red-500">Failed to load actions summary</div>
@@ -98,7 +98,7 @@ export function ActionsSummaryChart() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Actions Summary</CardTitle>
+          <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px] flex items-center justify-center">
@@ -119,10 +119,47 @@ export function ActionsSummaryChart() {
   const agg24h = aggregateActions(last24Hours);
   const agg30d = aggregateActions(last30Days);
 
-  const draftedData = [agg5min.drafted, aggHour.drafted, agg24h.drafted, agg30d.drafted];
-  const spamData = [agg5min.spam, aggHour.spam, agg24h.spam, agg30d.spam];
-  const movedData = [agg5min.moved, aggHour.moved, agg24h.moved, agg30d.moved];
-  const noActionData = [agg5min.noAction, aggHour.noAction, agg24h.noAction, agg30d.noAction];
+  // Calculate totals for each period
+  const totals = [
+    agg5min.drafted + agg5min.spam + agg5min.moved + agg5min.noAction,
+    aggHour.drafted + aggHour.spam + aggHour.moved + aggHour.noAction,
+    agg24h.drafted + agg24h.spam + agg24h.moved + agg24h.noAction,
+    agg30d.drafted + agg30d.spam + agg30d.moved + agg30d.noAction,
+  ];
+
+  // Convert to percentages for 100% stacked bar (all columns same height)
+  const draftedData = [
+    totals[0] > 0 ? (agg5min.drafted / totals[0]) * 100 : 0,
+    totals[1] > 0 ? (aggHour.drafted / totals[1]) * 100 : 0,
+    totals[2] > 0 ? (agg24h.drafted / totals[2]) * 100 : 0,
+    totals[3] > 0 ? (agg30d.drafted / totals[3]) * 100 : 0,
+  ];
+  const spamData = [
+    totals[0] > 0 ? (agg5min.spam / totals[0]) * 100 : 0,
+    totals[1] > 0 ? (aggHour.spam / totals[1]) * 100 : 0,
+    totals[2] > 0 ? (agg24h.spam / totals[2]) * 100 : 0,
+    totals[3] > 0 ? (agg30d.spam / totals[3]) * 100 : 0,
+  ];
+  const movedData = [
+    totals[0] > 0 ? (agg5min.moved / totals[0]) * 100 : 0,
+    totals[1] > 0 ? (aggHour.moved / totals[1]) * 100 : 0,
+    totals[2] > 0 ? (agg24h.moved / totals[2]) * 100 : 0,
+    totals[3] > 0 ? (agg30d.moved / totals[3]) * 100 : 0,
+  ];
+  const noActionData = [
+    totals[0] > 0 ? (agg5min.noAction / totals[0]) * 100 : 0,
+    totals[1] > 0 ? (aggHour.noAction / totals[1]) * 100 : 0,
+    totals[2] > 0 ? (agg24h.noAction / totals[2]) * 100 : 0,
+    totals[3] > 0 ? (agg30d.noAction / totals[3]) * 100 : 0,
+  ];
+
+  // Store actual counts for display
+  const actualCounts = {
+    drafted: [agg5min.drafted, aggHour.drafted, agg24h.drafted, agg30d.drafted],
+    spam: [agg5min.spam, aggHour.spam, agg24h.spam, agg30d.spam],
+    moved: [agg5min.moved, aggHour.moved, agg24h.moved, agg30d.moved],
+    noAction: [agg5min.noAction, aggHour.noAction, agg24h.noAction, agg30d.noAction],
+  };
 
   const option = {
     tooltip: {
@@ -130,16 +167,24 @@ export function ActionsSummaryChart() {
       axisPointer: {
         type: 'shadow',
       },
-    },
-    legend: {
-      data: ['Drafted', 'Spam', 'Moved', 'No Action'],
-      bottom: 0,
+      formatter: (params: any) => {
+        let result = `<strong>${params[0].axisValue}</strong><br/>`;
+        params.forEach((param: any) => {
+          const seriesKey = param.seriesName.toLowerCase().replace(' ', '') as keyof typeof actualCounts;
+          const count = actualCounts[seriesKey]?.[param.dataIndex] || 0;
+          if (count > 0) {
+            result += `${param.marker} ${count} ${param.seriesName}<br/>`;
+          }
+        });
+        result += `<strong>Total: ${totals[params[0].dataIndex]}</strong>`;
+        return result;
+      },
     },
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '15%',
-      top: '10%',
+      bottom: '10%',
+      top: '5%',
       containLabel: true,
     },
     xAxis: {
@@ -148,39 +193,122 @@ export function ActionsSummaryChart() {
     },
     yAxis: {
       type: 'value',
-      minInterval: 1,
+      max: 100,
+      show: false,
     },
+    barWidth: 100,
+    barCategoryGap: 10,
     series: [
       {
         name: 'Drafted',
         type: 'bar',
+        stack: 'total',
         data: draftedData,
         itemStyle: {
           color: '#3b82f6', // blue-500
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 20,
+            shadowOffsetX: 0,
+            shadowOffsetY: 5,
+            shadowColor: 'rgba(0, 0, 0, 0.3)',
+          },
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (params: any) => {
+            const count = actualCounts.drafted[params.dataIndex];
+            return count > 0 ? `${count} Drafted` : '';
+          },
+          color: '#fff',
+          fontWeight: 600,
+          fontSize: 13,
         },
       },
       {
         name: 'Spam',
         type: 'bar',
+        stack: 'total',
         data: spamData,
         itemStyle: {
           color: '#ef4444', // red-500
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 20,
+            shadowOffsetX: 0,
+            shadowOffsetY: 5,
+            shadowColor: 'rgba(0, 0, 0, 0.3)',
+          },
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (params: any) => {
+            const count = actualCounts.spam[params.dataIndex];
+            return count > 0 ? `${count} Spam` : '';
+          },
+          color: '#fff',
+          fontWeight: 600,
+          fontSize: 13,
         },
       },
       {
         name: 'Moved',
         type: 'bar',
+        stack: 'total',
         data: movedData,
         itemStyle: {
           color: '#22c55e', // green-500
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 20,
+            shadowOffsetX: 0,
+            shadowOffsetY: 5,
+            shadowColor: 'rgba(0, 0, 0, 0.3)',
+          },
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (params: any) => {
+            const count = actualCounts.moved[params.dataIndex];
+            return count > 0 ? `${count} Moved` : '';
+          },
+          color: '#fff',
+          fontWeight: 600,
+          fontSize: 13,
         },
       },
       {
         name: 'No Action',
         type: 'bar',
+        stack: 'total',
         data: noActionData,
         itemStyle: {
           color: '#6b7280', // gray-500
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 20,
+            shadowOffsetX: 0,
+            shadowOffsetY: 5,
+            shadowColor: 'rgba(0, 0, 0, 0.3)',
+          },
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (params: any) => {
+            const count = actualCounts.noAction[params.dataIndex];
+            return count > 0 ? `${count} No Action` : '';
+          },
+          color: '#fff',
+          fontWeight: 600,
+          fontSize: 13,
         },
       },
     ],
@@ -189,7 +317,7 @@ export function ActionsSummaryChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Actions Summary</CardTitle>
+        <CardTitle>Recent Activity</CardTitle>
       </CardHeader>
       <CardContent>
         <ReactECharts option={option} style={{ height: '300px' }} />
