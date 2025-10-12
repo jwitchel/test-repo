@@ -135,7 +135,9 @@ export class InboxProcessor {
           userId,
           accountId,
           message.messageId || `${message.uid}@${accountId}`,
-          'draft_created'  // Optimistically mark as processed
+          recommendedAction,  // Record the actual recommended action
+          message.subject,     // Store subject for dashboard display
+          undefined            // Destination will be updated after IMAP operations
         );
       } catch (trackingError) {
         console.error(`[InboxProcessor] Failed to record action tracking:`, trackingError);
@@ -186,6 +188,17 @@ export class InboxProcessor {
             actionDescription = uploadResponse.message || 'Draft created and email moved';
           }
         }
+
+        // Update action tracking with final destination after IMAP operations
+        await EmailActionTracker.recordAction(
+          userId,
+          accountId,
+          message.messageId || `${message.uid}@${accountId}`,
+          recommendedAction,  // Use the actual recommended action
+          message.subject,
+          destination
+        );
+
       } catch (moveError) {
         console.error(`[InboxProcessor] Failed to process message ${message.messageId}:`, moveError);
         // Rollback action tracking on failure

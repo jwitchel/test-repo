@@ -136,6 +136,7 @@ import imapMonitorRoutes from './routes/imap-monitor';
 import jobsRoutes from './routes/jobs';
 import workersRoutes from './routes/workers';
 import schedulersRoutes from './routes/schedulers';
+import dashboardAnalyticsRoutes from './routes/dashboard-analytics';
 
 app.use('/api/custom-auth', authRoutes);
 app.use('/api/email-accounts', emailAccountRoutes);
@@ -159,6 +160,7 @@ app.use('/api/imap-monitor', imapMonitorRoutes);
 app.use('/api/jobs', jobsRoutes);
 app.use('/api/workers', workersRoutes);
 app.use('/api/schedulers', schedulersRoutes);
+app.use('/api/dashboard', dashboardAnalyticsRoutes);
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

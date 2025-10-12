@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { apiGet } from '@/lib/api'
 import { Mail, Brain, Eye, EyeOff, Loader2 } from 'lucide-react'
 import useSWR from 'swr'
+import { ActionsSummaryChart } from '@/components/dashboard/actions-summary-chart'
+import { RecentActionsTable } from '@/components/dashboard/recent-actions-table'
 
 interface EmailAccount {
   id: string
@@ -94,6 +96,13 @@ export default function DashboardPage() {
           <p className="text-muted-foreground mt-2">Welcome back, {displayName || user.email}</p>
         </div>
 
+        {/* Analytics Section */}
+        <div className="mb-8 space-y-6">
+          <ActionsSummaryChart />
+          <RecentActionsTable />
+        </div>
+
+        {/* Account Summary */}
         <div className="max-w-2xl">
           <Card>
             <CardHeader>

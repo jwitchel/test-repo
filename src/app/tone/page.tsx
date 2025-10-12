@@ -317,8 +317,8 @@ export default function TonePage() {
                 <p className="mb-2">To build your tone profile:</p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
                   <li>Select an email account</li>
-                  <li>Click "Load Emails" to import your sent messages</li>
-                  <li>Click "Analyze Patterns" to build your tone profile</li>
+                  <li>Click &ldquo;Load Emails&rdquo; to import your sent messages</li>
+                  <li>Click &ldquo;Analyze Patterns&rdquo; to build your tone profile</li>
                 </ol>
               </div>
               <Button onClick={() => setMainTab('training')} className="bg-indigo-600 hover:bg-indigo-700">

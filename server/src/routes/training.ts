@@ -254,7 +254,7 @@ router.post('/load-sent-emails', requireAuth, async (req, res): Promise<void> =>
 });
 
 // Wipe user's vector DB data
-router.delete('/wipe', requireAuth, async (req, res): Promise<void> => {
+router.post('/wipe', requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = (req as any).user.id;
     
