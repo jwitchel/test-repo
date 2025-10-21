@@ -501,10 +501,10 @@ export default function JobsPage() {
             <Button
               onClick={handleCheckAllNow}
               className="bg-emerald-600 hover:bg-emerald-700 h-7 px-2 text-xs"
-              title="Manually check all email accounts now - creates high-priority jobs for all accounts"
+              title={`Check most recent emails for all accounts - processes up to ${parseInt(process.env.NEXT_PUBLIC_INBOX_BATCH_SIZE || '3')} newest emails per account`}
             >
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              Check All Email
+              Check {parseInt(process.env.NEXT_PUBLIC_INBOX_BATCH_SIZE || '3')} Most Recent
             </Button>
             <Button
               onClick={handleUpdateAllTones}
