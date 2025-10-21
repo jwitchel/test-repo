@@ -19,7 +19,7 @@ interface ActionCounts {
 
 interface ActionsSummaryData {
   periods: {
-    last5min: RawActionCounts;
+    last15min: RawActionCounts;
     lastHour: RawActionCounts;
     last24Hours: RawActionCounts;
     last30Days: RawActionCounts;
@@ -110,18 +110,18 @@ export function ActionsSummaryChart() {
   }
 
   // Aggregate raw actions into display categories
-  const periods = ['Last 5 Min', 'Last Hour', 'Last 24 Hours', 'Last 30 Days'];
-  const { last5min, lastHour, last24Hours, last30Days } = data.periods;
+  const periods = ['Last 15 Min', 'Last Hour', 'Last 24 Hours', 'Last 30 Days'];
+  const { last15min, lastHour, last24Hours, last30Days } = data.periods;
 
   // Aggregate each period's actions
-  const agg5min = aggregateActions(last5min);
+  const agg15min = aggregateActions(last15min);
   const aggHour = aggregateActions(lastHour);
   const agg24h = aggregateActions(last24Hours);
   const agg30d = aggregateActions(last30Days);
 
   // Calculate totals for each period
   const totals = [
-    agg5min.drafted + agg5min.spam + agg5min.moved + agg5min.noAction,
+    agg15min.drafted + agg15min.spam + agg15min.moved + agg15min.noAction,
     aggHour.drafted + aggHour.spam + aggHour.moved + aggHour.noAction,
     agg24h.drafted + agg24h.spam + agg24h.moved + agg24h.noAction,
     agg30d.drafted + agg30d.spam + agg30d.moved + agg30d.noAction,
@@ -129,25 +129,25 @@ export function ActionsSummaryChart() {
 
   // Convert to percentages for 100% stacked bar (all columns same height)
   const draftedData = [
-    totals[0] > 0 ? (agg5min.drafted / totals[0]) * 100 : 0,
+    totals[0] > 0 ? (agg15min.drafted / totals[0]) * 100 : 0,
     totals[1] > 0 ? (aggHour.drafted / totals[1]) * 100 : 0,
     totals[2] > 0 ? (agg24h.drafted / totals[2]) * 100 : 0,
     totals[3] > 0 ? (agg30d.drafted / totals[3]) * 100 : 0,
   ];
   const spamData = [
-    totals[0] > 0 ? (agg5min.spam / totals[0]) * 100 : 0,
+    totals[0] > 0 ? (agg15min.spam / totals[0]) * 100 : 0,
     totals[1] > 0 ? (aggHour.spam / totals[1]) * 100 : 0,
     totals[2] > 0 ? (agg24h.spam / totals[2]) * 100 : 0,
     totals[3] > 0 ? (agg30d.spam / totals[3]) * 100 : 0,
   ];
   const movedData = [
-    totals[0] > 0 ? (agg5min.moved / totals[0]) * 100 : 0,
+    totals[0] > 0 ? (agg15min.moved / totals[0]) * 100 : 0,
     totals[1] > 0 ? (aggHour.moved / totals[1]) * 100 : 0,
     totals[2] > 0 ? (agg24h.moved / totals[2]) * 100 : 0,
     totals[3] > 0 ? (agg30d.moved / totals[3]) * 100 : 0,
   ];
   const noActionData = [
-    totals[0] > 0 ? (agg5min.noAction / totals[0]) * 100 : 0,
+    totals[0] > 0 ? (agg15min.noAction / totals[0]) * 100 : 0,
     totals[1] > 0 ? (aggHour.noAction / totals[1]) * 100 : 0,
     totals[2] > 0 ? (agg24h.noAction / totals[2]) * 100 : 0,
     totals[3] > 0 ? (agg30d.noAction / totals[3]) * 100 : 0,
@@ -155,36 +155,19 @@ export function ActionsSummaryChart() {
 
   // Store actual counts for display
   const actualCounts = {
-    drafted: [agg5min.drafted, aggHour.drafted, agg24h.drafted, agg30d.drafted],
-    spam: [agg5min.spam, aggHour.spam, agg24h.spam, agg30d.spam],
-    moved: [agg5min.moved, aggHour.moved, agg24h.moved, agg30d.moved],
-    noAction: [agg5min.noAction, aggHour.noAction, agg24h.noAction, agg30d.noAction],
+    drafted: [agg15min.drafted, aggHour.drafted, agg24h.drafted, agg30d.drafted],
+    spam: [agg15min.spam, aggHour.spam, agg24h.spam, agg30d.spam],
+    moved: [agg15min.moved, aggHour.moved, agg24h.moved, agg30d.moved],
+    noAction: [agg15min.noAction, aggHour.noAction, agg24h.noAction, agg30d.noAction],
   };
 
   const option = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-      },
-      formatter: (params: any) => {
-        let result = `<strong>${params[0].axisValue}</strong><br/>`;
-        params.forEach((param: any) => {
-          const seriesKey = param.seriesName.toLowerCase().replace(' ', '') as keyof typeof actualCounts;
-          const count = actualCounts[seriesKey]?.[param.dataIndex] || 0;
-          if (count > 0) {
-            result += `${param.marker} ${count} ${param.seriesName}<br/>`;
-          }
-        });
-        result += `<strong>Total: ${totals[params[0].dataIndex]}</strong>`;
-        return result;
-      },
-    },
+    tooltip: { show: false },
     grid: {
       left: '3%',
-      right: '4%',
+      right: '8%',
       bottom: '10%',
-      top: '5%',
+      top: '12%',
       containLabel: true,
     },
     xAxis: {
@@ -217,14 +200,14 @@ export function ActionsSummaryChart() {
         },
         label: {
           show: true,
-          position: 'inside',
-          formatter: (params: any) => {
+          position: 'insideTop',
+          formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.drafted[params.dataIndex];
             return count > 0 ? `${count} Drafted` : '';
           },
           color: '#fff',
           fontWeight: 600,
-          fontSize: 13,
+          fontSize: 11,
         },
       },
       {
@@ -245,14 +228,22 @@ export function ActionsSummaryChart() {
         },
         label: {
           show: true,
-          position: 'inside',
-          formatter: (params: any) => {
+          // If the spam segment is too small (<8%), place the label outside to the right
+          position: (params: { dataIndex: number }) => {
+            const pct = spamData[params.dataIndex] as number;
+            return pct < 8 ? 'right' : 'inside';
+          },
+          distance: 4,
+          formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.spam[params.dataIndex];
             return count > 0 ? `${count} Spam` : '';
           },
-          color: '#fff',
+          color: (params: { dataIndex: number }) => {
+            const pct = spamData[params.dataIndex] as number;
+            return pct < 8 ? '#6b7280' : '#fff';
+          },
           fontWeight: 600,
-          fontSize: 13,
+          fontSize: 11,
         },
       },
       {
@@ -273,14 +264,14 @@ export function ActionsSummaryChart() {
         },
         label: {
           show: true,
-          position: 'inside',
-          formatter: (params: any) => {
+          position: 'insideTop',
+          formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.moved[params.dataIndex];
             return count > 0 ? `${count} Moved` : '';
           },
           color: '#fff',
           fontWeight: 600,
-          fontSize: 13,
+          fontSize: 11,
         },
       },
       {
@@ -301,14 +292,32 @@ export function ActionsSummaryChart() {
         },
         label: {
           show: true,
-          position: 'inside',
-          formatter: (params: any) => {
+          position: 'insideTop',
+          formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.noAction[params.dataIndex];
             return count > 0 ? `${count} No Action` : '';
           },
           color: '#fff',
           fontWeight: 600,
-          fontSize: 13,
+          fontSize: 11,
+        },
+      },
+      // Invisible series LAST to display totals at the very top of the full stacked column
+      {
+        name: 'Total',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 0],
+        itemStyle: { color: 'transparent' },
+        emphasis: { disabled: true },
+        tooltip: { show: false },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (params: { dataIndex: number }) => `${totals[params.dataIndex]} Emails`,
+          color: '#6b7280',
+          fontWeight: 600,
+          fontSize: 12,
         },
       },
     ],

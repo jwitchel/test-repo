@@ -5,21 +5,21 @@ import { requireAuth } from '../middleware/auth';
 const router = Router();
 
 /**
- * Get actions summary for all time periods
- * Returns counts grouped by action type for: 5min, 1hour, 24hours, 30days
+  * Get actions summary for all time periods
+  * Returns counts grouped by action type for: 15min, 1hour, 24hours, 30days
  */
 router.get('/actions-summary', requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user.id;
 
     // Query all time periods in parallel
-    const [last5min, lastHour, last24Hours, last30Days] = await Promise.all([
-      // Last 5 minutes
+    const [last15min, lastHour, last24Hours, last30Days] = await Promise.all([
+      // Last 15 minutes
       pool.query(
         `SELECT action_taken, COUNT(*)::int as count
          FROM email_action_tracking
          WHERE user_id = $1
-           AND updated_at >= NOW() - INTERVAL '5 minutes'
+           AND updated_at >= NOW() - INTERVAL '15 minutes'
            AND action_taken != 'none'
          GROUP BY action_taken`,
         [userId]
@@ -68,7 +68,7 @@ router.get('/actions-summary', requireAuth, async (req, res) => {
 
     res.json({
       periods: {
-        last5min: rowsToObject(last5min.rows),
+        last15min: rowsToObject(last15min.rows),
         lastHour: rowsToObject(lastHour.rows),
         last24Hours: rowsToObject(last24Hours.rows),
         last30Days: rowsToObject(last30Days.rows)
