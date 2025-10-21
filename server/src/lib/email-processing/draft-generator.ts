@@ -231,19 +231,19 @@ export class DraftGenerator {
       const userEmail = accountResult.rows[0].email_address;
 
       // Log the start of draft generation
-      realTimeLogger.log(userId, {
-        userId,
-        emailAccountId,
-        level: 'info',
-        command: 'DRAFT_GENERATION_START',
-        data: {
-          parsed: {
-            from: fromAddress,
-            subject: subject,
-            providerId: providerId
-          }
-        }
-      });
+      // realTimeLogger.log(userId, {
+      //   userId,
+      //   emailAccountId,
+      //   level: 'info',
+      //   command: 'DRAFT_GENERATION_START',
+      //   data: {
+      //     parsed: {
+      //       from: fromAddress,
+      //       subject: subject,
+      //       providerId: providerId
+      //     }
+      //   }
+      // });
 
       // Initialize services
       await ensureServicesInitialized();
