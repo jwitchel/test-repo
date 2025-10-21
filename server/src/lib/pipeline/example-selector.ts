@@ -58,10 +58,16 @@ export class ExampleSelector {
       params.userId,
       relationship.relationship
     );
-    
+
     // Step 3: Embed incoming email with retry
+    // Defensive check: ensure incoming email is not empty
+    const incomingEmailText = params.incomingEmail?.trim() || '';
+    if (incomingEmailText.length === 0) {
+      throw new Error('Cannot select examples: incoming email content is empty after all processing steps');
+    }
+
     const { vector } = await withRetry(
-      () => this.embeddingService.embedText(params.incomingEmail)
+      () => this.embeddingService.embedText(incomingEmailText)
     );
     
     // Step 4: Two-phase selection

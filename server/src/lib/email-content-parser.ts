@@ -1,4 +1,5 @@
 import { simpleParser, ParsedMail } from 'mailparser';
+import { convert as htmlToText } from 'html-to-text';
 
 export interface ParsedEmailContent {
   messageId: string;
@@ -33,7 +34,22 @@ export class EmailContentParser {
     const sentDate = parsedMail.date || new Date();
 
     // Extract text content
-    const userTextPlain = parsedMail.text || '';
+    // Handle malformed emails that have empty text/plain parts (e.g., Venmo receipts)
+    // If text/plain exists but is empty/whitespace-only, fall back to HTML conversion
+    let userTextPlain = parsedMail.text || '';
+
+    if (userTextPlain.trim().length === 0 && parsedMail.html) {
+      // text/plain is empty but HTML exists - convert HTML to text
+      userTextPlain = htmlToText(parsedMail.html, {
+        wordwrap: false,
+        preserveNewlines: true,
+        selectors: [
+          { selector: 'a', options: { ignoreHref: true } },
+          { selector: 'img', format: 'skip' }
+        ]
+      });
+    }
+
     const userTextRich = parsedMail.html || undefined;
 
     return {

@@ -370,8 +370,8 @@ function InboxContent() {
       }
     } catch (err) {
       // Check if the error has a message field with more details
-      const errorMessage = err instanceof Error && 'message' in err
-        ? (err as any).message
+      const errorMessage = err instanceof Error
+        ? err.message
         : 'Failed to load email from history';
       error(errorMessage);
       console.error(err);

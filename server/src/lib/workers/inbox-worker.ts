@@ -15,7 +15,7 @@ const connection = new Redis(process.env.REDIS_URL!, {
 });
 
 async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
-  const { userId, accountId, fanOut, folderName } = job.data;
+  const { userId, accountId, fanOut, folderName, since } = job.data;
 
   // Check if this is a fan-out job (parent job that spawns child jobs)
   if (fanOut || !accountId) {
@@ -40,7 +40,8 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
           {
             userId,
             accountId: row.id,
-            folderName: folderName || 'INBOX'
+            folderName: folderName || 'INBOX',
+            since: since ? new Date(since) : undefined  // Convert ISO string to Date
           },
           JobPriority.HIGH
         );
@@ -91,7 +92,7 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
   }
 
   const providerId = providerResult.rows[0].id;
-  const batchSize = parseInt(process.env.INBOX_BATCH_SIZE || '10', 10);
+  const batchSize = parseInt(process.env.NEXT_PUBLIC_INBOX_BATCH_SIZE || '10', 10);
 
   // Process batch
   const result = await inboxProcessor.processBatch({
@@ -100,7 +101,8 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
     providerId,
     batchSize,
     offset: 0,
-    force: false
+    force: false,
+    since: since ? new Date(since) : undefined  // Convert ISO string to Date
   });
 
   // Log completion

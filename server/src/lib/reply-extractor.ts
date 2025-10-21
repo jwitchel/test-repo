@@ -266,20 +266,20 @@ export class ReplyExtractor {
     try {
       // Pre-process to handle special quote patterns
       const preprocessed = this.preprocessQuotePatterns(emailBody);
-      
+
       // Parse the email body
       const parsed = this.parser.read(preprocessed);
-      
+
       // Post-process fragments to handle code continuation issues
       const fragments = this.mergeCodeContinuations(parsed.getFragments());
-      
+
       // Separate user reply from quoted content
       const userFragments: string[] = [];
       const quotedFragments: string[] = [];
-      
+
       fragments.forEach(fragment => {
         const content = fragment.getContent();
-        
+
         if (fragment.isQuoted()) {
           quotedFragments.push(content);
         } else if (fragment.isHidden() && this.isQuotePattern(content)) {
@@ -288,10 +288,13 @@ export class ReplyExtractor {
           userFragments.push(content);
         }
       });
-      
+
+      const userReply = userFragments.join('\n').trim();
+      const respondedTo = quotedFragments.join('\n').trim();
+
       return {
-        userReply: userFragments.join('\n').trim(),
-        respondedTo: quotedFragments.join('\n').trim()
+        userReply,
+        respondedTo
       };
     } catch (error) {
       console.error('Failed to split email:', error);

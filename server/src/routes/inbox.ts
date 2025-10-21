@@ -85,7 +85,7 @@ router.get('/emails/:accountId', requireAuth, async (req, res): Promise<void> =>
 
       const targetOffset = Number(offset);
       const targetLimit = Number(limit);
-      const BATCH_SIZE = parseInt(process.env.INBOX_BATCH_SIZE || '10', 10);
+      const BATCH_SIZE = parseInt(process.env.NEXT_PUBLIC_INBOX_BATCH_SIZE || '10', 10);
       let totalCount = -1;
       const messages = await imapOps.getMessages('INBOX', {
         offset: 0,

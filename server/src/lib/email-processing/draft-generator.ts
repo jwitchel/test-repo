@@ -198,16 +198,23 @@ export class DraftGenerator {
       // Extract email body - if HTML exists, convert it to plain text
       let emailBody = parsed.text || '';
 
-      if (!emailBody && parsed.html) {
-        // Simple HTML to text conversion - remove tags
-        emailBody = parsed.html
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+      // Handle malformed emails that have empty text/plain parts (e.g., Venmo receipts)
+      // Check if text is empty AFTER trimming (not before)
+      if (emailBody.trim().length === 0 && parsed.html) {
+        // Use proper HTML to text conversion
+        const { convert } = await import('html-to-text');
+        emailBody = convert(parsed.html, {
+          wordwrap: false,
+          preserveNewlines: true,
+          selectors: [
+            { selector: 'a', options: { ignoreHref: true } },
+            { selector: 'img', format: 'skip' }
+          ]
+        });
       }
 
       // Trust that caller provided valid email with content
-      if (!emailBody) {
+      if (!emailBody || emailBody.trim().length === 0) {
         emailBody = '(No content)'; // Fallback for edge case
       }
 

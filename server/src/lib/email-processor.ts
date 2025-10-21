@@ -35,23 +35,23 @@ export class EmailProcessor {
     const startTime = Date.now();
     
     // Log the start of processing
-    if (context) {
-      realTimeLogger.log(context.userId, {
-        userId: context.userId,
-        emailAccountId: context.emailAccountId,
-        level: 'info',
-        command: 'EMAIL_PARSE_START',
-        data: {
-          parsed: {
-            messageId: parsedMail.messageId,
-            subject: parsedMail.subject,
-            from: parsedMail.from?.text,
-            date: parsedMail.date?.toISOString(),
-            originalText: parsedMail.text?.substring(0, 500) + (parsedMail.text && parsedMail.text.length > 500 ? '...' : '')
-          }
-        }
-      });
-    }
+    // if (context) {
+    //   realTimeLogger.log(context.userId, {
+    //     userId: context.userId,
+    //     emailAccountId: context.emailAccountId,
+    //     level: 'info',
+    //     command: 'EMAIL_PARSE_START',
+    //     data: {
+    //       parsed: {
+    //         messageId: parsedMail.messageId,
+    //         subject: parsedMail.subject,
+    //         from: parsedMail.from?.text,
+    //         date: parsedMail.date?.toISOString(),
+    //         originalText: parsedMail.text?.substring(0, 500) + (parsedMail.text && parsedMail.text.length > 500 ? '...' : '')
+    //       }
+    //     }
+    //   });
+    // }
     
     // First, parse the basic email content (userTextPlain, userTextRich)
     const parsedContent = emailContentParser.parseFromMailparser(parsedMail);

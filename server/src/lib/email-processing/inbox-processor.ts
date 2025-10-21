@@ -49,6 +49,7 @@ export interface BatchProcessParams {
   batchSize: number;
   offset: number;
   force?: boolean;
+  since?: Date;  // For Look Back feature - filter emails by date
 }
 
 export interface BatchProcessResult {
@@ -311,7 +312,7 @@ export class InboxProcessor {
    */
   async processBatch(params: BatchProcessParams): Promise<BatchProcessResult> {
     const startTime = Date.now();
-    const { accountId, userId, providerId, batchSize, offset, force } = params;
+    const { accountId, userId, providerId, batchSize, offset, force, since } = params;
 
     // Wrap entire batch operation in IMAP context to ensure:
     // 1. Single connection reused across all IMAP operations
@@ -326,7 +327,8 @@ export class InboxProcessor {
         const messages = await imapOps.getMessages('INBOX', {
           offset: Number(offset),
           limit: Number(batchSize),
-          descending: true
+          descending: true,
+          since: since  // Pass through for Look Back feature
         });
 
         if (messages.length === 0) {

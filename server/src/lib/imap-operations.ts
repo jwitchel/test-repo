@@ -5,6 +5,12 @@ import { pool } from '../server';
 import { simpleParser } from 'mailparser';
 import { OAuthTokenService } from './oauth-token-service';
 import { getActiveContext, hasActiveContextFor, setContextConnection } from './imap-context';
+import Redis from 'ioredis';
+
+// Redis instance for UID tracking
+const redis = new Redis(process.env.REDIS_URL!, {
+  maxRetriesPerRequest: null
+});
 
 export interface EmailAccountConfig {
   id: string;
@@ -101,6 +107,30 @@ export class ImapOperations {
     };
 
     return new ImapOperations(account);
+  }
+
+  /**
+   * Get Redis key for storing last processed UID
+   */
+  private getLastUidKey(folderName: string): string {
+    return `imap:last_uid:${this.account.id}:${folderName}`;
+  }
+
+  /**
+   * Get last processed UID from Redis
+   */
+  private async getLastProcessedUid(folderName: string): Promise<number> {
+    const key = this.getLastUidKey(folderName);
+    const value = await redis.get(key);
+    return value ? parseInt(value, 10) : 0;
+  }
+
+  /**
+   * Update last processed UID in Redis
+   */
+  private async updateLastProcessedUid(folderName: string, uid: number): Promise<void> {
+    const key = this.getLastUidKey(folderName);
+    await redis.set(key, uid.toString());
   }
 
   private async getConnection(): Promise<ImapConnection> {
@@ -289,40 +319,69 @@ export class ImapOperations {
       sort?: 'date' | 'from' | 'subject';
       descending?: boolean;
       preserveConnection?: boolean;
+      since?: Date;  // For Look Back feature - filter emails by date
+      updateLastUid?: boolean;  // Whether to update Redis tracking (default: true)
     } = {}
   ): Promise<EmailMessage[]> {
     const conn = await this.getConnection();
-    
+
     try {
       await conn.selectFolder(folderName);
-      
-      // Search for all messages
-      const uids = await conn.search(['ALL']);
+
+      let uids: number[];
+      const limit = options.limit || 50;
+      const offset = options.offset || 0;
+
+      // Build search criteria based on options
+      if (options.since) {
+        // Look Back mode: Use SINCE date filter
+        const searchCriteria: any[] = [['SINCE', options.since]];
+
+        // Also filter by UID if we have a last processed UID
+        const lastUid = await this.getLastProcessedUid(folderName);
+        if (lastUid > 0) {
+          searchCriteria.push(['UID', `${lastUid + 1}:*`]);
+        }
+
+        uids = await conn.search(searchCriteria);
+        console.log(`[ImapOperations] SINCE search returned ${uids.length} UIDs from ${this.account.email} ${folderName}`);
+      } else {
+        // Standard mode: Use UID tracking for efficiency
+        const lastUid = await this.getLastProcessedUid(folderName);
+
+        if (lastUid === 0) {
+          // First run - use 15-min lookback to avoid processing ancient emails
+          const lookbackMinutes = parseInt(process.env.NEXT_PUBLIC_LOOK_BACK_DEFAULT_MINUTES || '15', 10);
+          const since = new Date(Date.now() - lookbackMinutes * 60 * 1000);
+          uids = await conn.search([['SINCE', since]]);
+          console.log(`[ImapOperations] First run with ${lookbackMinutes}min lookback returned ${uids.length} UIDs`);
+        } else {
+          // Use UID range - server-side filtering!
+          uids = await conn.search([['UID', `${lastUid + 1}:*`]]);
+          console.log(`[ImapOperations] UID range ${lastUid + 1}:* returned ${uids.length} new UIDs`);
+        }
+      }
 
       if (uids.length === 0) {
         return [];
       }
 
-      // Apply sorting and pagination
+      // Sort UIDs (descending = newest first)
       let sortedUids = [...uids];
       if (options.descending !== false) {
-        sortedUids.reverse(); // Default to newest first
+        sortedUids.reverse();
       }
 
-      const offset = options.offset || 0;
-      const limit = options.limit || 50;
+      // Apply pagination
       const paginatedUids = sortedUids.slice(offset, offset + limit);
 
-      // Log summary for monitoring (only if we're actually fetching messages)
-      if (paginatedUids.length > 0) {
-        console.log(`[ImapOperations] Fetching ${paginatedUids.length} messages from ${this.account.email} ${folderName} (total: ${uids.length}, offset: ${offset})`);
-      }
+      console.log(`[ImapOperations] Fetching ${paginatedUids.length} messages from ${this.account.email} ${folderName} (total new: ${uids.length}, offset: ${offset})`);
 
       if (paginatedUids.length === 0) {
         return [];
       }
 
-      // Fetch message details in parallel for better performance
+      // Fetch message details in parallel
       const fetchPromises = paginatedUids.map(async (uid) => {
         try {
           const fetchedMessages = await conn.fetch(uid, {
@@ -338,11 +397,14 @@ export class ImapOperations {
         }
       });
 
-      // Wait for all fetches to complete
       const fetchResults = await Promise.all(fetchPromises);
-      
-      // Filter out nulls and flatten results
       const messages = fetchResults.filter(msg => msg !== null);
+
+      // Update last processed UID (if requested)
+      if (options.updateLastUid !== false && paginatedUids.length > 0) {
+        const highestUid = Math.max(...paginatedUids);
+        await this.updateLastProcessedUid(folderName, highestUid);
+      }
 
       return messages.map((msg: any) => ({
         uid: msg.uid,
