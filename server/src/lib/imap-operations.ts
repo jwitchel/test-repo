@@ -358,6 +358,11 @@ export class ImapOperations {
         } else {
           // Use UID range - server-side filtering!
           uids = await conn.search([['UID', `${lastUid + 1}:*`]]);
+
+          // IMPORTANT: IMAP protocol quirk - searching for "X:*" always includes the last message
+          // even if X is greater than the highest UID. We must filter client-side.
+          // See: https://github.com/mscdex/node-imap/issues/473
+          uids = uids.filter(uid => uid > lastUid);
           console.log(`[ImapOperations] UID range ${lastUid + 1}:* returned ${uids.length} new UIDs`);
         }
       }
