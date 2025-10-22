@@ -138,3 +138,17 @@
 [data-sonner-toast][data-type="info"] {
   @apply !bg-blue-50 !text-blue-900 !border-blue-200 dark:!bg-blue-950 dark:!text-blue-100 dark:!border-blue-800;
 }
+
+/* Slow counter-clockwise logo rotation */
+@keyframes logo-rotate-ccw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+.logo-rotate {
+  animation: logo-rotate-ccw 60s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-rotate { animation: none; }
+}

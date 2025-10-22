@@ -203,7 +203,9 @@ export function ActionsSummaryChart() {
           position: 'insideTop',
           formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.drafted[params.dataIndex];
-            return count > 0 ? `${count} Drafted` : '';
+            const pct = draftedData[params.dataIndex] as number;
+            // Hide label if segment is too small (<8%) or count is 0
+            return (count > 0 && pct >= 8) ? `${count} Drafted` : '';
           },
           color: '#fff',
           fontWeight: 600,
@@ -228,20 +230,14 @@ export function ActionsSummaryChart() {
         },
         label: {
           show: true,
-          // If the spam segment is too small (<8%), place the label outside to the right
-          position: (params: { dataIndex: number }) => {
-            const pct = spamData[params.dataIndex] as number;
-            return pct < 8 ? 'right' : 'inside';
-          },
-          distance: 4,
+          position: 'inside',
           formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.spam[params.dataIndex];
-            return count > 0 ? `${count} Spam` : '';
-          },
-          color: (params: { dataIndex: number }) => {
             const pct = spamData[params.dataIndex] as number;
-            return pct < 8 ? '#6b7280' : '#fff';
+            // Hide label if segment is too small (<8%) or count is 0
+            return (count > 0 && pct >= 8) ? `${count} Spam` : '';
           },
+          color: '#fff',
           fontWeight: 600,
           fontSize: 11,
         },
@@ -267,7 +263,9 @@ export function ActionsSummaryChart() {
           position: 'insideTop',
           formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.moved[params.dataIndex];
-            return count > 0 ? `${count} Moved` : '';
+            const pct = movedData[params.dataIndex] as number;
+            // Hide label if segment is too small (<8%) or count is 0
+            return (count > 0 && pct >= 8) ? `${count} Moved` : '';
           },
           color: '#fff',
           fontWeight: 600,
@@ -295,7 +293,9 @@ export function ActionsSummaryChart() {
           position: 'insideTop',
           formatter: (params: { dataIndex: number }) => {
             const count = actualCounts.noAction[params.dataIndex];
-            return count > 0 ? `${count} No Action` : '';
+            const pct = noActionData[params.dataIndex] as number;
+            // Hide label if segment is too small (<8%) or count is 0
+            return (count > 0 && pct >= 8) ? `${count} No Action` : '';
           },
           color: '#fff',
           fontWeight: 600,

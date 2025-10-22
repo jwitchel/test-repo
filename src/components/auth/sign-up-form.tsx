@@ -63,7 +63,7 @@ export function SignUpForm() {
             alt="AI Email Assistant Logo"
             width={48}
             height={48}
-            className="object-contain"
+            className="object-contain logo-rotate"
           />
           <h1 className="text-2xl font-bold">AI Email Assistant</h1>
         </div>

@@ -36,7 +36,7 @@ export default function Home() {
               alt="AI Email Assistant Logo" 
               width={40} 
               height={40}
-              className="object-contain"
+              className="object-contain logo-rotate"
               style={{ width: '40px', height: '40px' }}
             />
             <h1 className="text-2xl font-bold">AI Email Assistant</h1>
