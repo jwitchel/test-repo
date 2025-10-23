@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { Mail, Brain, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react'
+import { Mail, Brain, Eye, EyeOff, Loader2 } from 'lucide-react'
 import useSWR from 'swr'
 import { ActionsSummaryChart } from '@/components/dashboard/actions-summary-chart'
 import { RecentActionsTable } from '@/components/dashboard/recent-actions-table'
@@ -150,41 +150,41 @@ export default function DashboardPage() {
             <ActionsSummaryChart />
 
             {/* Account Summary - 50% width */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Summary</CardTitle>
+            <Card className="gap-3 py-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Account Summary</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-3">
                 {/* Email Accounts */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                    <Mail className="h-4 w-4" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Mail className="h-3.5 w-3.5" />
                     Email Accounts
                   </div>
                   {accountsLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <div className="flex items-center justify-center py-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : emailAccounts && emailAccounts.length > 0 ? (
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Monitoring</TableHead>
+                        <TableRow className="border-b">
+                          <TableHead className="h-7 py-1.5 px-2 text-xs">Email</TableHead>
+                          <TableHead className="h-7 py-1.5 px-2 text-xs">Monitoring</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {emailAccounts.map((account) => (
-                          <TableRow key={account.id}>
-                            <TableCell className="font-medium">{account.email_address}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
+                          <TableRow key={account.id} className="border-b last:border-0">
+                            <TableCell className="py-1.5 px-2 text-xs font-medium">{account.email_address}</TableCell>
+                            <TableCell className="py-1.5 px-2">
+                              <div className="flex items-center gap-1.5">
                                 {account.monitoring_enabled ? (
-                                  <Eye className="h-4 w-4" />
+                                  <Eye className="h-3 w-3" />
                                 ) : (
-                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                  <EyeOff className="h-3 w-3 text-muted-foreground" />
                                 )}
-                                <span className="text-sm">
+                                <span className="text-xs">
                                   {account.monitoring_enabled ? 'Enabled' : 'Paused'}
                                 </span>
                               </div>
@@ -194,84 +194,79 @@ export default function DashboardPage() {
                       </TableBody>
                     </Table>
                   ) : (
-                    <div className="text-sm text-muted-foreground py-4">No email accounts configured</div>
+                    <div className="text-xs text-muted-foreground py-2">No email accounts configured</div>
                   )}
                 </div>
 
                 {/* Default LLM Provider */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                    <Brain className="h-4 w-4" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Brain className="h-3.5 w-3.5" />
                     Default LLM Provider
                   </div>
                   {providersLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <div className="flex items-center justify-center py-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : defaultProvider ? (
-                    <div className="text-sm font-medium py-2">{defaultProvider.provider_name}</div>
+                    <div className="text-xs font-medium py-1">{defaultProvider.provider_name}</div>
                   ) : (
-                    <div className="text-sm text-muted-foreground py-2">No default provider configured</div>
+                    <div className="text-xs text-muted-foreground py-1">No default provider configured</div>
                   )}
-                </div>
-
-                {/* Look Back Processing */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                    <RefreshCw className="h-4 w-4" />
-                    Look Back
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Select value={lookBackOption} onValueChange={setLookBackOption}>
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Select time range" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="15min">15 Minutes</SelectItem>
-                        <SelectItem value="1hour">1 Hour</SelectItem>
-                        <SelectItem value="4hours">4 Hours</SelectItem>
-                        <SelectItem value="today">All of Today</SelectItem>
-                        <SelectItem value="yesterday">Yesterday and Today</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
-                          Look Back
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Process Historical Emails?</AlertDialogTitle>
-                          <AlertDialogDescription asChild>
-                            <div className="space-y-2">
-                              <div>
-                                This will process all emails from <strong>{getLookBackLabel(lookBackOption)}</strong> to
-                                present for all monitored accounts.
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                Already processed emails will be skipped automatically.
-                              </div>
-                            </div>
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleLookBack} className="bg-indigo-600 hover:bg-indigo-700">
-                            Process Emails
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Recent Actions Table - Full Width */}
-          <RecentActionsTable />
+          <RecentActionsTable
+            lookBackControls={
+              <>
+                <Select value={lookBackOption} onValueChange={setLookBackOption}>
+                  <SelectTrigger className="h-7 w-[140px] text-xs">
+                    <SelectValue placeholder="Select time range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15min">15 Minutes</SelectItem>
+                    <SelectItem value="1hour">1 Hour</SelectItem>
+                    <SelectItem value="4hours">4 Hours</SelectItem>
+                    <SelectItem value="today">All of Today</SelectItem>
+                    <SelectItem value="yesterday">Yesterday and Today</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-7 px-2 text-xs">
+                      Look Back
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Process Historical Emails?</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-2">
+                          <div>
+                            This will process all emails from <strong>{getLookBackLabel(lookBackOption)}</strong> to
+                            present for all monitored accounts.
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Already processed emails will be skipped automatically.
+                          </div>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleLookBack} className="bg-indigo-600 hover:bg-indigo-700">
+                        Process Emails
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            }
+          />
         </div>
       </div>
     </div>

@@ -48,23 +48,22 @@ export class WorkerManager {
 
   /**
    * Initialize the worker manager and restore state
+   * CLEAN START: Environment variables are the source of truth on startup
    */
   async initialize(): Promise<void> {
     try {
-      // Initialize worker pause state
-      // Priority: Redis state > ENV (guaranteed to exist)
-      const storedState = await this.redis.get(WORKER_STATE_KEY);
+      // Clean up stale jobs from any previous crashed workers
+      await this.cleanupStaleJobs();
 
-      if (storedState !== null) {
-        // Use stored state from Redis
-        this.isPaused = storedState === 'true';
-      } else {
-        // Use env variable - WORKERS_START_PAUSED (true = paused, false = running)
-        this.isPaused = process.env.WORKERS_START_PAUSED === 'true';
-        await this.redis.set(WORKER_STATE_KEY, String(this.isPaused));
-      }
+      // CLEAN START: Always use ENV variables as source of truth on startup
+      // This ensures consistent behavior and allows env changes to take effect
+      this.isPaused = process.env.WORKERS_START_PAUSED === 'true';
 
-      console.log(`[WorkerManager] Initialized with state: isPaused=${this.isPaused}`);
+      // Clear and reinitialize Redis state from env
+      await this.redis.set(WORKER_STATE_KEY, String(this.isPaused));
+      await this.redis.set(QUEUE_STATE_KEY, 'false'); // Always start with queues unpaused
+
+      console.log(`[WorkerManager] Clean start initialized from ENV: isPaused=${this.isPaused}`);
 
       // Apply initial state to all workers
       if (this.isPaused) {
@@ -74,9 +73,59 @@ export class WorkerManager {
         await this.resumeAllWorkers();
       }
     } catch (error) {
-      // Default to paused state on error
+      console.error('[WorkerManager] Error during initialization:', error);
+      // Default to paused state on error for safety
       this.isPaused = true;
       await this.pauseAllWorkers(true); // true = don't wait on startup
+    }
+  }
+
+  /**
+   * Clean up stale jobs and locks from previous worker crashes
+   * This prevents "could not renew lock" errors on startup
+   */
+  private async cleanupStaleJobs(): Promise<void> {
+    console.log('[WorkerManager] Cleaning up stale jobs from previous runs...');
+
+    try {
+      let totalCleaned = 0;
+
+      // Clean up stale jobs in each queue
+      for (const [name, queue] of this.queues.entries()) {
+        // Clean up jobs with stale locks (active jobs that haven't been touched in 30 seconds)
+        // This is the key fix for "could not renew lock" errors
+        try {
+          const staleLocks = await queue.clean(30000, 1000, 'active');
+          if (staleLocks && staleLocks.length > 0) {
+            console.log(`[WorkerManager] Cleaned ${staleLocks.length} jobs with stale locks from ${name} queue`);
+            totalCleaned += staleLocks.length;
+          }
+        } catch (err) {
+          console.warn(`[WorkerManager] Could not clean stale active jobs in ${name}:`, err);
+        }
+
+        // Clean failed jobs older than 1 hour (3600000ms)
+        const failedCleaned = await queue.clean(3600000, 1000, 'failed');
+
+        // Clean completed jobs older than 1 hour
+        const completedCleaned = await queue.clean(3600000, 1000, 'completed');
+
+        const queueTotal = (failedCleaned?.length || 0) + (completedCleaned?.length || 0);
+        totalCleaned += queueTotal;
+
+        if (queueTotal > 0) {
+          console.log(`[WorkerManager] Cleaned ${queueTotal} old jobs from ${name} queue`);
+        }
+      }
+
+      if (totalCleaned > 0) {
+        console.log(`[WorkerManager] Total stale jobs cleaned: ${totalCleaned}`);
+      } else {
+        console.log('[WorkerManager] No stale jobs found');
+      }
+    } catch (error) {
+      console.error('[WorkerManager] Error cleaning up stale jobs:', error);
+      // Don't throw - we want initialization to continue even if cleanup fails
     }
   }
 
@@ -108,15 +157,21 @@ export class WorkerManager {
   async resumeAllWorkers(): Promise<void> {
     console.log('[WorkerManager] Resuming all workers');
 
-    const resumePromises = Array.from(this.workers.values())
-      .filter(worker => worker !== undefined)
-      .map(async worker => {
+    const resumePromises = Array.from(this.workers.entries())
+      .filter(([_, worker]) => worker !== undefined)
+      .map(async ([name, worker]) => {
+        console.log(`[WorkerManager] Processing worker: ${name}, isRunning before: ${worker.isRunning()}, isPaused: ${worker.isPaused()}`);
+
         // First resume the worker (if it was paused)
         await worker.resume();
+
         // Then ensure it's running (in case autorun was false)
         if (!worker.isRunning()) {
+          console.log(`[WorkerManager] Starting worker: ${name}`);
           await worker.run();
         }
+
+        console.log(`[WorkerManager] Worker ${name} state after resume: isRunning=${worker.isRunning()}, isPaused=${worker.isPaused()}`);
       });
 
     if (resumePromises.length === 0) {

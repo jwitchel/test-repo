@@ -15,6 +15,7 @@ export class EmailActionTracker {
    * @param subject - Optional email subject
    * @param destinationFolder - Optional destination folder
    * @param uid - Optional IMAP UID for fetching the email from the server
+   * @param senderEmail - Optional sender email address
    * @returns Promise<void>
    */
   static async recordAction(
@@ -24,15 +25,16 @@ export class EmailActionTracker {
     actionTaken: EmailActionType,
     subject?: string,
     destinationFolder?: string,
-    uid?: number
+    uid?: number,
+    senderEmail?: string
   ): Promise<void> {
     try {
       await pool.query(
-        `INSERT INTO email_action_tracking (user_id, email_account_id, message_id, action_taken, subject, destination_folder, uid, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        `INSERT INTO email_action_tracking (user_id, email_account_id, message_id, action_taken, subject, destination_folder, uid, sender_email, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          ON CONFLICT (email_account_id, message_id)
-         DO UPDATE SET action_taken = $4, subject = $5, destination_folder = $6, uid = $7, updated_at = NOW()`,
-        [userId, emailAccountId, messageId, actionTaken, subject, destinationFolder, uid]
+         DO UPDATE SET action_taken = $4, subject = $5, destination_folder = $6, uid = $7, sender_email = $8, updated_at = NOW()`,
+        [userId, emailAccountId, messageId, actionTaken, subject, destinationFolder, uid, senderEmail]
       );
     } catch (error) {
       // Log error but don't fail the request

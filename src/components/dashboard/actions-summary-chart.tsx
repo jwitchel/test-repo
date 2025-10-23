@@ -83,9 +83,9 @@ export function ActionsSummaryChart() {
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+      <Card className="gap-3 py-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-red-500">Failed to load actions summary</div>
@@ -96,12 +96,12 @@ export function ActionsSummaryChart() {
 
   if (isLoading || !data) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+      <Card className="gap-3 py-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] flex items-center justify-center">
+          <div className="h-[240px] flex items-center justify-center">
             <div className="text-muted-foreground">Loading chart...</div>
           </div>
         </CardContent>
@@ -166,8 +166,8 @@ export function ActionsSummaryChart() {
     grid: {
       left: '3%',
       right: '8%',
-      bottom: '10%',
-      top: '12%',
+      bottom: '3%',
+      top: '8%',
       containLabel: true,
     },
     xAxis: {
@@ -324,12 +324,12 @@ export function ActionsSummaryChart() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
+    <Card className="gap-3 py-4">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Recent Activity</CardTitle>
       </CardHeader>
       <CardContent>
-        <ReactECharts option={option} style={{ height: '300px' }} />
+        <ReactECharts option={option} style={{ height: '240px' }} />
       </CardContent>
     </Card>
   );

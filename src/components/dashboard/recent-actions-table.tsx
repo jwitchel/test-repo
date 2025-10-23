@@ -12,6 +12,7 @@ interface RecentAction {
   messageId: string;
   actionTaken: string;
   subject: string;
+  senderEmail?: string;
   destinationFolder?: string;
   updatedAt: string;
   emailAccountId: string;
@@ -154,7 +155,11 @@ function getEmailColor(email: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export function RecentActionsTable() {
+interface RecentActionsTableProps {
+  lookBackControls?: React.ReactNode;
+}
+
+export function RecentActionsTable({ lookBackControls }: RecentActionsTableProps) {
   const { data, error, isLoading } = useSWR<RecentActionsData>(
     `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/recent-actions?limit=20`,
     fetcher,
@@ -176,9 +181,9 @@ export function RecentActionsTable() {
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Emails</CardTitle>
+      <Card className="gap-3 py-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent Emails</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-red-500">Failed to load recent emails</div>
@@ -189,9 +194,9 @@ export function RecentActionsTable() {
 
   if (isLoading || !data) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Emails</CardTitle>
+      <Card className="gap-3 py-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent Emails</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground">Loading recent emails...</div>
@@ -202,9 +207,9 @@ export function RecentActionsTable() {
 
   if (data.actions.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Emails</CardTitle>
+      <Card className="gap-3 py-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent Emails</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground text-center py-8">
@@ -216,12 +221,20 @@ export function RecentActionsTable() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Recent Emails</CardTitle>
+    <Card className="gap-3 py-4">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle className="text-base">Recent Emails</CardTitle>
+
+          {/* Look Back Controls */}
+          {lookBackControls && (
+            <div className="flex items-center gap-2">
+              {lookBackControls}
+            </div>
+          )}
+
           {/* Email Account Legend - Right Aligned */}
-          <div className="flex flex-wrap gap-3 justify-end">
+          <div className="flex flex-wrap gap-3 justify-end ml-auto">
             {uniqueEmails.map(({ email, color }) => (
               <div key={email} className="flex items-center gap-2 text-xs">
                 <div className={`w-3 h-3 rounded-full ${color}`} />
@@ -233,14 +246,15 @@ export function RecentActionsTable() {
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-2 px-2 font-medium">Time</th>
-                <th className="text-left py-2 px-2 font-medium">Subject</th>
-                <th className="text-left py-2 px-2 font-medium">Action</th>
-                <th className="text-center py-2 px-2 font-medium">Account</th>
-                <th className="text-left py-2 px-2 font-medium">Details</th>
+                <th className="text-left py-1.5 px-2 font-medium">Time</th>
+                <th className="text-left py-1.5 px-2 font-medium">From</th>
+                <th className="text-left py-1.5 px-2 font-medium">Subject</th>
+                <th className="text-left py-1.5 px-2 font-medium">Action</th>
+                <th className="text-center py-1.5 px-2 font-medium">Account</th>
+                <th className="text-left py-1.5 px-2 font-medium">Details</th>
               </tr>
             </thead>
             <tbody>
@@ -250,29 +264,32 @@ export function RecentActionsTable() {
 
                 return (
                   <tr key={action.id} className="border-b last:border-0 hover:bg-muted/50">
-                    <td className="py-2 px-2 whitespace-nowrap text-muted-foreground">
+                    <td className="py-1.5 px-2 whitespace-nowrap text-muted-foreground">
                       {formatDistanceToNow(new Date(action.updatedAt), { addSuffix: true })}
                     </td>
-                    <td className="py-2 px-2 max-w-xs truncate" title={action.subject}>
+                    <td className="py-1.5 px-2 max-w-[200px] truncate" title={action.senderEmail || 'Unknown'}>
+                      {action.senderEmail || '(Unknown)'}
+                    </td>
+                    <td className="py-1.5 px-2 max-w-xs truncate" title={action.subject}>
                       {action.subject}
                     </td>
-                    <td className="py-2 px-2">
-                      <Badge className={`${actionInfo.color} text-white text-xs`}>
+                    <td className="py-1.5 px-2">
+                      <Badge className={`${actionInfo.color} text-white text-xs px-1.5 py-0`}>
                         {actionInfo.label}
                       </Badge>
                     </td>
-                    <td className="py-2 px-2 text-center">
+                    <td className="py-1.5 px-2 text-center">
                       <div className="flex justify-center">
                         <div
-                          className={`w-4 h-4 rounded-full ${emailColor}`}
+                          className={`w-3 h-3 rounded-full ${emailColor}`}
                           title={action.emailAccount}
                         />
                       </div>
                     </td>
-                    <td className="py-2 px-2">
+                    <td className="py-1.5 px-2">
                       <Link
                         href={`/inbox?emailAccountId=${action.emailAccountId}&messageId=${encodeURIComponent(action.messageId)}`}
-                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs underline"
+                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
                       >
                         View
                       </Link>

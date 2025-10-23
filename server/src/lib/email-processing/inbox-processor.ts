@@ -139,7 +139,8 @@ export class InboxProcessor {
           recommendedAction,  // Record the actual recommended action
           message.subject,     // Store subject for dashboard display
           undefined,           // Destination will be updated after IMAP operations
-          message.uid          // Store UID for fallback IMAP fetching
+          message.uid,         // Store UID for fallback IMAP fetching
+          message.from         // Store sender email for dashboard display
         );
       } catch (trackingError) {
         console.error(`[InboxProcessor] Failed to record action tracking:`, trackingError);
@@ -199,7 +200,8 @@ export class InboxProcessor {
           recommendedAction,  // Use the actual recommended action
           message.subject,
           destination,
-          message.uid          // Store UID for fallback IMAP fetching
+          message.uid,         // Store UID for fallback IMAP fetching
+          message.from         // Store sender email for dashboard display
         );
 
       } catch (moveError) {

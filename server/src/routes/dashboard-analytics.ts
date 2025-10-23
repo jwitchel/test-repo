@@ -90,13 +90,14 @@ router.get('/recent-actions', requireAuth, async (req, res) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    // Get recent actions with email account info, subject, and destination
+    // Get recent actions with email account info, subject, sender, and destination
     const result = await pool.query(
       `SELECT
         eat.id,
         eat.message_id,
         eat.action_taken,
         eat.subject,
+        eat.sender_email,
         eat.destination_folder,
         eat.updated_at,
         eat.email_account_id,
@@ -124,6 +125,7 @@ router.get('/recent-actions', requireAuth, async (req, res) => {
         messageId: row.message_id,
         actionTaken: row.action_taken,
         subject: row.subject || '(Subject unavailable for old emails)',
+        senderEmail: row.sender_email,
         destinationFolder: row.destination_folder,
         updatedAt: row.updated_at,
         emailAccountId: row.email_account_id,

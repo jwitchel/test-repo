@@ -21,8 +21,25 @@ import { workerManager } from '../lib/worker-manager';
 async function startWorkers() {
   console.log('🚀 Starting Background Workers...\n');
 
-  // Initialize worker manager (restores pause state from Redis)
+  // Initialize worker manager (cleans stale jobs, reads ENV, starts/pauses workers)
   await workerManager.initialize();
+
+  // Double-check: Explicitly start workers if they're not running yet
+  // This handles edge cases where BullMQ state might be inconsistent
+  console.log('[start-workers] Verifying worker states...');
+  const isPaused = process.env.WORKERS_START_PAUSED === 'true';
+
+  if (!isPaused) {
+    // Force start workers if they should be running but aren't
+    if (!inboxWorker.isRunning()) {
+      console.log('[start-workers] Force starting inbox worker...');
+      await inboxWorker.run();
+    }
+    if (!trainingWorker.isRunning()) {
+      console.log('[start-workers] Force starting training worker...');
+      await trainingWorker.run();
+    }
+  }
 
   // Get status for display
   const status = await workerManager.getStatus();
@@ -38,7 +55,8 @@ async function startWorkers() {
     console.log('\x1b[32m%s\x1b[0m', '✅ WORKERS ARE RUNNING - Background jobs will process');
     status.workers.forEach(w => {
       const runStatus = w.isRunning ? '▶️  Running' : '⏸️  Not Running';
-      console.log('\x1b[32m%s\x1b[0m', `   ${w.name}: ${runStatus}`);
+      const color = w.isRunning ? '\x1b[32m' : '\x1b[33m'; // Green or yellow
+      console.log(`${color}%s\x1b[0m`, `   ${w.name}: ${runStatus}`);
     });
     console.log('='.repeat(60) + '\n');
   }
