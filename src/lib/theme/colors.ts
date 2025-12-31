@@ -47,6 +47,7 @@ export const relationshipColors = {
     family: '#7c3aed',      // violet-600
     colleague: '#1e4577',   // steel blue-700
     friends: '#059669',     // emerald-600 (success)
+    bot: '#0284c7',         // sky-600 (automation)
     external: '#64748b',    // slate-500
     spam: '#c2410c',        // orange-700 (error)
     unknown: '#64748b',     // slate-500
@@ -56,6 +57,7 @@ export const relationshipColors = {
     family: '#a78bfa',      // violet-400
     colleague: '#5985c1',   // steel blue-400
     friends: '#10b981',     // emerald-500
+    bot: '#38bdf8',         // sky-400 (automation)
     external: '#94a3b8',    // slate-400
     spam: '#ea580c',        // orange-600 (error)
     unknown: '#94a3b8',     // slate-400

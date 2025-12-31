@@ -25,6 +25,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import WorkIcon from '@mui/icons-material/Work';
 import TuneIcon from '@mui/icons-material/Tune';
+import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
 import PersonIcon from '@mui/icons-material/Person';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { MuiThemeToggle } from './theme-toggle';
@@ -58,6 +59,7 @@ const authenticatedMenuItems = [
   { href: '/settings/llm-providers', label: 'LLM Providers', icon: SmartToyIcon },
   { divider: true, label: 'Development Tools' },
   { href: '/dashboard/jobs', label: 'Jobs', icon: WorkIcon },
+  { href: '/settings/bot-senders', label: 'Bot Senders', icon: PrecisionManufacturingIcon },
 ];
 
 export function MuiNavbar({ variant, user, onSignOut }: MuiNavbarProps) {
