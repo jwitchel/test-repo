@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { CreateEmailAccountRequest, EmailAccountValidationError } from '../types/email-account';
+import { isValidEmail } from '../lib/validation';
 
 export function validateEmailAccount(req: Request, res: Response, next: NextFunction): void {
   try {
@@ -30,9 +31,7 @@ export function validateEmailAccount(req: Request, res: Response, next: NextFunc
       throw new EmailAccountValidationError('imap_password', 'IMAP password is required');
     }
     
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(body.email_address)) {
+    if (!isValidEmail(body.email_address)) {
       throw new EmailAccountValidationError('email_address', 'Invalid email address format');
     }
     
