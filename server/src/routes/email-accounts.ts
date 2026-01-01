@@ -2,6 +2,7 @@ import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { pool } from '../lib/db';
 import Imap from 'imap';
+import { isValidUUID } from '../lib/validation';
 
 import { encryptPassword } from '../lib/crypto';
 import { validateEmailAccount } from '../middleware/validation';
@@ -282,15 +283,17 @@ router.post('/:id/test', requireAuth, async (req, res): Promise<void> => {
           return;
         }
         res.json({ success: true, message: 'Connection successful' });
-      } catch (error: any) {
-        if (error?.code === 'AUTH_REFRESH_FAILED') {
+      } catch (error) {
+        const err = error as { code?: string; message?: string };
+        if (err.code === 'AUTH_REFRESH_FAILED') {
           res.status(401).json({
             error: 'OAUTH_REAUTH_REQUIRED',
             message: 'Email provider session expired or revoked. Please reconnect your account.'
           });
           return;
         }
-        res.status(400).json({ error: `Connection failed: ${error.message}`, details: error.code || 'UNKNOWN_ERROR' });
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        res.status(400).json({ error: `Connection failed: ${message}`, details: err.code || 'UNKNOWN_ERROR' });
       }
       return;
     }
@@ -433,9 +436,7 @@ router.delete('/:id', requireAuth, async (req, res): Promise<void> => {
     const userId = req.user.id;
     const accountId = req.params.id;
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(accountId)) {
+    if (!isValidUUID(accountId)) {
       res.status(400).json({ error: 'Invalid account ID format' });
       return;
     }

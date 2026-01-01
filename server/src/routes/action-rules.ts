@@ -7,6 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { actionRulesService } from '../lib/action-rules-service';
+import { isValidUUID } from '../lib/validation';
 import {
   ActionRuleConditionType,
   isValidUserAction,
@@ -87,9 +88,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     const userId = req.user.id;
     const { id } = req.params;
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'Invalid rule ID format' });
     }
 

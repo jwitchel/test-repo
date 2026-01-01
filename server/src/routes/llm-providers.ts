@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { pool } from '../lib/db';
+import { isValidUUID } from '../lib/validation';
 import { withTransaction } from '../lib/db/transaction-utils';
 import { encryptPassword } from '../lib/crypto';
 import {
@@ -72,9 +73,9 @@ router.post('/test', requireAuth, validateLLMProvider, async (req, res): Promise
         message: 'Unable to connect to the LLM provider. Please check your settings.'
       });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('LLM provider test error:', error);
-    
+
     if (error instanceof LLMProviderError) {
       if (error.code === 'INVALID_API_KEY') {
         res.status(401).json({ 
@@ -278,9 +279,7 @@ router.put('/:id', requireAuth, async (req, res): Promise<void> => {
     const providerId = req.params.id;
     const updates = req.body as UpdateLLMProviderRequest;
 
-    // Validate UUID format (before transaction)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(providerId)) {
+    if (!isValidUUID(providerId)) {
       res.status(400).json({ error: 'Invalid provider ID format' });
       return;
     }
@@ -416,9 +415,7 @@ router.delete('/:id', requireAuth, async (req, res): Promise<void> => {
     const userId = req.user.id;
     const providerId = req.params.id;
     
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(providerId)) {
+    if (!isValidUUID(providerId)) {
       res.status(400).json({ error: 'Invalid provider ID format' });
       return;
     }
