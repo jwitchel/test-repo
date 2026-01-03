@@ -880,52 +880,40 @@ function ProfileTab() {
   }
 
   return (
-    <Stack spacing={3}>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="sectionHeader" gutterBottom>
-          Profile Information
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Update your personal information
-        </Typography>
-        <Stack spacing={3}>
-          <TextFieldElement name="name" control={control} label="Name" placeholder="Your full name" fullWidth />
-          <TextFieldElement
-            name="nicknames"
-            control={control}
-            label="Nicknames"
-            placeholder="e.g. Jessica, Jess, JW"
-            helperText="Enter common nicknames or variations of your name, separated by commas"
-            fullWidth
-          />
-          <TextFieldElement
-            name="signatureBlock"
-            control={control}
-            label="Email Signature Block"
-            placeholder="---\nCell: 212-555-1212"
-            helperText="This signature will be added to your email replies"
-            multiline
-            rows={4}
-            fullWidth
-          />
-          <Box>
-            <Button variant="contained" onClick={handleSubmit(onSubmit)} loading={isSaving}>
-              Save Profile
-            </Button>
-          </Box>
-        </Stack>
-      </Paper>
-
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="sectionHeader" gutterBottom>
-          Typed Name Settings
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Configure how your name appears in generated email responses
-        </Typography>
-        <TypedNameSettingsPanel />
-      </Paper>
-    </Stack>
+    <Paper sx={{ p: 3 }}>
+      <Typography variant="sectionHeader" gutterBottom>
+        Profile Information
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Update your personal information
+      </Typography>
+      <Stack spacing={3}>
+        <TextFieldElement name="name" control={control} label="Name" placeholder="Your full name" fullWidth />
+        <TextFieldElement
+          name="nicknames"
+          control={control}
+          label="Nicknames"
+          placeholder="e.g. Jessica, Jess, JW"
+          helperText="Enter common nicknames or variations of your name, separated by commas"
+          fullWidth
+        />
+        <TextFieldElement
+          name="signatureBlock"
+          control={control}
+          label="Email Signature Block"
+          placeholder="---\nCell: 212-555-1212"
+          helperText="This signature will be added to your email replies"
+          multiline
+          rows={4}
+          fullWidth
+        />
+        <Box>
+          <Button variant="contained" onClick={handleSubmit(onSubmit)} loading={isSaving}>
+            Save Profile
+          </Button>
+        </Box>
+      </Stack>
+    </Paper>
   );
 }
 
@@ -1290,7 +1278,9 @@ function ServicesTab() {
                 Organize Your Email
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Automatically move emails that do not require a response to a specific folder
+                Automatically move emails that do not require a response to a specific folder. Disabling will cause the email to be left in the inbox.
+                For example, a Docusign email that requires your signature will be put in your todo folder, or left if the inbox if disabled.
+                
               </Typography>
               <Stack spacing={2} sx={{ pl: 3 }}>
                 <SwitchElement
@@ -1298,7 +1288,8 @@ function ServicesTab() {
                   control={actionControl}
                   label={
                     <Typography variant="body2">
-                      FYI Only. <Typography component="span" variant="body2" color="text.secondary">Emails that do not require a response</Typography>
+                      FYI Only. <Typography component="span" variant="body2" color="text.secondary">Emails that do not require a 
+                      response (e.g. emails addressed to other people you are CC'd on, Uber receipts, updated invitations.)</Typography>
                     </Typography>
                   }
                 />
@@ -1307,7 +1298,7 @@ function ServicesTab() {
                   control={actionControl}
                   label={
                     <Typography variant="body2">
-                      Large Distribution Lists. <Typography component="span" variant="body2" color="text.secondary">Emails sent to many people</Typography>
+                      Large Distribution Lists. <Typography component="span" variant="body2" color="text.secondary">Emails sent to many people (e.g. mailing lists, company-wide announcements)</Typography>
                     </Typography>
                   }
                 />
@@ -1325,7 +1316,7 @@ function ServicesTab() {
                   control={actionControl}
                   label={
                     <Typography variant="body2">
-                      Todo Items. <Typography component="span" variant="body2" color="text.secondary">Tasks to complete</Typography>
+                      Todo Items. <Typography component="span" variant="body2" color="text.secondary">Emails with a specific action other than a response (e.g. a signature request, authorizing a payment)</Typography>
                     </Typography>
                   }
                 />
@@ -1338,7 +1329,7 @@ function ServicesTab() {
                 <Box>
                   <Typography variant="body1">Draft Generation</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Upload AI-generated reply drafts to your Drafts folder
+                    When a written reply is needed, create a draft reply and upload it to your Drafts folder
                   </Typography>
                 </Box>
               }
@@ -1356,7 +1347,7 @@ function ServicesTab() {
             Email Folder Preferences
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Configure folders for organizing emails based on AI recommendations
+            Set your folders for where to put new emails. 
           </Typography>
           {hasEmailAccounts ? (
             <Stack spacing={3}>
@@ -1374,7 +1365,7 @@ function ServicesTab() {
                 value={folderPreferences.noActionFolder}
                 onChange={(e) => setFolderPreferences((prev) => ({ ...prev, noActionFolder: e.target.value }))}
                 placeholder="e.g., *No Action"
-                helperText="FYI only, large lists, unsubscribe candidates"
+                helperText="FYI only, emails where you're just CC'd, newsletters, and other emails that don't need a response"
                 fullWidth
                 disabled={isLoading}
               />
@@ -1383,7 +1374,7 @@ function ServicesTab() {
                 value={folderPreferences.spamFolder}
                 onChange={(e) => setFolderPreferences((prev) => ({ ...prev, spamFolder: e.target.value }))}
                 placeholder="e.g., *Spam"
-                helperText="Emails identified as spam"
+                helperText="Emails identified as spam, junk, or unsolicited promotions"
                 fullWidth
                 disabled={isLoading}
               />
@@ -1392,7 +1383,7 @@ function ServicesTab() {
                 value={folderPreferences.todoFolder}
                 onChange={(e) => setFolderPreferences((prev) => ({ ...prev, todoFolder: e.target.value }))}
                 placeholder="e.g., *Todo"
-                helperText="Action items requiring you to do something outside of email"
+                helperText="Action items requiring you to do something other than reply."
                 fullWidth
                 disabled={isLoading}
               />
@@ -1493,15 +1484,27 @@ function ServicesTab() {
 function SignaturesTab() {
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Typography variant="sectionHeader" gutterBottom>
-        Email Signature Detection
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Configure patterns to automatically detect and remove your email signature when analyzing your writing style
-      </Typography>
-      <SignaturePatternsPanel />
-    </Paper>
+    <Stack spacing={3}>
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="sectionHeader" gutterBottom>
+          Typed Name Settings
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Configure how your name appears in generated email responses
+        </Typography>
+        <TypedNameSettingsPanel />
+      </Paper>
+
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="sectionHeader" gutterBottom>
+          Email Signature Detection
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Configure patterns to automatically detect and remove your email signature when analyzing your writing style
+        </Typography>
+        <SignaturePatternsPanel />
+      </Paper>
+    </Stack>
   );
 }
 
@@ -1669,7 +1672,7 @@ export default function MuiSettingsPage() {
           <Tab label="Profile" />
           <Tab label="Relationships" />
           <Tab label="Services" />
-          <Tab label="Signatures" />
+          <Tab label="Patterns" />
           <Tab label="Security" />
         </Tabs>
       </Box>
