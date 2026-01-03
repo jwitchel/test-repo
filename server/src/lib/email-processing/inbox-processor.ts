@@ -362,15 +362,12 @@ export class InboxProcessor {
    * @private
    */
   private async _checkBot(
-    context: ProcessingContext,
+    _context: ProcessingContext,
     parsedData: ParsedEmailData
   ): Promise<BotCheckResult> {
     const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase();
     const botDetector = getBotDetector();
-    return botDetector.checkBot({
-      senderEmail,
-      fullMessage: context.message.fullMessage
-    });
+    return botDetector.checkBot({ senderEmail });
   }
 
   /**
