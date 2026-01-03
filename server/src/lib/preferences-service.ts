@@ -32,7 +32,6 @@ export class PreferencesService {
         silentActions: {
           'silent-fyi-only': true,
           'silent-large-list': true,
-          'silent-unsubscribe': true,
           'silent-todo': true,
         },
         draftGeneration: true,

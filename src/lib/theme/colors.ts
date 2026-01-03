@@ -14,7 +14,6 @@ export const actionColors = {
     [EmailActionType.SILENT_FYI_ONLY]: '#64748b',   // slate-500
     [EmailActionType.SILENT_SPAM]: '#c2410c',       // orange-700 (error)
     [EmailActionType.SILENT_LARGE_LIST]: '#64748b', // slate-500
-    [EmailActionType.SILENT_UNSUBSCRIBE]: '#64748b', // slate-500
     [EmailActionType.SILENT_TODO]: '#d97706',       // amber-600 (warning)
     [EmailActionType.KEEP_IN_INBOX]: '#ca8a04',     // yellow-600
     [EmailActionType.TRAINING]: '#3b6fb6',          // steel blue-500 (info)
@@ -29,7 +28,6 @@ export const actionColors = {
     [EmailActionType.SILENT_FYI_ONLY]: '#475569',   // slate-600
     [EmailActionType.SILENT_SPAM]: '#ea580c',       // orange-600 (error)
     [EmailActionType.SILENT_LARGE_LIST]: '#475569', // slate-600
-    [EmailActionType.SILENT_UNSUBSCRIBE]: '#475569', // slate-600
     [EmailActionType.SILENT_TODO]: '#f59e0b',       // amber-500 (warning)
     [EmailActionType.KEEP_IN_INBOX]: '#eab308',     // yellow-500
     [EmailActionType.TRAINING]: '#779bcc',          // steel blue-300 (info)

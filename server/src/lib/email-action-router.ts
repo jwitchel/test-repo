@@ -59,7 +59,6 @@ export class EmailActionRouter {
 
       case EmailActionType.SILENT_FYI_ONLY:
       case EmailActionType.SILENT_LARGE_LIST:
-      case EmailActionType.SILENT_UNSUBSCRIBE:
         return {
           folder: `${rootPath}${this.folderPrefs.noActionFolder}`,
           flags: [],  // No-action items should not be marked as Seen

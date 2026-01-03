@@ -19,7 +19,6 @@ export interface TypedNamePreferences {
 export interface ActionSubPreferences {
   'silent-fyi-only': boolean;
   'silent-large-list': boolean;
-  'silent-unsubscribe': boolean;
   'silent-todo': boolean;
 }
 
