@@ -296,7 +296,7 @@ function TypedNameSettingsPanel() {
             size="small"
           />
           <Typography variant="caption" color="text.secondary">
-            Text to append at the end of generated email responses. Leave empty to not append any name.
+            Your personal signature used in generated email responses. Leave empty if it&apos;s included in your signature block.
           </Typography>
         </Box>
         <Box>
@@ -1074,6 +1074,18 @@ function ServicesTab() {
                 </Box>
               }
             />
+            <SwitchElement
+              name="draftGeneration"
+              control={actionControl}
+              label={
+                <Box>
+                  <Typography variant="body1">Draft Generation</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    When a written reply is needed, create a draft reply and upload it to your Drafts folder
+                  </Typography>
+                </Box>
+              }
+            />
             <Box>
               <Typography variant="body1" gutterBottom>
                 Organize Your Email
@@ -1114,18 +1126,6 @@ function ServicesTab() {
                 />
               </Stack>
             </Box>
-            <SwitchElement
-              name="draftGeneration"
-              control={actionControl}
-              label={
-                <Box>
-                  <Typography variant="body1">Draft Generation</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    When a written reply is needed, create a draft reply and upload it to your Drafts folder
-                  </Typography>
-                </Box>
-              }
-            />
             <Box>
               <Button variant="contained" onClick={handleActionSubmit(onActionSubmit)} loading={isSavingActions}>
                 Save Action Preferences
@@ -1279,10 +1279,10 @@ function SignaturesTab() {
     <Stack spacing={3}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="sectionHeader" gutterBottom>
-          Typed Name Settings
+          How You Sign Your Name in Emails
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Configure how your name appears in generated email responses
+          Used to improve detection of your writing style by recognizing common ways you sign your name and to insert your signature above your signature block (just your name, not the full block or &quot;best, regards, etc.&quot;)
         </Typography>
         <TypedNameSettingsPanel />
       </Paper>
@@ -1292,7 +1292,8 @@ function SignaturesTab() {
           Email Signature Detection
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Configure patterns to automatically detect and remove your email signature when analyzing your writing style
+          Regex to automatically remove your signature block when analyzing your writing style (if you have a work and personal signature, add both patterns. Add a pattern
+          if your work includes a disclaimer or confidentiality notice at the end of your emails.)
         </Typography>
         <SignaturePatternsPanel />
       </Paper>

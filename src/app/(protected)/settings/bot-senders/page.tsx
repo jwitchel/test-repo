@@ -489,7 +489,6 @@ export default function BotSendersPage() {
       {!isLoading && rows.length === 0 && (
         <Card>
           <CardContent sx={{ py: 4, textAlign: 'center' }}>
-            <AddIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
             <Typography color="text.secondary" mb={2}>
               {rowCount === 0 && !searchTerm && !categoryFilter && !activeFilter
                 ? 'No bot senders configured yet'
