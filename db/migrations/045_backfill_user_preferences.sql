@@ -9,7 +9,7 @@ SET preferences = jsonb_set(
     '{"rootFolder": "", "draftsFolderPath": "Drafts", "noActionFolder": "NoAction", "spamFolder": "Spam", "todoFolder": "Todo"}'::jsonb
   ),
   '{actionPreferences}',
-  '{"spamDetection": true, "silentActions": {"silent-fyi-only": true, "silent-large-list": true, "silent-unsubscribe": true, "silent-todo": true}, "draftGeneration": true}'::jsonb
+  '{"spamDetection": true, "silentActions": {"silent-fyi-only": true, "silent-large-list": true, "silent-todo": true}, "draftGeneration": true}'::jsonb
 )
 WHERE preferences IS NULL
    OR preferences->'folderPreferences' IS NULL
