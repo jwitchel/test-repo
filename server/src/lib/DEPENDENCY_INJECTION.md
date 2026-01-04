@@ -52,31 +52,39 @@ export const myService = new MyService();
 Common singleton exports in the codebase:
 
 ```typescript
-// Services
-export const emailStorageService = new EmailStorageService();
-export const relationshipService = new RelationshipService();
-export const draftGenerator = new DraftGenerator();
+// Email Processing
 export const inboxProcessor = new InboxProcessor();
-export const personService = new PersonService();
-export const nameRedactor = new NameRedactor();
-export const styleAggregationService = new StyleAggregationService();
-export const embeddingService = new EmbeddingService();
-export const replyExtractor = new ReplyExtractor();
+export const draftGenerator = new DraftGenerator();
+export const spamDetector = new SpamDetector();
+export const botDetector = new BotDetector();
+export const emailActionTracker = new EmailActionTracker();
+export const emailStorageService = new EmailStorageService();
 export const emailContentParser = new EmailContentParser();
+export const replyExtractor = new ReplyExtractor();
 
-// Infrastructure
+// Relationships
+export const relationshipService = new RelationshipService();
+export const relationshipDetector = new RelationshipDetector();
+export const personService = new PersonService();
+
+// Vector/Embeddings
+export const embeddingService = new EmbeddingService();
+export const styleEmbeddingService = new StyleEmbeddingService();
+export const vectorSearchService = new VectorSearchService();
+export const styleAggregationService = new StyleAggregationService();
+
+// IMAP
 export const imapPool = new ImapConnectionPool();
 export const imapMonitor = new ImapMonitor();
 export const emailMover = new EmailMover();
+
+// Infrastructure
 export const sharedConnection = new Redis(...);
+export const realTimeLogger = new RealTimeLogger({...});
 
 // Queue
 export const inboxQueue = new Queue('inbox', ...);
 export const trainingQueue = new Queue('training', ...);
-
-// Utilities
-export const realTimeLogger = new RealTimeLogger({...});
-export const testEmailGenerator = new TestEmailGenerator();
 ```
 
 ## Testing Examples
