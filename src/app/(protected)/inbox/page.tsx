@@ -35,7 +35,7 @@ import { usePageTitle } from '@/hooks/use-page-title';
 import { useMuiToast } from '@/hooks/use-mui-toast';
 import { MuiAuthenticatedLayout } from '@/components/mui';
 import { RelationshipSelector } from '../dashboard/components/relationship-selector';
-import { EmailActionType } from '../../../../server/src/types/email-action-tracking';
+import { EmailActionType, EMAIL_ACTION_LABELS } from '../../../../server/src/types/email-action-tracking';
 import { useActionColors } from '@/hooks/use-action-colors';
 import type { SpamCheckResult } from '../../../../server/src/lib/pipeline/types';
 
@@ -336,7 +336,7 @@ function InboxContent() {
                   </Typography>
                   {emailData.actionTaken && emailData.actionTaken !== EmailActionType.PENDING && (
                     <Chip
-                      label={EmailActionType.LABELS[emailData.actionTaken]}
+                      label={EMAIL_ACTION_LABELS[emailData.actionTaken]}
                       size="small"
                       sx={{
                         bgcolor: actionColorsMap[emailData.actionTaken as keyof typeof actionColorsMap] ?? '#71717a',
@@ -429,7 +429,7 @@ function InboxContent() {
                         Recommended Action
                       </Typography>
                       <Chip
-                        label={EmailActionType.LABELS[llmResponse.meta.recommendedAction]}
+                        label={EMAIL_ACTION_LABELS[llmResponse.meta.recommendedAction]}
                         size="small"
                         sx={{
                           bgcolor: actionColorsMap[llmResponse.meta.recommendedAction as keyof typeof actionColorsMap] ?? '#71717a',
@@ -535,7 +535,7 @@ function InboxContent() {
             <Typography color="text.secondary">No analysis available for this email</Typography>
             {emailData?.actionTaken && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Action taken: {EmailActionType.LABELS[emailData.actionTaken]}
+                Action taken: {EMAIL_ACTION_LABELS[emailData.actionTaken]}
               </Typography>
             )}
           </Paper>
@@ -562,7 +562,7 @@ function InboxContent() {
                   </Typography>
                   {emailData.actionTaken && emailData.actionTaken !== EmailActionType.PENDING && (
                     <Chip
-                      label={EmailActionType.LABELS[emailData.actionTaken]}
+                      label={EMAIL_ACTION_LABELS[emailData.actionTaken]}
                       size="small"
                       sx={{
                         bgcolor: actionColorsMap[emailData.actionTaken as keyof typeof actionColorsMap] ?? '#71717a',

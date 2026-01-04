@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CheckIcon from '@mui/icons-material/Check';
-import { EmailActionType } from '../../../../../server/src/types/email-action-tracking';
+import { EmailActionType, EMAIL_ACTION_LABELS } from '../../../../../server/src/types/email-action-tracking';
 import {
   ActionRuleConditionType,
   USER_ACTION_VALUES,
@@ -32,16 +32,23 @@ import { relationshipColors } from '@/lib/theme';
 
 interface ActionSelectorProps {
   emailAddress: string;
-  currentAction: string;
-  relationshipType?: string | null;
+  currentAction: EmailActionType;
+  relationshipType?: string;
+  trackingId?: string;
   onActionRuleCreated?: () => void;
+  onActionChanged?: () => void;
 }
+
+// Selection type: 'this-email' for single reclassification, 'sender' or 'relationship' for rules
+type SelectionType = 'this-email' | ActionRuleConditionType;
 
 export function ActionSelector({
   emailAddress,
   currentAction,
   relationshipType,
+  trackingId,
   onActionRuleCreated,
+  onActionChanged,
 }: ActionSelectorProps) {
   const theme = useTheme();
   const actionColorsMap = useActionColors();
@@ -52,8 +59,8 @@ export function ActionSelector({
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<UserActionType | null>(null);
-  const [ruleType, setRuleType] = useState<ActionRuleConditionType>(
-    relationshipType ? ActionRuleConditionType.RELATIONSHIP : ActionRuleConditionType.SENDER
+  const [selectionType, setSelectionType] = useState<SelectionType>(
+    trackingId ? 'this-email' : (relationshipType ? ActionRuleConditionType.RELATIONSHIP : ActionRuleConditionType.SENDER)
   );
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const menuOpen = Boolean(anchorEl);
@@ -63,8 +70,8 @@ export function ActionSelector({
     () =>
       USER_ACTION_VALUES.map((value) => ({
         value,
-        label: EmailActionType.LABELS[value],
-        color: actionColorsMap[value] ?? '#71717a',
+        label: EMAIL_ACTION_LABELS[value],
+        color: actionColorsMap[value],
       })),
     [actionColorsMap]
   );
@@ -83,30 +90,53 @@ export function ActionSelector({
     handleMenuClose();
     if (newValue === currentAction) return;
     setSelectedAction(newValue as UserActionType);
-    setRuleType(relationshipType ? ActionRuleConditionType.RELATIONSHIP : ActionRuleConditionType.SENDER);
+    // Default to 'this-email' if trackingId is available, otherwise use rule-based approach
+    setSelectionType(trackingId ? 'this-email' : (relationshipType ? ActionRuleConditionType.RELATIONSHIP : ActionRuleConditionType.SENDER));
     setDialogOpen(true);
   };
 
   const handleCreate = async () => {
     if (!selectedAction) return;
 
-    const conditionValue = ruleType === ActionRuleConditionType.SENDER
-      ? emailAddress
-      : relationshipType;
-
-    if (!conditionValue) {
-      error('Cannot create relationship rule: no relationship type set');
-      return;
-    }
-
     setIsLoading(true);
     try {
+      // Handle "this email only" - reclassify without creating a rule
+      if (selectionType === 'this-email') {
+        // trackingId is guaranteed when 'this-email' option is available
+        const response = await fetch(`/api/inbox/reclassify/${trackingId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            newAction: selectedAction,
+            previousAction: currentAction,
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error);
+        }
+
+        success(`Email reclassified to ${EMAIL_ACTION_LABELS[selectedAction]}`);
+        onActionChanged?.();
+        setDialogOpen(false);
+        setSelectedAction(null);
+        return;
+      }
+
+      // Handle rule creation (sender or relationship)
+      // conditionValue is guaranteed: sender uses emailAddress, relationship uses relationshipType
+      const conditionValue = selectionType === ActionRuleConditionType.SENDER
+        ? emailAddress
+        : relationshipType!;
+
       const response = await fetch('/api/action-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          conditionType: ruleType,
+          conditionType: selectionType,
           conditionValue,
           targetAction: selectedAction,
         }),
@@ -122,29 +152,29 @@ export function ActionSelector({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to create action rule');
+        throw new Error(data.error);
       }
 
-      const ruleTypeLabel = ruleType === ActionRuleConditionType.SENDER
+      const ruleTypeLabel = selectionType === ActionRuleConditionType.SENDER
         ? emailAddress
         : RelationshipType.LABELS[conditionValue];
 
-      success(`Action rule created: ${ruleTypeLabel} -> ${EmailActionType.LABELS[selectedAction]}`);
+      success(`Action rule created: ${ruleTypeLabel} -> ${EMAIL_ACTION_LABELS[selectedAction]}`);
       onActionRuleCreated?.();
       setDialogOpen(false);
       setSelectedAction(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create action rule';
+      const message = err instanceof Error ? err.message : 'Failed to update action';
       error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const actionColor = actionColorsMap[currentAction as keyof typeof actionColorsMap] ?? '#71717a';
-  const actionLabel = EmailActionType.LABELS[currentAction] || currentAction;
-  const relationshipColor = relationshipType ? relColors[relationshipType as keyof typeof relColors] : null;
-  const relationshipLabel = relationshipType ? RelationshipType.LABELS[relationshipType] : null;
+  const actionColor = actionColorsMap[currentAction];
+  const actionLabel = EMAIL_ACTION_LABELS[currentAction];
+  const relationshipColor = relationshipType ? relColors[relationshipType as keyof typeof relColors] : undefined;
+  const relationshipLabel = relationshipType ? RelationshipType.LABELS[relationshipType] : undefined;
 
   return (
     <>
@@ -198,17 +228,19 @@ export function ActionSelector({
         fullWidth
         disableRestoreFocus
       >
-        <DialogTitle>Create Action Rule</DialogTitle>
+        <DialogTitle>
+          {selectionType === 'this-email' ? 'Reclassify Email' : 'Create Action Rule'}
+        </DialogTitle>
         <DialogContent>
           <DialogContentText component="div" sx={{ mb: 2 }}>
-            Choose how to apply the action:{' '}
+            {selectionType === 'this-email' ? 'Reclassify this email as:' : 'Choose how to apply the action:'}{' '}
             {selectedAction && (
               <Chip
-                label={EmailActionType.LABELS[selectedAction]}
+                label={EMAIL_ACTION_LABELS[selectedAction]}
                 size="small"
                 sx={{
                   ml: 1,
-                  backgroundColor: actionColorsMap[selectedAction] ?? '#71717a',
+                  backgroundColor: actionColorsMap[selectedAction],
                   color: 'white',
                 }}
               />
@@ -217,16 +249,23 @@ export function ActionSelector({
 
           <FormControl component="fieldset">
             <RadioGroup
-              value={ruleType}
-              onChange={(e) => setRuleType(e.target.value as ActionRuleConditionType)}
+              value={selectionType}
+              onChange={(e) => setSelectionType(e.target.value as SelectionType)}
             >
+              {trackingId && (
+                <FormControlLabel
+                  value="this-email"
+                  control={<Radio />}
+                  label="This email only (don't create a rule)"
+                />
+              )}
               {relationshipLabel && (
                 <FormControlLabel
                   value={ActionRuleConditionType.RELATIONSHIP}
                   control={<Radio />}
                   label={
                     <>
-                      Apply to all{' '}
+                      Create rule for all{' '}
                       <Chip
                         label={relationshipLabel}
                         size="small"
@@ -246,7 +285,7 @@ export function ActionSelector({
                 control={<Radio />}
                 label={
                   <>
-                    Apply only to <strong>{emailAddress}</strong>
+                    Create rule for <strong>{emailAddress}</strong>
                   </>
                 }
               />
@@ -258,7 +297,7 @@ export function ActionSelector({
             Cancel
           </Button>
           <Button variant="contained" onClick={handleCreate} loading={isLoading}>
-            Create Rule
+            {selectionType === 'this-email' ? 'Reclassify' : 'Create Rule'}
           </Button>
         </DialogActions>
       </Dialog>

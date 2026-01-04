@@ -29,7 +29,7 @@ import { emailAccountColors, relationshipColors, getDataGridStyles } from '@/lib
 interface RecentAction {
   id: string;
   messageId: string;
-  actionTaken: string;
+  actionTaken: EmailActionType;
   subject: string;
   senderEmail?: string;
   senderName?: string;
@@ -124,8 +124,8 @@ function getColumns(config: ColumnConfig): GridColDef<RecentAction>[] {
             />
           );
         }
-        const actionColor = actionColors[params.row.actionTaken as EmailActionType];
-        const actionLabel = EMAIL_ACTION_LABELS[params.row.actionTaken as EmailActionType];
+        const actionColor = actionColors[params.row.actionTaken];
+        const actionLabel = EMAIL_ACTION_LABELS[params.row.actionTaken];
         return (
           <Chip
             label={actionLabel}
@@ -298,8 +298,8 @@ export function RecentActionsTable() {
         <Paper>
           <List disablePadding>
             {data.actions.map((action, index) => {
-              const actionColor = actionColorsMap[action.actionTaken as EmailActionType];
-              const actionLabel = EMAIL_ACTION_LABELS[action.actionTaken as EmailActionType];
+              const actionColor = actionColorsMap[action.actionTaken];
+              const actionLabel = EMAIL_ACTION_LABELS[action.actionTaken];
               return (
                 <ListItem
                   key={action.id}

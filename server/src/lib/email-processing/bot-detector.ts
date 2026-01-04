@@ -50,16 +50,11 @@ export class BotDetector {
    */
   private async _checkBotPatterns(email: string): Promise<BotPatternMatch | null> {
     const emailLower = email.toLowerCase();
-    const domain = this._extractDomain(emailLower);
-
-    // Get root domain for wildcard pattern matching
-    // email.amazon.com → amazon.com
-    const rootDomain = this._extractRootDomain(domain);
+    const domain = extractDomainFromEmail(emailLower);
+    const rootDomain = extractRootDomain(domain);
 
     // Query for both exact domain and root domain (for wildcard patterns)
-    // Exact domain patterns: no-reply@email.amazon.com
-    // Wildcard patterns stored with root domain: .*@.*\.amazon.com (domain=amazon.com)
-    const domainsToQuery = rootDomain && rootDomain !== domain
+    const domainsToQuery = rootDomain !== domain
       ? [domain, rootDomain]
       : [domain];
 
@@ -88,29 +83,6 @@ export class BotDetector {
 
     return null;
   }
-
-  /**
-   * Extract domain from email address
-   * Per RFC 5321/5322, valid emails must have local-part@domain format
-   */
-  private _extractDomain(email: string): string {
-    const atIndex = email.indexOf('@');
-    return email.substring(atIndex + 1);
-  }
-
-  /**
-   * Extract root domain (last two parts) from a domain
-   * email.amazon.com → amazon.com
-   * gc.email.amazon.com → amazon.com
-   * amazon.com → amazon.com
-   */
-  private _extractRootDomain(domain: string): string {
-    const parts = domain.split('.');
-    if (parts.length <= 2) {
-      return domain;
-    }
-    return parts.slice(-2).join('.');
-  }
 }
 
 // Singleton instance
@@ -124,4 +96,57 @@ export function getBotDetector(): BotDetector {
     botDetector = new BotDetector();
   }
   return botDetector;
+}
+
+// ============================================================================
+// Domain Utilities - shared by bot-detector and bot-senders routes
+// ============================================================================
+
+/**
+ * Extract domain from email address
+ * foo@example.com → example.com
+ */
+export function extractDomainFromEmail(email: string): string {
+  const atIndex = email.indexOf('@');
+  return email.substring(atIndex + 1);
+}
+
+/**
+ * Extract root domain (last two parts) from a domain
+ * email.amazon.com → amazon.com
+ * gc.email.amazon.com → amazon.com
+ * amazon.com → amazon.com
+ */
+export function extractRootDomain(domain: string): string {
+  const parts = domain.split('.');
+  if (parts.length <= 2) {
+    return domain;
+  }
+  return parts.slice(-2).join('.');
+}
+
+/**
+ * Extract domain from email pattern (handles regex wildcards)
+ * For wildcard patterns like `.*@.*\.amazon.com`, extracts the literal root domain `amazon.com`
+ * For exact patterns like `no-reply@amazon.com`, extracts `amazon.com`
+ * Returns null if pattern doesn't contain @
+ */
+export function extractDomainFromPattern(pattern: string): string | null {
+  const atIndex = pattern.indexOf('@');
+  if (atIndex === -1) {
+    return null;
+  }
+  const domainPart = pattern.substring(atIndex + 1).toLowerCase();
+
+  // If domain part contains regex wildcards, extract the literal suffix
+  if (domainPart.includes('.*') || domainPart.includes('\\')) {
+    const cleaned = domainPart
+      .replace(/\.\*/g, '')      // Remove .*
+      .replace(/\\\./g, '.')     // \. → .
+      .replace(/^\.+/, '');      // Remove leading dots
+
+    return extractRootDomain(cleaned);
+  }
+
+  return domainPart;
 }

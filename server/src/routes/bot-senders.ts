@@ -1,18 +1,20 @@
 /**
  * Bot Senders Routes
  * CRUD operations for managing known bot/automated email senders
+ * Uses regex patterns with domain-based filtering
  */
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { pool } from '../lib/db';
-import { isValidEmail, isValidUUID } from '../lib/validation';
+import { extractDomainFromPattern } from '../lib/email-processing/bot-detector';
 
 const router = express.Router();
 
 // Types
 interface BotSender {
   id: string;
-  email_address: string;
+  email_pattern: string;
+  domain: string;
   company_name: string;
   category: string;
   is_confirmed: boolean;
@@ -21,60 +23,54 @@ interface BotSender {
 }
 
 interface CreateBotSenderRequest {
-  email_address: string;
+  email_pattern: string;
   company_name: string;
   category: string;
   is_confirmed?: boolean;
 }
 
 interface UpdateBotSenderRequest {
-  email_address?: string;
+  email_pattern?: string;
   company_name?: string;
   category?: string;
   is_confirmed?: boolean;
 }
 
-// Category options for validation
-const VALID_CATEGORIES = [
-  'airlines',
-  'banks',
-  'ecommerce',
-  'payments',
-  'shipping_logistics',
-  'saas_productivity',
-  'streaming',
-  'rideshare_delivery',
-  'travel_hotels',
-  'social_media',
-  'developer_tools',
-  'healthcare',
-  'utilities',
-  'government',
-  'education',
-  'other'
-];
+interface RegexValidationResult {
+  valid: boolean;
+  error?: string;
+}
 
-// Validation middleware
+/**
+ * Validate that a string is a valid regex pattern
+ */
+function isValidRegex(pattern: string): RegexValidationResult {
+  try {
+    new RegExp(pattern);
+    return { valid: true };
+  } catch (e) {
+    return { valid: false, error: e instanceof Error ? e.message : 'Invalid regex' };
+  }
+}
+
+/**
+ * Validation middleware for bot sender creation
+ * Only validates what the DB cannot: regex syntax and domain extraction
+ * DB handles NOT NULL constraints for company_name, category, etc.
+ */
 function validateBotSender(req: express.Request, res: express.Response, next: express.NextFunction) {
   const data = req.body as CreateBotSenderRequest;
 
-  if (!data.email_address || data.email_address.trim().length === 0) {
-    return res.status(400).json({ error: 'Email address is required' });
+  // Validate regex syntax (DB cannot validate this)
+  const regexCheck = isValidRegex(data.email_pattern);
+  if (!regexCheck.valid) {
+    return res.status(400).json({ error: `Invalid regex pattern: ${regexCheck.error}` });
   }
 
-  if (!isValidEmail(data.email_address)) {
-    return res.status(400).json({ error: 'Invalid email address format' });
-  }
-
-  if (!data.company_name || data.company_name.trim().length === 0) {
-    return res.status(400).json({ error: 'Company name is required' });
-  }
-
-  if (!data.category || !VALID_CATEGORIES.includes(data.category)) {
-    return res.status(400).json({
-      error: 'Invalid category',
-      validCategories: VALID_CATEGORIES
-    });
+  // Pattern must contain @ to extract domain (business logic)
+  const domain = extractDomainFromPattern(data.email_pattern);
+  if (!domain) {
+    return res.status(400).json({ error: 'Pattern must contain @ followed by domain' });
   }
 
   next();
@@ -84,23 +80,28 @@ function validateBotSender(req: express.Request, res: express.Response, next: ex
 // Get bot senders with server-side pagination
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { category, search, page = '0', pageSize = '25' } = req.query;
+    const { category, search, active, page = '0', pageSize = '25' } = req.query;
 
     const pageNum = parseInt(page as string, 10);
     const limit = parseInt(pageSize as string, 10);
     const offset = pageNum * limit;
 
     let whereClause = 'WHERE 1=1';
-    const params: (string | number)[] = [];
+    const params: (string | number | boolean)[] = [];
 
     if (category && typeof category === 'string') {
       params.push(category);
       whereClause += ` AND category = $${params.length}`;
     }
 
+    if (active && typeof active === 'string') {
+      params.push(active === 'true');
+      whereClause += ` AND is_confirmed = $${params.length}`;
+    }
+
     if (search && typeof search === 'string' && search.trim()) {
       params.push(`%${search.trim().toLowerCase()}%`);
-      whereClause += ` AND (LOWER(email_address) LIKE $${params.length} OR LOWER(company_name) LIKE $${params.length})`;
+      whereClause += ` AND (LOWER(email_pattern) LIKE $${params.length} OR LOWER(company_name) LIKE $${params.length})`;
     }
 
     // Get total count
@@ -113,10 +114,10 @@ router.get('/', requireAuth, async (req, res) => {
     // Get paginated rows
     params.push(limit, offset);
     const query = `
-      SELECT id, email_address, company_name, category, is_confirmed, created_at, updated_at
+      SELECT id, email_pattern, domain, company_name, category, is_confirmed, created_at, updated_at
       FROM bot_senders
       ${whereClause}
-      ORDER BY category ASC, company_name ASC, email_address ASC
+      ORDER BY category ASC, company_name ASC, email_pattern ASC
       LIMIT $${params.length - 1} OFFSET $${params.length}
     `;
 
@@ -124,7 +125,8 @@ router.get('/', requireAuth, async (req, res) => {
 
     const rows: BotSender[] = result.rows.map(row => ({
       id: row.id,
-      email_address: row.email_address,
+      email_pattern: row.email_pattern,
+      domain: row.domain,
       company_name: row.company_name,
       category: row.category,
       is_confirmed: row.is_confirmed,
@@ -156,188 +158,150 @@ router.get('/categories', requireAuth, async (_req, res) => {
   }
 });
 
-// Add new bot sender
+// Add or update bot sender (upsert)
 router.post('/', requireAuth, validateBotSender, async (req, res): Promise<void> => {
-  try {
-    const data = req.body as CreateBotSenderRequest;
+  const data = req.body as CreateBotSenderRequest;
+  const patternLower = data.email_pattern.toLowerCase();
+  const domain = extractDomainFromPattern(patternLower)!; // Validated in middleware
 
-    // Check if email already exists
-    const existing = await pool.query(
-      'SELECT id FROM bot_senders WHERE email_address = $1',
-      [data.email_address.toLowerCase()]
-    );
+  const result = await pool.query(
+    `INSERT INTO bot_senders (email_pattern, domain, company_name, category, is_confirmed)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (email_pattern) DO UPDATE SET
+       domain = EXCLUDED.domain,
+       company_name = EXCLUDED.company_name,
+       category = EXCLUDED.category,
+       is_confirmed = EXCLUDED.is_confirmed,
+       updated_at = CURRENT_TIMESTAMP
+     RETURNING id, email_pattern, domain, company_name, category, is_confirmed, created_at, updated_at`,
+    [
+      patternLower,
+      domain,
+      data.company_name.trim(),
+      data.category,
+      data.is_confirmed ?? false
+    ]
+  );
 
-    if (existing.rows.length > 0) {
-      res.status(409).json({
-        error: 'Email address already exists',
-        field: 'email_address'
-      });
-      return;
-    }
+  const row = result.rows[0];
+  const sender: BotSender = {
+    id: row.id,
+    email_pattern: row.email_pattern,
+    domain: row.domain,
+    company_name: row.company_name,
+    category: row.category,
+    is_confirmed: row.is_confirmed,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString()
+  };
 
-    const result = await pool.query(
-      `INSERT INTO bot_senders (email_address, company_name, category, is_confirmed)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, email_address, company_name, category, is_confirmed, created_at, updated_at`,
-      [
-        data.email_address.toLowerCase(),
-        data.company_name.trim(),
-        data.category,
-        data.is_confirmed ?? false
-      ]
-    );
-
-    const sender: BotSender = {
-      id: result.rows[0].id,
-      email_address: result.rows[0].email_address,
-      company_name: result.rows[0].company_name,
-      category: result.rows[0].category,
-      is_confirmed: result.rows[0].is_confirmed,
-      created_at: result.rows[0].created_at.toISOString(),
-      updated_at: result.rows[0].updated_at.toISOString()
-    };
-
-    console.log('[bot-senders] Created sender: %s (%s)', sender.email_address, sender.company_name);
-    res.status(201).json(sender);
-  } catch (error) {
-    console.error('Error creating bot sender:', error);
-    res.status(500).json({ error: 'Failed to create bot sender' });
-  }
+  console.log('[bot-senders] Upserted pattern: %s (%s)', sender.email_pattern, sender.company_name);
+  res.status(201).json(sender);
 });
 
 // Update bot sender
 router.put('/:id', requireAuth, async (req, res): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const updates = req.body as UpdateBotSenderRequest;
+  const { id } = req.params;
+  const updates = req.body as UpdateBotSenderRequest;
 
-    if (!isValidUUID(id)) {
-      res.status(400).json({ error: 'Invalid ID format' });
+  // Validate pattern if updating (regex syntax and domain extraction)
+  let newDomain: string | null = null;
+  if (updates.email_pattern) {
+    const patternLower = updates.email_pattern.toLowerCase();
+
+    const regexCheck = isValidRegex(patternLower);
+    if (!regexCheck.valid) {
+      res.status(400).json({ error: `Invalid regex pattern: ${regexCheck.error}` });
       return;
     }
 
-    // Check if sender exists
-    const existing = await pool.query('SELECT id FROM bot_senders WHERE id = $1', [id]);
-    if (existing.rows.length === 0) {
-      res.status(404).json({ error: 'Bot sender not found' });
+    newDomain = extractDomainFromPattern(patternLower);
+    if (!newDomain) {
+      res.status(400).json({ error: 'Pattern must contain @ followed by domain' });
       return;
     }
-
-    // Validate email if updating
-    if (updates.email_address) {
-      if (!isValidEmail(updates.email_address)) {
-        res.status(400).json({ error: 'Invalid email address format' });
-        return;
-      }
-
-      // Check for duplicate email
-      const duplicate = await pool.query(
-        'SELECT id FROM bot_senders WHERE email_address = $1 AND id != $2',
-        [updates.email_address.toLowerCase(), id]
-      );
-      if (duplicate.rows.length > 0) {
-        res.status(409).json({
-          error: 'Email address already exists',
-          field: 'email_address'
-        });
-        return;
-      }
-    }
-
-    // Validate category if updating
-    if (updates.category && !VALID_CATEGORIES.includes(updates.category)) {
-      res.status(400).json({
-        error: 'Invalid category',
-        validCategories: VALID_CATEGORIES
-      });
-      return;
-    }
-
-    // Build update query dynamically
-    const updateFields: string[] = [];
-    const values: unknown[] = [];
-    let paramIndex = 1;
-
-    if (updates.email_address !== undefined) {
-      updateFields.push(`email_address = $${paramIndex++}`);
-      values.push(updates.email_address.toLowerCase());
-    }
-
-    if (updates.company_name !== undefined) {
-      updateFields.push(`company_name = $${paramIndex++}`);
-      values.push(updates.company_name.trim());
-    }
-
-    if (updates.category !== undefined) {
-      updateFields.push(`category = $${paramIndex++}`);
-      values.push(updates.category);
-    }
-
-    if (updates.is_confirmed !== undefined) {
-      updateFields.push(`is_confirmed = $${paramIndex++}`);
-      values.push(updates.is_confirmed);
-    }
-
-    if (updateFields.length === 0) {
-      res.status(400).json({ error: 'No valid fields to update' });
-      return;
-    }
-
-    values.push(id);
-
-    const query = `
-      UPDATE bot_senders
-      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $${paramIndex}
-      RETURNING id, email_address, company_name, category, is_confirmed, created_at, updated_at
-    `;
-
-    const result = await pool.query(query, values);
-
-    const sender: BotSender = {
-      id: result.rows[0].id,
-      email_address: result.rows[0].email_address,
-      company_name: result.rows[0].company_name,
-      category: result.rows[0].category,
-      is_confirmed: result.rows[0].is_confirmed,
-      created_at: result.rows[0].created_at.toISOString(),
-      updated_at: result.rows[0].updated_at.toISOString()
-    };
-
-    console.log('[bot-senders] Updated sender: %s', sender.email_address);
-    res.json(sender);
-  } catch (error) {
-    console.error('Error updating bot sender:', error);
-    res.status(500).json({ error: 'Failed to update bot sender' });
   }
+
+  // Build update query dynamically
+  const updateFields: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (updates.email_pattern !== undefined) {
+    const patternLower = updates.email_pattern.toLowerCase();
+    updateFields.push(`email_pattern = $${paramIndex++}`);
+    values.push(patternLower);
+    updateFields.push(`domain = $${paramIndex++}`);
+    values.push(newDomain);
+  }
+
+  if (updates.company_name !== undefined) {
+    updateFields.push(`company_name = $${paramIndex++}`);
+    values.push(updates.company_name.trim());
+  }
+
+  if (updates.category !== undefined) {
+    updateFields.push(`category = $${paramIndex++}`);
+    values.push(updates.category);
+  }
+
+  if (updates.is_confirmed !== undefined) {
+    updateFields.push(`is_confirmed = $${paramIndex++}`);
+    values.push(updates.is_confirmed);
+  }
+
+  if (updateFields.length === 0) {
+    res.status(400).json({ error: 'No valid fields to update' });
+    return;
+  }
+
+  values.push(id);
+
+  const result = await pool.query(
+    `UPDATE bot_senders
+     SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $${paramIndex}
+     RETURNING id, email_pattern, domain, company_name, category, is_confirmed, created_at, updated_at`,
+    values
+  );
+
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: 'Bot sender not found' });
+    return;
+  }
+
+  const row = result.rows[0];
+  const sender: BotSender = {
+    id: row.id,
+    email_pattern: row.email_pattern,
+    domain: row.domain,
+    company_name: row.company_name,
+    category: row.category,
+    is_confirmed: row.is_confirmed,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString()
+  };
+
+  console.log('[bot-senders] Updated pattern: %s', sender.email_pattern);
+  res.json(sender);
 });
 
 // Delete bot sender
 router.delete('/:id', requireAuth, async (req, res): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    if (!isValidUUID(id)) {
-      res.status(400).json({ error: 'Invalid ID format' });
-      return;
-    }
+  const result = await pool.query(
+    'DELETE FROM bot_senders WHERE id = $1 RETURNING email_pattern',
+    [id]
+  );
 
-    const result = await pool.query(
-      'DELETE FROM bot_senders WHERE id = $1 RETURNING email_address',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Bot sender not found' });
-      return;
-    }
-
-    console.log('[bot-senders] Deleted sender: %s', result.rows[0].email_address);
-    res.status(204).send();
-  } catch (error) {
-    console.error('Error deleting bot sender:', error);
-    res.status(500).json({ error: 'Failed to delete bot sender' });
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: 'Bot sender not found' });
+    return;
   }
+
+  console.log('[bot-senders] Deleted pattern: %s', result.rows[0].email_pattern);
+  res.status(204).send();
 });
 
 export default router;
