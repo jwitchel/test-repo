@@ -3,6 +3,7 @@
 import { Box, Container } from '@mui/material';
 import { MuiNavbar } from './navbar';
 import { MuiFooter } from './footer';
+import { PersistentAlertBanner } from './persistent-alert-banner';
 
 interface MuiAuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -24,6 +25,7 @@ export function MuiAuthenticatedLayout({ children, user, onSignOut }: MuiAuthent
       <MuiNavbar variant="authenticated" user={user} onSignOut={onSignOut} />
       <Box component="main" sx={{ flex: 1 }}>
         <Container maxWidth="lg" sx={{ py: 3 }}>
+          <PersistentAlertBanner />
           {children}
         </Container>
       </Box>
