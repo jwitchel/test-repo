@@ -1,7 +1,7 @@
 import { ImapOperations } from './imap-operations';
 import { LLMMetadata } from './llm-client';
 import { FolderPreferences } from '../types/settings';
-import { EmailActionType } from '../types/email-action-tracking';
+import { EmailActionType, EMAIL_ACTION_DESCRIPTIONS } from '../types/email-action-tracking';
 
 export interface ActionRouteResult {
   folder: string;
@@ -191,6 +191,6 @@ export class EmailActionRouter {
    * Get a human-readable description of the action
    */
   getActionDescription(recommendedAction: LLMMetadata['recommendedAction']): string {
-    return EmailActionType.DESCRIPTIONS[recommendedAction] || 'Unknown action';
+    return EMAIL_ACTION_DESCRIPTIONS[recommendedAction];
   }
 }

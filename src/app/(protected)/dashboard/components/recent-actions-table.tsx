@@ -19,7 +19,7 @@ import { DataGrid, GridColDef, GridRenderCellParams, GridPaginationModel } from 
 import Link from 'next/link';
 import useSWR from 'swr';
 import { formatDistanceToNow } from 'date-fns';
-import { EmailActionType } from '../../../../../server/src/types/email-action-tracking';
+import { EmailActionType, EMAIL_ACTION_LABELS } from '../../../../../server/src/types/email-action-tracking';
 import { RelationshipType } from '../../../../../server/src/lib/relationships/types';
 import { RelationshipSelector } from './relationship-selector';
 import { ActionSelector } from './action-selector';
@@ -54,13 +54,15 @@ function getEmailColor(email: string): string {
   return emailAccountColors[Math.abs(hash) % emailAccountColors.length];
 }
 
-interface ColumnColors {
+interface ColumnConfig {
   relationshipColors: Record<string, string>;
   actionColors: Record<string, string>;
+  onRefresh?: () => void;
 }
 
-// DataGrid column definitions - accepts theme-aware colors
-function getColumns(colors: ColumnColors): GridColDef<RecentAction>[] {
+// DataGrid column definitions - accepts theme-aware colors and refresh callback
+function getColumns(config: ColumnConfig): GridColDef<RecentAction>[] {
+  const { relationshipColors: colors, actionColors, onRefresh } = config;
   return [
     {
       field: 'updatedAt',
@@ -93,7 +95,7 @@ function getColumns(colors: ColumnColors): GridColDef<RecentAction>[] {
             label={RelationshipType.LABELS.unknown}
             size="small"
             sx={{
-              backgroundColor: colors.relationshipColors.unknown ?? '#78909c',
+              backgroundColor: colors.unknown,
               color: 'white',
             }}
           />
@@ -117,11 +119,13 @@ function getColumns(colors: ColumnColors): GridColDef<RecentAction>[] {
               emailAddress={params.row.senderEmail}
               currentAction={params.row.actionTaken}
               relationshipType={params.row.relationship}
+              trackingId={params.row.id}
+              onActionChanged={onRefresh}
             />
           );
         }
-        const actionColor = colors.actionColors[params.row.actionTaken] ?? '#71717a';
-        const actionLabel = EmailActionType.LABELS[params.row.actionTaken] || params.row.actionTaken;
+        const actionColor = actionColors[params.row.actionTaken as EmailActionType];
+        const actionLabel = EMAIL_ACTION_LABELS[params.row.actionTaken as EmailActionType];
         return (
           <Chip
             label={actionLabel}
@@ -195,7 +199,7 @@ export function RecentActionsTable() {
   const offset = paginationModel.page * paginationModel.pageSize;
   const apiUrl = `/api/dashboard/recent-actions?limit=${paginationModel.pageSize}&offset=${offset}`;
 
-  const { data, error, isLoading, isValidating } = useSWR<RecentActionsData>(
+  const { data, error, isLoading, isValidating, mutate } = useSWR<RecentActionsData>(
     apiUrl,
     {
       refreshInterval: 30000,
@@ -215,8 +219,8 @@ export function RecentActionsTable() {
   }, [data]);
 
   const columns = useMemo(
-    () => getColumns({ relationshipColors: relColors, actionColors: actionColorsMap }),
-    [relColors, actionColorsMap]
+    () => getColumns({ relationshipColors: relColors, actionColors: actionColorsMap, onRefresh: () => mutate() }),
+    [relColors, actionColorsMap, mutate]
   );
 
   if (error) {
@@ -294,8 +298,8 @@ export function RecentActionsTable() {
         <Paper>
           <List disablePadding>
             {data.actions.map((action, index) => {
-              const actionColor = actionColorsMap[action.actionTaken as keyof typeof actionColorsMap] ?? '#71717a';
-              const actionLabel = EmailActionType.LABELS[action.actionTaken] || action.actionTaken;
+              const actionColor = actionColorsMap[action.actionTaken as EmailActionType];
+              const actionLabel = EMAIL_ACTION_LABELS[action.actionTaken as EmailActionType];
               return (
                 <ListItem
                   key={action.id}
@@ -319,6 +323,8 @@ export function RecentActionsTable() {
                           emailAddress={action.senderEmail}
                           currentAction={action.actionTaken}
                           relationshipType={action.relationship}
+                          trackingId={action.id}
+                          onActionChanged={() => mutate()}
                         />
                       </>
                     ) : (

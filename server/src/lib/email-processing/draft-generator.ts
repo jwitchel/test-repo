@@ -12,7 +12,7 @@ import { TypedNameRemover } from '../typed-name-remover';
 import { pool } from '../db';
 import { ParsedEmailData, UserContext } from './inbox-processor';
 import { encode as encodeHtml } from 'he';
-import { EmailActionType } from '../../types/email-action-tracking';
+import { isSilentAction, isSpamAction, isReplyAll } from '../../types/email-action-tracking';
 import { RelationshipType } from '../relationships/relationship-detector';
 import { StyleAggregationService } from '../style/style-aggregation-service';
 import type { Email as PostalMimeEmail, Address } from 'postal-mime';
@@ -178,9 +178,9 @@ export class DraftGenerator {
     // Clean any typed name that the LLM may have added
     const cleanedBody = await this._removeTypedName(aiResult.body, userId);
 
-    const isSilentAction = EmailActionType.isSilentAction(aiResult.meta.recommendedAction);
+    const isSilent = isSilentAction(aiResult.meta.recommendedAction);
 
-    const formattedDraft = isSilentAction
+    const formattedDraft = isSilent
       ? this._buildSilentDraft(parsed, aiResult.meta, aiResult.relationship, userContext, spamCheckResult)
       : this._buildReplyDraft(parsed, processedEmail.textContent!, cleanedBody, aiResult.meta, aiResult.relationship, userContext, spamCheckResult);
 
@@ -230,7 +230,7 @@ export class DraftGenerator {
     const meta = actionAnalysis.meta;
 
     // Build relationship result
-    const relationship = EmailActionType.isSpamAction(meta.recommendedAction)
+    const relationship = isSpamAction(meta.recommendedAction)
       ? { type: RelationshipType.SPAM, confidence: 0.9 }
       : { type: detectedRelationship.relationship, confidence: detectedRelationship.confidence };
 
@@ -294,7 +294,7 @@ export class DraftGenerator {
     }
 
     // Step 4: Response Generation (single LLM call - action analysis already done)
-    const needsResponse = !EmailActionType.isSilentAction(analysis.meta.recommendedAction);
+    const needsResponse = !isSilentAction(analysis.meta.recommendedAction);
     let responseMessage = '';
 
     if (needsResponse) {
@@ -416,8 +416,8 @@ export class DraftGenerator {
       ? parsed.subject!
       : `Re: ${parsed.subject!}`;
 
-    const isReplyAll = EmailActionType.isReplyAll(meta.recommendedAction);
-    const { to, cc } = isReplyAll
+    const shouldReplyAll = isReplyAll(meta.recommendedAction);
+    const { to, cc } = shouldReplyAll
       ? this._calculateReplyAllRecipients(parsed, userContext.userEmail)
       : { to: this._formatEmailAddress(fromAddress?.name, fromAddress!.address), cc: '' };
 

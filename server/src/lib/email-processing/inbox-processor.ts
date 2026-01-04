@@ -11,7 +11,7 @@ import { withImapContext } from '../imap-context';
 import { emailStorageService } from '../email-storage-service';
 import { ProcessedEmail, DraftEmail, SpamCheckResult } from '../pipeline/types';
 import { pool } from '../db';
-import { EmailActionType, EmailDirection } from '../../types/email-action-tracking';
+import { EmailActionType, EmailDirection, isDraftAction, isSilentAction, hasActionSubPreference } from '../../types/email-action-tracking';
 import { simpleParser } from 'mailparser';
 import { PoolClient } from 'pg';
 import { EmailActionRouter } from '../email-action-router';
@@ -420,12 +420,12 @@ export class InboxProcessor {
     preferences: ResolvedUserPreferences
   ): EmailActionType {
     // GATE: Draft actions → KEEP_IN_INBOX when draft generation is disabled
-    if (!preferences.actionPreferences.draftGeneration && EmailActionType.isDraftAction(rawAction)) {
+    if (!preferences.actionPreferences.draftGeneration && isDraftAction(rawAction)) {
       return EmailActionType.KEEP_IN_INBOX;
     }
 
     // GATE: Silent actions → KEEP_IN_INBOX when sub-preference is disabled
-    if (EmailActionType.hasActionSubPreference(rawAction) &&
+    if (hasActionSubPreference(rawAction) &&
         !preferences.actionPreferences.silentActions[rawAction]) {
       return EmailActionType.KEEP_IN_INBOX;
     }
@@ -557,7 +557,7 @@ export class InboxProcessor {
     const folderPrefs = context.preferences.folderPreferences;
 
     // Silent actions (including KEEP_IN_INBOX): Move email to appropriate folder
-    if (EmailActionType.isSilentAction(effectiveAction)) {
+    if (isSilentAction(effectiveAction)) {
       const result = await emailMover.moveEmail({
         emailAccountId: context.accountId,
         userId: context.userId,
@@ -580,7 +580,7 @@ export class InboxProcessor {
     }
 
     // Draft actions: Upload draft if we have one and draftGeneration is enabled
-    if (EmailActionType.isDraftAction(effectiveAction) && draft) {
+    if (isDraftAction(effectiveAction) && draft) {
       // draftGeneration must be enabled (already checked in _applyPreferenceGates)
       // If it was disabled, effectiveAction would be KEEP_IN_INBOX, not a draft action
       const result = await emailMover.uploadDraft({
@@ -831,7 +831,7 @@ export class InboxProcessor {
       );
     }
 
-    if (EmailActionType.isDraftAction(effectiveAction)) {
+    if (isDraftAction(effectiveAction)) {
       const llmParsedData: ParsedEmailData = {
         ...parsedData,
         processedEmail: { ...parsedData.processedEmail, fullMessage: llmSafeMessage }
