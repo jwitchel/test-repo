@@ -63,6 +63,20 @@ export const relationshipColors = {
 } as const;
 
 /**
+ * Display labels for relationship types
+ */
+export const relationshipLabels: Record<string, string> = {
+  spouse: 'Spouse',
+  family: 'Family',
+  colleague: 'Colleague',
+  friends: 'Friends',
+  bot: 'Bot',
+  external: 'External',
+  spam: 'Spam',
+  unknown: 'Unknown',
+};
+
+/**
  * Chart color palette for eCharts
  * Ordered for visual distinction in stacked charts
  * Uses steel blue family colors for harmony

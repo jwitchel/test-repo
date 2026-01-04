@@ -44,11 +44,13 @@ import { useConfirm } from '@/components/confirm-dialog';
 import { useAuth } from '@/lib/auth-context';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { MuiAuthenticatedLayout } from '@/components/mui';
+import { RegexTesterDialog, CommonPattern } from '@/components/regex-tester-dialog';
 
 // Types
 interface BotSender {
   id: string;
-  email_address: string;
+  email_pattern: string;
+  domain: string;
   company_name: string;
   category: string;
   is_confirmed: boolean;
@@ -62,7 +64,7 @@ interface BotSendersResponse {
 }
 
 interface BotSenderFormData {
-  email_address: string;
+  email_pattern: string;
   company_name: string;
   category: string;
   is_confirmed: boolean;
@@ -93,11 +95,26 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 const DEFAULT_FORM_DATA: BotSenderFormData = {
-  email_address: '',
+  email_pattern: '',
   company_name: '',
   category: 'other',
   is_confirmed: true,
 };
+
+// Common bot email patterns for testing
+const BOT_COMMON_PATTERNS: CommonPattern[] = [
+  { pattern: 'noreply@.*\\.example\\.com', desc: 'Subdomain no-reply' },
+  { pattern: 'notifications@.*\\.example\\.com', desc: 'Subdomain notifications' },
+  { pattern: 'receipts@example\\.com', desc: 'Receipts inbox' },
+  { pattern: 'support@example\\.com', desc: 'Support inbox (exact match)' },
+];
+
+// Sample emails to test patterns against
+const SAMPLE_BOT_EMAILS = `noreply@email.example.com
+notifications@mail.example.com
+receipts@example.com
+support@example.com
+marketing@promo.example.com`;
 
 // DataGrid column definitions
 const getColumns = (
@@ -107,11 +124,12 @@ const getColumns = (
   {
     field: 'category',
     headerName: 'Category',
-    width: 150,
+    width: 130,
     valueGetter: (value: string) => CATEGORY_LABELS[value] ?? value,
   },
-  { field: 'company_name', headerName: 'Company', flex: 1, minWidth: 150 },
-  { field: 'email_address', headerName: 'Email Address', flex: 1.5, minWidth: 200 },
+  { field: 'company_name', headerName: 'Company', flex: 1, minWidth: 120 },
+  { field: 'email_pattern', headerName: 'Pattern', flex: 1.5, minWidth: 200 },
+  { field: 'domain', headerName: 'Domain', width: 150 },
   {
     field: 'is_confirmed',
     headerName: 'Active',
@@ -153,16 +171,19 @@ interface BotSenderDialogProps {
 function BotSenderDialog({ open, onClose, sender, onSuccess }: BotSenderDialogProps) {
   const isEdit = Boolean(sender);
   const [isSaving, setIsSaving] = useState(false);
+  const [regexTesterOpen, setRegexTesterOpen] = useState(false);
   const { success, error: showError } = useMuiToast();
 
-  const { control, handleSubmit, reset } = useForm<BotSenderFormData>({
+  const { control, handleSubmit, reset, watch, setValue } = useForm<BotSenderFormData>({
     defaultValues: DEFAULT_FORM_DATA,
   });
+
+  const currentPattern = watch('email_pattern');
 
   const handleDialogEnter = () => {
     if (sender) {
       reset({
-        email_address: sender.email_address,
+        email_pattern: sender.email_pattern,
         company_name: sender.company_name,
         category: sender.category,
         is_confirmed: sender.is_confirmed,
@@ -170,6 +191,10 @@ function BotSenderDialog({ open, onClose, sender, onSuccess }: BotSenderDialogPr
     } else {
       reset(DEFAULT_FORM_DATA);
     }
+  };
+
+  const handleSetPattern = (pattern: string) => {
+    setValue('email_pattern', pattern);
   };
 
   const onSubmit = async (formData: BotSenderFormData) => {
@@ -200,60 +225,94 @@ function BotSenderDialog({ open, onClose, sender, onSuccess }: BotSenderDialogPr
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      disableRestoreFocus
-      slotProps={{ transition: { onEnter: handleDialogEnter } }}
-    >
-      <DialogTitle>{isEdit ? 'Edit' : 'Add'} Bot Sender</DialogTitle>
-      <DialogContent>
-        <DialogContentText mb={2}>
-          {isEdit
-            ? 'Update bot sender configuration'
-            : 'Add a known automated email sender. Only active entries are used for detection.'}
-        </DialogContentText>
-        <Stack>
-          <TextFieldElement
-            name="email_address"
-            control={control}
-            label="Email Address"
-            placeholder="e.g., no-reply@example.com"
-            rules={{ required: 'Email address is required' }}
-          />
-          <TextFieldElement
-            name="company_name"
-            control={control}
-            label="Company Name"
-            placeholder="e.g., American Airlines"
-            rules={{ required: 'Company name is required' }}
-          />
-          <SelectElement
-            name="category"
-            control={control}
-            label="Category"
-            options={CATEGORIES}
-          />
-          <SwitchElement
-            name="is_confirmed"
-            control={control}
-            label="Active (used for detection)"
-          />
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit(onSubmit)}
-          loading={isSaving}
-        >
-          {isEdit ? 'Save Changes' : 'Add Bot Sender'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth="sm"
+        fullWidth
+        disableRestoreFocus
+        slotProps={{ transition: { onEnter: handleDialogEnter } }}
+      >
+        <DialogTitle>{isEdit ? 'Edit' : 'Add'} Bot Sender</DialogTitle>
+        <DialogContent>
+          <DialogContentText mb={2}>
+            {isEdit
+              ? 'Update bot sender configuration'
+              : 'Add a known automated email sender pattern. Only active entries are used for detection.'}
+          </DialogContentText>
+          <Stack spacing={2}>
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="flex-start">
+                <TextFieldElement
+                  name="email_pattern"
+                  control={control}
+                  label="Email Pattern (regex)"
+                  placeholder="e.g., noreply@.*\.example\.com"
+                  rules={{ required: 'Email pattern is required' }}
+                  fullWidth
+                  slotProps={{
+                    input: { style: { fontFamily: 'monospace', fontSize: '0.875rem' } },
+                  }}
+                />
+                <Button
+                  variant="outlined"
+                  onClick={() => setRegexTesterOpen(true)}
+                  sx={{ mt: '8px !important', minWidth: 'auto', px: 2 }}
+                >
+                  Test
+                </Button>
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                Pattern must include @ followed by domain (e.g., noreply@example.com or .*@mail.example.com)
+              </Typography>
+            </Box>
+            <TextFieldElement
+              name="company_name"
+              control={control}
+              label="Company Name"
+              placeholder="e.g., American Airlines"
+              rules={{ required: 'Company name is required' }}
+            />
+            <SelectElement
+              name="category"
+              control={control}
+              label="Category"
+              options={CATEGORIES}
+            />
+            <SwitchElement
+              name="is_confirmed"
+              control={control}
+              label="Active (used for detection)"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmit(onSubmit)}
+            loading={isSaving}
+          >
+            {isEdit ? 'Save Changes' : 'Add Bot Sender'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <RegexTesterDialog
+        open={regexTesterOpen}
+        onClose={() => setRegexTesterOpen(false)}
+        onAddPattern={handleSetPattern}
+        title="Test Bot Email Pattern"
+        description="Test your regex pattern against sample bot email addresses."
+        initialPattern={currentPattern}
+        defaultTestText={SAMPLE_BOT_EMAILS}
+        commonPatterns={BOT_COMMON_PATTERNS}
+        testTextLabel="Sample Emails (one per line)"
+        testTextRows={6}
+        addButtonLabel="Use Pattern"
+      />
+    </>
   );
 }
 
@@ -276,6 +335,7 @@ export default function BotSendersPage() {
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [activeFilter, setActiveFilter] = useState<string>('');
 
   // Build URL with query params for server-side pagination
   const buildUrl = useCallback(() => {
@@ -284,8 +344,9 @@ export default function BotSendersPage() {
     params.set('pageSize', paginationModel.pageSize.toString());
     if (searchTerm) params.set('search', searchTerm);
     if (categoryFilter) params.set('category', categoryFilter);
+    if (activeFilter) params.set('active', activeFilter);
     return `/api/bot-senders?${params.toString()}`;
-  }, [paginationModel.page, paginationModel.pageSize, searchTerm, categoryFilter]);
+  }, [paginationModel.page, paginationModel.pageSize, searchTerm, categoryFilter, activeFilter]);
 
   // Data fetching with server-side pagination
   const { data, error, isLoading } = useSWR<BotSendersResponse>(buildUrl());
@@ -306,7 +367,7 @@ export default function BotSendersPage() {
   const handleDeleteClick = (sender: BotSender) => {
     showConfirm({
       title: 'Delete Bot Sender',
-      description: `Are you sure you want to delete ${sender.email_address}? This action cannot be undone.`,
+      description: `Are you sure you want to delete the pattern "${sender.email_pattern}"? This action cannot be undone.`,
       confirmationText: 'Delete',
       onConfirm: async () => {
         const response = await fetch(`/api/bot-senders/${sender.id}`, {
@@ -348,7 +409,7 @@ export default function BotSendersPage() {
       <Paper sx={{ p: 2, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField
-            placeholder="Search by email or company..."
+            placeholder="Search by pattern or company..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -366,7 +427,7 @@ export default function BotSendersPage() {
               },
             }}
           />
-          <FormControl size="small" sx={{ minWidth: 150 }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Category</InputLabel>
             <Select
               value={categoryFilter}
@@ -376,19 +437,36 @@ export default function BotSendersPage() {
                 setPaginationModel(prev => ({ ...prev, page: 0 }));
               }}
             >
-              <MenuItem value="">All Categories</MenuItem>
+              <MenuItem value="">All</MenuItem>
               {CATEGORIES.map(cat => (
                 <MenuItem key={cat.id} value={cat.id}>{cat.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
-          {(searchTerm || categoryFilter) && (
+          <FormControl size="small" sx={{ minWidth: 100 }}>
+            <InputLabel>Active</InputLabel>
+            <Select
+              value={activeFilter}
+              label="Active"
+              onChange={(e) => {
+                setActiveFilter(e.target.value);
+                setPaginationModel(prev => ({ ...prev, page: 0 }));
+              }}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="true">Active</MenuItem>
+              <MenuItem value="false">Pending</MenuItem>
+            </Select>
+          </FormControl>
+          {(searchTerm || categoryFilter || activeFilter) && (
             <Button
               variant="outlined"
               size="small"
+              sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
               onClick={() => {
                 setSearchTerm('');
                 setCategoryFilter('');
+                setActiveFilter('');
                 setPaginationModel(prev => ({ ...prev, page: 0 }));
               }}
             >
@@ -413,11 +491,11 @@ export default function BotSendersPage() {
           <CardContent sx={{ py: 4, textAlign: 'center' }}>
             <AddIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
             <Typography color="text.secondary" mb={2}>
-              {rowCount === 0 && !searchTerm && !categoryFilter
+              {rowCount === 0 && !searchTerm && !categoryFilter && !activeFilter
                 ? 'No bot senders configured yet'
                 : 'No bot senders match your filters'}
             </Typography>
-            {rowCount === 0 && !searchTerm && !categoryFilter && (
+            {rowCount === 0 && !searchTerm && !categoryFilter && !activeFilter && (
               <Button variant="contained" onClick={openAddDialog}>
                 Add Bot Sender
               </Button>
@@ -448,14 +526,16 @@ export default function BotSendersPage() {
                 >
                   <ListItemText
                     primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {sender.email_address}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                          {sender.email_pattern}
+                        </Typography>
                         {sender.is_confirmed && (
                           <Chip label="Active" size="small" color="success" />
                         )}
                       </Box>
                     }
-                    secondary={`${sender.company_name} • ${CATEGORY_LABELS[sender.category] ?? sender.category}`}
+                    secondary={`${sender.company_name} • ${sender.domain} • ${CATEGORY_LABELS[sender.category] ?? sender.category}`}
                   />
                 </ListItem>
               ))}

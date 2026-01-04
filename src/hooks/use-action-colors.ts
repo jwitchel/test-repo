@@ -17,7 +17,7 @@ export function useActionColors() {
 /**
  * Hook to get a specific action color
  */
-export function useActionColor(actionType: EmailActionType | string): string {
+export function useActionColor(actionType: EmailActionType): string {
   const colors = useActionColors();
-  return colors[actionType as EmailActionType] ?? colors[EmailActionType.PENDING];
+  return colors[actionType];
 }

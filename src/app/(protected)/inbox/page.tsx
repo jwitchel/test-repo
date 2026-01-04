@@ -426,7 +426,7 @@ function InboxContent() {
                     {/* Recommended Action */}
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="body2" color="text.secondary" fontWeight="medium" gutterBottom>
-                        Action Taken
+                        Recommended Action
                       </Typography>
                       <Chip
                         label={EmailActionType.LABELS[llmResponse.meta.recommendedAction]}
