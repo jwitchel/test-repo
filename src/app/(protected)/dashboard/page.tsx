@@ -117,7 +117,7 @@ export default function MuiDashboardPage() {
     data: emailAccounts,
     isLoading: accountsLoading,
     mutate: mutateAccounts,
-  } = useSWR<EmailAccount[]>('/api/email-accounts');
+  } = useSWR<EmailAccount[]>('/api/email-accounts', { refreshInterval: 60000 });
 
   const { data: providers, isLoading: providersLoading } = useSWR<LLMProvider[]>('/api/llm-providers');
 
