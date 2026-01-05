@@ -11,7 +11,7 @@ import { withImapContext } from '../imap-context';
 import { emailStorageService } from '../email-storage-service';
 import { ProcessedEmail, DraftEmail, SpamCheckResult } from '../pipeline/types';
 import { pool } from '../db';
-import { EmailActionType, EmailDirection } from '../../types/email-action-tracking';
+import { EmailActionType, EmailDirection, isDraftAction, isSilentAction, hasActionSubPreference } from '../../types/email-action-tracking';
 import { simpleParser } from 'mailparser';
 import { PoolClient } from 'pg';
 import { EmailActionRouter } from '../email-action-router';
@@ -19,6 +19,7 @@ import { EmailRepository } from '../repositories/email-repository';
 import { preferencesService } from '../preferences-service';
 import { ResolvedUserPreferences } from '../../types/settings';
 import { getSpamDetector } from './spam-detector';
+import { getBotDetector, BotCheckResult } from './bot-detector';
 import { stripAttachments } from '../email-attachment-stripper';
 import { normalizeMessageId } from '../message-id-utils';
 import { RelationshipType } from '../relationships/types';
@@ -356,6 +357,20 @@ export class InboxProcessor {
   }
 
   /**
+   * Check if email is from a known bot/automated sender
+   * Deterministic detection - no LLM, no heuristics
+   * @private
+   */
+  private async _checkBot(
+    _context: ProcessingContext,
+    parsedData: ParsedEmailData
+  ): Promise<BotCheckResult> {
+    const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase();
+    const botDetector = getBotDetector();
+    return botDetector.checkBot({ senderEmail });
+  }
+
+  /**
    * Check if email is spam (GATED by spamDetection preference)
    * @private
    */
@@ -405,12 +420,12 @@ export class InboxProcessor {
     preferences: ResolvedUserPreferences
   ): EmailActionType {
     // GATE: Draft actions → KEEP_IN_INBOX when draft generation is disabled
-    if (!preferences.actionPreferences.draftGeneration && EmailActionType.isDraftAction(rawAction)) {
+    if (!preferences.actionPreferences.draftGeneration && isDraftAction(rawAction)) {
       return EmailActionType.KEEP_IN_INBOX;
     }
 
     // GATE: Silent actions → KEEP_IN_INBOX when sub-preference is disabled
-    if (EmailActionType.hasActionSubPreference(rawAction) &&
+    if (hasActionSubPreference(rawAction) &&
         !preferences.actionPreferences.silentActions[rawAction]) {
       return EmailActionType.KEEP_IN_INBOX;
     }
@@ -542,7 +557,7 @@ export class InboxProcessor {
     const folderPrefs = context.preferences.folderPreferences;
 
     // Silent actions (including KEEP_IN_INBOX): Move email to appropriate folder
-    if (EmailActionType.isSilentAction(effectiveAction)) {
+    if (isSilentAction(effectiveAction)) {
       const result = await emailMover.moveEmail({
         emailAccountId: context.accountId,
         userId: context.userId,
@@ -565,7 +580,7 @@ export class InboxProcessor {
     }
 
     // Draft actions: Upload draft if we have one and draftGeneration is enabled
-    if (EmailActionType.isDraftAction(effectiveAction) && draft) {
+    if (isDraftAction(effectiveAction) && draft) {
       // draftGeneration must be enabled (already checked in _applyPreferenceGates)
       // If it was disabled, effectiveAction would be KEEP_IN_INBOX, not a draft action
       const result = await emailMover.uploadDraft({
@@ -668,6 +683,7 @@ export class InboxProcessor {
     context: ProcessingContext,
     parsedData: ParsedEmailData,
     userContext: UserContext,
+    botResult: BotCheckResult,
     spamResult: SpamCheckResult,
     isSpam: boolean,
     llmSafeMessage: string,
@@ -677,6 +693,25 @@ export class InboxProcessor {
       return {
         rawAction: preGeneratedDraft.meta.recommendedAction as EmailActionType,
         analysis: null
+      };
+    }
+
+    // Bot emails → SILENT_FYI_ONLY (no LLM needed)
+    if (botResult.isBot) {
+      return {
+        rawAction: EmailActionType.SILENT_FYI_ONLY,
+        analysis: {
+          meta: {
+            recommendedAction: EmailActionType.SILENT_FYI_ONLY,
+            keyConsiderations: botResult.indicators,
+            contextFlags: {
+              ...this._computeStructuralContextFlags(parsedData),
+              inboundMsgAddressedTo: 'you' as const,
+              urgencyLevel: 'low' as const
+            }
+          },
+          relationship: { type: RelationshipType.BOT, confidence: 1.0 }
+        }
       };
     }
 
@@ -736,6 +771,7 @@ export class InboxProcessor {
     context: ProcessingContext,
     parsedData: ParsedEmailData,
     userContext: UserContext,
+    botResult: BotCheckResult,
     spamResult: SpamCheckResult,
     isSpam: boolean,
     effectiveAction: EmailActionType,
@@ -748,6 +784,24 @@ export class InboxProcessor {
         preGeneratedDraft.meta.recommendedAction = effectiveAction;
       }
       return preGeneratedDraft;
+    }
+
+    // Bot emails → metadata-only draft with bot indicators
+    if (botResult.isBot) {
+      return this._createMetadataOnlyDraft(
+        parsedData,
+        userContext,
+        {
+          recommendedAction: effectiveAction,
+          keyConsiderations: botResult.indicators,
+          contextFlags: {
+            ...this._computeStructuralContextFlags(parsedData),
+            inboundMsgAddressedTo: 'you' as const,
+            urgencyLevel: 'low' as const
+          }
+        },
+        { type: RelationshipType.BOT, confidence: 1.0 }
+      );
     }
 
     if (isSpam) {
@@ -777,7 +831,7 @@ export class InboxProcessor {
       );
     }
 
-    if (EmailActionType.isDraftAction(effectiveAction)) {
+    if (isDraftAction(effectiveAction)) {
       const llmParsedData: ParsedEmailData = {
         ...parsedData,
         processedEmail: { ...parsedData.processedEmail, fullMessage: llmSafeMessage }
@@ -881,14 +935,35 @@ export class InboxProcessor {
       parsedData.parsed
     );
 
-    // Check if email is spam
-    const spamResult = await this._checkSpam(context, parsedData, userContext, llmSafeMessage);
+    // Check for bot BEFORE spam (bots are known-good, not spam)
+    const botResult = await this._checkBot(context, parsedData);
+    if (botResult.isBot) {
+      console.log(`[InboxProcessor] Bot detected: ${botResult.indicators.join(', ')}`);
 
-    // Determine action
+      const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase();
+      const senderName = parsedData.processedEmail.from[0].name ?? senderEmail;
+
+      // Create person with BOT relationship
+      await personService.findOrCreatePerson({
+        userId: context.userId,
+        name: botResult.companyName ?? senderName,
+        emailAddress: senderEmail,
+        relationshipType: RelationshipType.BOT,
+        confidence: 1.0
+      });
+    }
+
+    // Spam check ONLY for non-bots (bots are never spam, skip the check entirely)
+    const spamResult: SpamCheckResult = botResult.isBot
+      ? { isSpam: false, indicators: [], senderResponseCount: 0 }
+      : await this._checkSpam(context, parsedData, userContext, llmSafeMessage);
+
+    // Determine action (considers both bot and spam status)
     const { rawAction, analysis } = await this._determineAction(
       context,
       parsedData,
       userContext,
+      botResult,
       spamResult,
       spamResult.isSpam,
       llmSafeMessage,
@@ -898,11 +973,12 @@ export class InboxProcessor {
     // Apply preference gates
     const effectiveAction = this._applyPreferenceGates(rawAction, context.preferences);
 
-    // Generate draft
+    // Generate draft (considers both bot and spam status)
     const draft = await this._generateDraft(
       context,
       parsedData,
       userContext,
+      botResult,
       spamResult,
       spamResult.isSpam,
       effectiveAction,

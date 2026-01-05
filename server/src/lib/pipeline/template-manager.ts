@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { SelectedExample } from './example-selector';
 import { RelationshipProfile } from './types';
-import { WritingPatterns } from './writing-pattern-analyzer';
+import { WritingPatterns, OpeningPattern, SentencePatterns, ParagraphPattern, NegativePattern, ResponsePatterns, UniqueExpression } from './writing-pattern-analyzer';
 import { SpamCheckResult } from './types';
 import { AggregatedStyle } from '../style/style-aggregation-service';
 import { SimplifiedEmailMetadata } from './types';
@@ -32,8 +32,8 @@ export interface PromptTemplateData {
   // Relationship profile with aggregated style
   profile?: EnhancedRelationshipProfile | null;
 
-  // Writing patterns
-  patterns?: WritingPatterns;
+  // Writing patterns (transformed for template use)
+  patterns?: TransformedWritingPatterns;
 
   // Template-specific data
   availableActions?: string;  // For action-analysis template
@@ -52,6 +52,27 @@ export interface EnhancedRelationshipProfile extends RelationshipProfile {
   aggregatedStyle?: AggregatedStyle;
   personName?: string;
   relationshipType?: string;
+}
+
+// Transformed pattern types for templates
+interface TransformedOpeningPattern extends OpeningPattern {
+  isInstruction: boolean;
+}
+
+interface TransformedValedictionPattern {
+  phrase: string;
+  percentage: number;
+  isInstruction: boolean;
+}
+
+interface TransformedWritingPatterns {
+  sentencePatterns: SentencePatterns;
+  paragraphPatterns: ParagraphPattern[];
+  openingPatterns: TransformedOpeningPattern[];
+  valediction: TransformedValedictionPattern[];
+  negativePatterns: NegativePattern[];
+  responsePatterns: ResponsePatterns;
+  uniqueExpressions: UniqueExpression[];
 }
 
 export interface FormattedExample {
@@ -102,7 +123,7 @@ export class TemplateManager {
     });
     
     // Equality helper
-    Handlebars.registerHelper('eq', (a: any, b: any) => {
+    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => {
       return a === b;
     });
     
@@ -119,12 +140,12 @@ export class TemplateManager {
     });
     
     // Check if array has items
-    Handlebars.registerHelper('hasItems', (array: any[]) => {
+    Handlebars.registerHelper('hasItems', (array: unknown[]) => {
       return Array.isArray(array) && array.length > 0;
     });
-    
+
     // Get array length safely
-    Handlebars.registerHelper('length', (array: any[]) => {
+    Handlebars.registerHelper('length', (array: unknown[]) => {
       return Array.isArray(array) ? array.length : 0;
     });
   }
@@ -180,7 +201,7 @@ export class TemplateManager {
     return template(data);
   }
 
-  async renderSystemPrompt(templateName: string = 'default', data?: any): Promise<string> {
+  async renderSystemPrompt(templateName: string = 'default', data?: Record<string, unknown>): Promise<string> {
     const template = await this.loadTemplate(templateName, 'system');
     return template(data);
   }
@@ -189,10 +210,10 @@ export class TemplateManager {
     return examples.map(ex => ({
       text: this._transformExampleText(ex.text),
       relationship: ex.metadata.relationship?.type || ex.metadata.relationship || 'unknown',
-      score: ex.scores?.combined || (ex as any).score,  // Backwards compat
-      semanticScore: ex.scores?.semantic,  // NEW: Semantic similarity
-      styleScore: ex.scores?.style,        // NEW: Style similarity
-      combinedScore: ex.scores?.combined || (ex as any).score,  // NEW: Combined score
+      score: ex.scores?.combined,
+      semanticScore: ex.scores?.semantic,
+      styleScore: ex.scores?.style,
+      combinedScore: ex.scores?.combined,
       subject: ex.metadata.subject,
       formalityScore: ex.metadata.features?.stats?.formalityScore,
       sentiment: ex.metadata.features?.sentiment?.dominant,
@@ -293,7 +314,7 @@ export class TemplateManager {
     };
   }
 
-  private _transformPatternsForTemplate(patterns: WritingPatterns): any {
+  private _transformPatternsForTemplate(patterns: WritingPatterns): TransformedWritingPatterns {
     // Transform special placeholders into clear instructions
     return {
       ...patterns,

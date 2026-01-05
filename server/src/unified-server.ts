@@ -29,6 +29,7 @@ import schedulersRoutes from './routes/schedulers';
 import dashboardAnalyticsRoutes from './routes/dashboard-analytics';
 import actionRulesRoutes from './routes/action-rules';
 import alertsRoutes from './routes/alerts';
+import botSendersRoutes from './routes/bot-senders';
 
 import { pool } from './lib/db';
 import { auth } from './lib/auth';
@@ -134,9 +135,12 @@ async function main() {
   app.use('/api/dashboard', dashboardAnalyticsRoutes);
   app.use('/api/action-rules', actionRulesRoutes);
   app.use('/api/alerts', alertsRoutes);
+  app.use('/api/bot-senders', botSendersRoutes);
 
   await import('./lib/queue-events');
 
+  // Express error handlers require 4 params for Express to recognize them
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('Unhandled error:', err);
     if (res.headersSent) return;

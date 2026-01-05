@@ -14,7 +14,6 @@ export const actionColors = {
     [EmailActionType.SILENT_FYI_ONLY]: '#64748b',   // slate-500
     [EmailActionType.SILENT_SPAM]: '#c2410c',       // orange-700 (error)
     [EmailActionType.SILENT_LARGE_LIST]: '#64748b', // slate-500
-    [EmailActionType.SILENT_UNSUBSCRIBE]: '#64748b', // slate-500
     [EmailActionType.SILENT_TODO]: '#d97706',       // amber-600 (warning)
     [EmailActionType.KEEP_IN_INBOX]: '#ca8a04',     // yellow-600
     [EmailActionType.TRAINING]: '#3b6fb6',          // steel blue-500 (info)
@@ -29,7 +28,6 @@ export const actionColors = {
     [EmailActionType.SILENT_FYI_ONLY]: '#475569',   // slate-600
     [EmailActionType.SILENT_SPAM]: '#ea580c',       // orange-600 (error)
     [EmailActionType.SILENT_LARGE_LIST]: '#475569', // slate-600
-    [EmailActionType.SILENT_UNSUBSCRIBE]: '#475569', // slate-600
     [EmailActionType.SILENT_TODO]: '#f59e0b',       // amber-500 (warning)
     [EmailActionType.KEEP_IN_INBOX]: '#eab308',     // yellow-500
     [EmailActionType.TRAINING]: '#779bcc',          // steel blue-300 (info)
@@ -47,6 +45,7 @@ export const relationshipColors = {
     family: '#7c3aed',      // violet-600
     colleague: '#1e4577',   // steel blue-700
     friends: '#059669',     // emerald-600 (success)
+    bot: '#0284c7',         // sky-600 (automation)
     external: '#64748b',    // slate-500
     spam: '#c2410c',        // orange-700 (error)
     unknown: '#64748b',     // slate-500
@@ -56,11 +55,26 @@ export const relationshipColors = {
     family: '#a78bfa',      // violet-400
     colleague: '#5985c1',   // steel blue-400
     friends: '#10b981',     // emerald-500
+    bot: '#38bdf8',         // sky-400 (automation)
     external: '#94a3b8',    // slate-400
     spam: '#ea580c',        // orange-600 (error)
     unknown: '#94a3b8',     // slate-400
   },
 } as const;
+
+/**
+ * Display labels for relationship types
+ */
+export const relationshipLabels: Record<string, string> = {
+  spouse: 'Spouse',
+  family: 'Family',
+  colleague: 'Colleague',
+  friends: 'Friends',
+  bot: 'Bot',
+  external: 'External',
+  spam: 'Spam',
+  unknown: 'Unknown',
+};
 
 /**
  * Chart color palette for eCharts

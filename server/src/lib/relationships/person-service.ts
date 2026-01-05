@@ -2,6 +2,7 @@ import { Pool, PoolClient } from 'pg';
 import { pool as serverPool } from '../db';
 import { withTransaction } from '../db/transaction-utils';
 import { RelationshipType } from './types';
+import { isValidEmail, isValidUUID } from '../validation';
 
 // Custom error classes
 export class PersonServiceError extends Error {
@@ -95,7 +96,6 @@ export class PersonService {
   private pool: Pool;
   private readonly MAX_NAME_LENGTH = 255;
   private readonly MAX_EMAIL_LENGTH = 255;
-  private readonly EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   private suppressLogs = false;
 
   constructor(customPool?: Pool) {
@@ -130,7 +130,7 @@ export class PersonService {
       throw new ValidationError(`Email must be ${this.MAX_EMAIL_LENGTH} characters or less`);
     }
     
-    if (!this.EMAIL_REGEX.test(normalizedEmail)) {
+    if (!isValidEmail(normalizedEmail)) {
       throw new ValidationError('Invalid email format');
     }
   }
@@ -155,9 +155,7 @@ export class PersonService {
    * Validate UUID format
    */
   private _validateUUID(id: string, fieldName: string): void {
-    // Trust caller - id is typed as string; only validate format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!isValidUUID(id)) {
       throw new ValidationError(`Invalid ${fieldName} format`);
     }
   }

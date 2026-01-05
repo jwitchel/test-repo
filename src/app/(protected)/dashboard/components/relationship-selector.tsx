@@ -25,6 +25,7 @@ const RELATIONSHIP_OPTIONS = [
   { value: RelationshipType.FAMILY, label: 'Family' },
   { value: RelationshipType.COLLEAGUE, label: 'Colleague' },
   { value: RelationshipType.FRIENDS, label: 'Friends' },
+  { value: RelationshipType.BOT, label: 'Bot' },
   { value: RelationshipType.EXTERNAL, label: 'External' },
   { value: RelationshipType.SPAM, label: 'Spam' },
 ];

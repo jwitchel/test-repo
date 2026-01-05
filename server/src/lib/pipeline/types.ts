@@ -1,6 +1,6 @@
 // Type definitions for the tone learning pipeline
 
-import { LLMMetadata } from '../llm-client';
+import { ActionData } from '../llm-client';
 import { RelationshipType } from '../relationships/types';
 
 /**
@@ -88,7 +88,7 @@ export interface LLMDraftResult {
   recipientEmail: string;
   subject: string;
   body: string;
-  meta?: LLMMetadata;
+  meta?: ActionData;
   relationship: {
     type: string;
     confidence: number;
@@ -125,7 +125,7 @@ export interface DraftEmail {
   bodyHtml?: string;
   inReplyTo: string;
   references: string;
-  meta: LLMMetadata;
+  meta: ActionData;
   relationship: {
     type: string;
     confidence: number;

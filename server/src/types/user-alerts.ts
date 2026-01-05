@@ -15,6 +15,7 @@ export const AlertType = {
   RATE_LIMIT: 'rate_limit',
   QUOTA_EXCEEDED: 'quota_exceeded',
   SERVICE_UNAVAILABLE: 'service_unavailable',
+  DEFAULT_LLM_NOT_SET: 'default_llm_not_set',
 } as const;
 
 export type AlertType = (typeof AlertType)[keyof typeof AlertType];
@@ -45,6 +46,13 @@ export type SourceType = (typeof SourceType)[keyof typeof SourceType];
  * Threshold for considering an error persistent (not transient)
  */
 export const PERSISTENT_ERROR_THRESHOLD = 3;
+
+/**
+ * Source IDs for system-level alerts (not tied to specific entity UUIDs)
+ */
+export const AlertSourceId = {
+  DEFAULT_LLM: 'default-llm',
+} as const;
 
 /**
  * Parameters for creating an alert

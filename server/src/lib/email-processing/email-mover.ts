@@ -10,7 +10,7 @@ import { withImapContext } from '../imap-context';
 import { v4 as uuidv4 } from 'uuid';
 import * as nodemailer from 'nodemailer';
 import { EmailActionRouter } from '../email-action-router';
-import { LLMMetadata } from '../llm-client';
+import { ActionData } from '../llm-client';
 import { EmailActionType } from '../../types/email-action-tracking';
 import { EmailRepository } from '../repositories/email-repository';
 import { FolderPreferences } from '../../types/settings';
@@ -85,7 +85,7 @@ export interface UploadDraftParams {
   bodyHtml?: string;
   inReplyTo?: string;
   references?: string;
-  recommendedAction?: LLMMetadata['recommendedAction'];
+  recommendedAction?: ActionData['recommendedAction'];
   folderPreferences: FolderPreferences;
 }
 
@@ -104,7 +104,7 @@ export interface MoveEmailParams {
   messageUid: number;
   messageId: string; // The email's message ID for tracking (required for action updates)
   sourceFolder: string;
-  recommendedAction: LLMMetadata['recommendedAction'];
+  recommendedAction: ActionData['recommendedAction'];
   folderPreferences: FolderPreferences;
 }
 

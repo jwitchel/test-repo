@@ -28,6 +28,8 @@ import { useConfirm } from '@/components/confirm-dialog';
 import { useAuth } from '@/lib/auth-context';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { MuiAuthenticatedLayout } from '@/components/mui';
+import { relationshipColors, relationshipLabels } from '@/lib/theme/colors';
+import { RegexTesterDialog, CommonPattern } from '@/components/regex-tester-dialog';
 
 // Types
 interface UserPreferences {
@@ -45,7 +47,6 @@ interface UserPreferences {
     silentActions?: {
       'silent-fyi-only'?: boolean;
       'silent-large-list'?: boolean;
-      'silent-unsubscribe'?: boolean;
       'silent-todo'?: boolean;
     };
     draftGeneration?: boolean;
@@ -71,7 +72,6 @@ interface ActionPreferencesFormData {
   spamDetection: boolean;
   silentFyiOnly: boolean;
   silentLargeList: boolean;
-  silentUnsubscribe: boolean;
   silentTodo: boolean;
   draftGeneration: boolean;
 }
@@ -99,27 +99,6 @@ interface ActionRule {
   updatedAt: string;
 }
 
-// Colors for relationship badges
-const RELATIONSHIP_COLORS: Record<string, string> = {
-  spouse: '#ec4899',    // pink-500
-  family: '#a855f7',    // purple-500
-  colleague: '#3b82f6', // blue-500
-  friends: '#22c55e',   // green-500
-  external: '#6b7280',  // gray-500
-  spam: '#ef4444',      // red-500
-  unknown: '#71717a',   // zinc-500
-};
-
-const RELATIONSHIP_LABELS: Record<string, string> = {
-  spouse: 'Spouse',
-  family: 'Family',
-  colleague: 'Colleague',
-  friends: 'Friends',
-  external: 'External',
-  spam: 'Spam',
-  unknown: 'Unknown',
-};
-
 // Colors for action badges
 const ACTION_COLORS: Record<string, string> = {
   pending: '#a1a1aa',
@@ -130,7 +109,6 @@ const ACTION_COLORS: Record<string, string> = {
   'silent-fyi-only': '#71717a',
   'silent-spam': '#ef4444',
   'silent-large-list': '#78716c',
-  'silent-unsubscribe': '#737373',
   'silent-todo': '#f59e0b',
   'keep-in-inbox': '#eab308',
   training: '#06b6d4',
@@ -146,7 +124,6 @@ const ACTION_LABELS: Record<string, string> = {
   'silent-fyi-only': 'FYI Only',
   'silent-spam': 'Spam',
   'silent-large-list': 'Large List',
-  'silent-unsubscribe': 'Unsubscribe',
   'silent-todo': 'Todo',
   'keep-in-inbox': 'Keep in Inbox',
   training: 'Training',
@@ -167,6 +144,36 @@ interface FolderTestResult {
   }>;
 }
 
+// Helper to generate sample test email for regex testing
+function generateTestEmail(userName: string): string {
+  const nameParts = userName.split(' ');
+  const firstName = nameParts[0]!;
+  return `Hi there,
+
+Thanks for your email. I wanted to follow up on our conversation.
+
+Let me know if you have any questions.
+
+-${firstName}
+
+---
+${userName}
+CEO
+Company Inc.
+${firstName.toLowerCase()}@company.com`;
+}
+
+// Common signature regex patterns
+function getSignaturePatterns(userName: string): CommonPattern[] {
+  const firstName = userName.split(' ')[0]!;
+  return [
+    { pattern: '^-+\\s*$', desc: 'Line of dashes' },
+    { pattern: '^--\\s*$', desc: 'Standard signature delimiter' },
+    { pattern: `^[-\\s]*${firstName}\\s*$`, desc: 'Name with optional dash/spaces' },
+    { pattern: '---[\\s\\S]*?@company\\.com', desc: 'Multi-line signature block' },
+  ];
+}
+
 // Typed Name Settings Panel Component
 function TypedNameSettingsPanel() {
   const { success, error: showError } = useMuiToast();
@@ -182,6 +189,7 @@ function TypedNameSettingsPanel() {
   });
 
   const currentRegex = watch('removalRegex');
+  const userName = 'John'; // Default name for test examples
 
   useEffect(() => {
     const fetchPreferences = async () => {
@@ -288,7 +296,7 @@ function TypedNameSettingsPanel() {
             size="small"
           />
           <Typography variant="caption" color="text.secondary">
-            Text to append at the end of generated email responses. Leave empty to not append any name.
+            Your personal signature used in generated email responses. Leave empty if it&apos;s included in your signature block.
           </Typography>
         </Box>
         <Box>
@@ -306,220 +314,12 @@ function TypedNameSettingsPanel() {
         title="Test Name Removal Pattern"
         description="Test your regex pattern against sample text. The pattern will be set as your Name Removal Pattern."
         initialPattern={currentRegex}
+        defaultTestText={generateTestEmail(userName)}
+        commonPatterns={getSignaturePatterns(userName)}
+        testTextLabel="Test Email"
+        addButtonLabel="Set Pattern"
       />
     </>
-  );
-}
-
-// Regex Tester Dialog Component
-interface RegexTesterDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onAddPattern: (pattern: string) => void;
-  title?: string;
-  description?: string;
-  initialPattern?: string;
-  userName?: string;
-}
-
-function generateTestEmail(userName: string): string {
-  const nameParts = userName.split(' ');
-  const firstName = nameParts[0]!;
-  return `Hi there,
-
-Thanks for your email. I wanted to follow up on our conversation.
-
-Let me know if you have any questions.
-
--${firstName}
-
----
-${userName}
-CEO
-Company Inc.
-${firstName.toLowerCase()}@company.com`;
-}
-
-function RegexTesterDialog({
-  open,
-  onClose,
-  onAddPattern,
-  title = 'Test Regex Pattern',
-  description = 'Test your regex pattern against sample text before adding it.',
-  initialPattern = '',
-  userName = 'John',
-}: RegexTesterDialogProps) {
-  const [pattern, setPattern] = useState(initialPattern);
-  const [testText, setTestText] = useState('');
-  const [testResult, setTestResult] = useState<{
-    valid: boolean;
-    matched: boolean;
-    matchedText?: string;
-    error?: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setPattern(initialPattern);
-      setTestText(generateTestEmail(userName));
-      setTestResult(null);
-    }
-  }, [open, initialPattern, userName]);
-
-  const handleTest = () => {
-    if (!pattern.trim()) {
-      setTestResult({ valid: false, matched: false, error: 'Please enter a regex pattern' });
-      return;
-    }
-
-    try {
-      const regex = new RegExp(pattern, 'm');
-      const match = testText.match(regex);
-
-      if (match) {
-        setTestResult({
-          valid: true,
-          matched: true,
-          matchedText: match[0],
-        });
-      } else {
-        setTestResult({
-          valid: true,
-          matched: false,
-        });
-      }
-    } catch (err) {
-      setTestResult({
-        valid: false,
-        matched: false,
-        error: err instanceof Error ? err.message : 'Invalid regex pattern',
-      });
-    }
-  };
-
-  const handleAddPattern = () => {
-    if (!pattern.trim()) return;
-
-    try {
-      new RegExp(pattern);
-      onAddPattern(pattern.trim());
-      onClose();
-    } catch {
-      setTestResult({
-        valid: false,
-        matched: false,
-        error: 'Cannot add invalid regex pattern',
-      });
-    }
-  };
-
-  const commonPatterns = [
-    { pattern: '^-+\\s*$', desc: 'Line of dashes' },
-    { pattern: '^--\\s*$', desc: 'Standard signature delimiter' },
-    { pattern: `^[-\\s]*${userName.split(' ')[0]}\\s*$`, desc: 'Name with optional dash/spaces' },
-    { pattern: '---[\\s\\S]*?@company\\.com', desc: 'Multi-line signature block' },
-  ];
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth disableRestoreFocus>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
-        <DialogContentText sx={{ mb: 2 }}>{description}</DialogContentText>
-        <Stack spacing={3}>
-          <Box>
-            <Typography variant="body2" fontWeight="medium" gutterBottom>
-              Regex Pattern
-            </Typography>
-            <TextField
-              value={pattern}
-              onChange={(e) => setPattern(e.target.value)}
-              placeholder="e.g., ^-+\s*$"
-              fullWidth
-              size="small"
-              slotProps={{
-                input: { style: { fontFamily: 'monospace', fontSize: '0.875rem' } },
-              }}
-            />
-          </Box>
-          <Box>
-            <Typography variant="body2" fontWeight="medium" gutterBottom>
-              Test Email
-            </Typography>
-            <TextField
-              value={testText}
-              onChange={(e) => setTestText(e.target.value)}
-              multiline
-              rows={8}
-              fullWidth
-              size="small"
-              slotProps={{
-                input: { style: { fontFamily: 'monospace', fontSize: '0.875rem' } },
-              }}
-            />
-          </Box>
-          <Button variant="outlined" onClick={handleTest} fullWidth>
-            Test Pattern
-          </Button>
-          {testResult && (
-            <Alert
-              severity={testResult.error ? 'error' : testResult.matched ? 'success' : 'warning'}
-            >
-              {testResult.error ? (
-                testResult.error
-              ) : testResult.matched ? (
-                <Box>
-                  <Typography variant="body2" fontWeight="medium">
-                    Pattern matched!
-                  </Typography>
-                  <Box
-                    component="pre"
-                    sx={{
-                      mt: 1,
-                      p: 1,
-                      bgcolor: 'action.hover',
-                      borderRadius: 1,
-                      fontSize: '0.75rem',
-                      fontFamily: 'monospace',
-                      whiteSpace: 'pre-wrap',
-                      overflow: 'auto',
-                    }}
-                  >
-                    {testResult.matchedText}
-                  </Box>
-                </Box>
-              ) : (
-                'No match found in test text'
-              )}
-            </Alert>
-          )}
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Typography variant="body2" fontWeight="medium" gutterBottom>
-              Common Patterns:
-            </Typography>
-            <Stack spacing={0.5}>
-              {commonPatterns.map((cp, idx) => (
-                <Typography key={idx} variant="caption" color="text.secondary">
-                  <Box
-                    component="code"
-                    sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, cursor: 'pointer' }}
-                    onClick={() => setPattern(cp.pattern)}
-                  >
-                    {cp.pattern}
-                  </Box>{' '}
-                  - {cp.desc}
-                </Typography>
-              ))}
-            </Stack>
-          </Paper>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleAddPattern} disabled={!pattern.trim()}>
-          Add Pattern
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 }
 
@@ -667,6 +467,9 @@ function SignaturePatternsPanel() {
         onAddPattern={handleAddPattern}
         title="Add Signature Pattern"
         description="Test your regex pattern against sample text before adding it to your signature detection patterns."
+        commonPatterns={getSignaturePatterns('John')}
+        defaultTestText={generateTestEmail('John')}
+        testTextLabel="Test Email"
       />
     </>
   );
@@ -749,11 +552,12 @@ function ActionRulesPanel() {
 
   const RuleRow = ({ rule }: { rule: ActionRule }) => {
     const isRelationship = rule.conditionType === 'relationship';
+    const colors = relationshipColors.light as Record<string, string>;
     const conditionColor = isRelationship
-      ? RELATIONSHIP_COLORS[rule.conditionValue] || RELATIONSHIP_COLORS.unknown
+      ? colors[rule.conditionValue] || colors.unknown
       : undefined;
     const conditionLabel = isRelationship
-      ? RELATIONSHIP_LABELS[rule.conditionValue] || rule.conditionValue
+      ? relationshipLabels[rule.conditionValue] || rule.conditionValue
       : rule.conditionValue;
     const actionColor = ACTION_COLORS[rule.targetAction] || ACTION_COLORS.pending;
     const actionLabel = ACTION_LABELS[rule.targetAction] || rule.targetAction;
@@ -880,52 +684,40 @@ function ProfileTab() {
   }
 
   return (
-    <Stack spacing={3}>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="sectionHeader" gutterBottom>
-          Profile Information
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Update your personal information
-        </Typography>
-        <Stack spacing={3}>
-          <TextFieldElement name="name" control={control} label="Name" placeholder="Your full name" fullWidth />
-          <TextFieldElement
-            name="nicknames"
-            control={control}
-            label="Nicknames"
-            placeholder="e.g. Jessica, Jess, JW"
-            helperText="Enter common nicknames or variations of your name, separated by commas"
-            fullWidth
-          />
-          <TextFieldElement
-            name="signatureBlock"
-            control={control}
-            label="Email Signature Block"
-            placeholder="---\nCell: 212-555-1212"
-            helperText="This signature will be added to your email replies"
-            multiline
-            rows={4}
-            fullWidth
-          />
-          <Box>
-            <Button variant="contained" onClick={handleSubmit(onSubmit)} loading={isSaving}>
-              Save Profile
-            </Button>
-          </Box>
-        </Stack>
-      </Paper>
-
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="sectionHeader" gutterBottom>
-          Typed Name Settings
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Configure how your name appears in generated email responses
-        </Typography>
-        <TypedNameSettingsPanel />
-      </Paper>
-    </Stack>
+    <Paper sx={{ p: 3 }}>
+      <Typography variant="sectionHeader" gutterBottom>
+        Profile Information
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Update your personal information
+      </Typography>
+      <Stack spacing={3}>
+        <TextFieldElement name="name" control={control} label="Name" placeholder="Your full name" fullWidth />
+        <TextFieldElement
+          name="nicknames"
+          control={control}
+          label="Nicknames"
+          placeholder="e.g. Jessica, Jess, JW"
+          helperText="Enter common nicknames or variations of your name, separated by commas"
+          fullWidth
+        />
+        <TextFieldElement
+          name="signatureBlock"
+          control={control}
+          label="Email Signature Block"
+          placeholder="---\nCell: 212-555-1212"
+          helperText="This signature will be added to your email replies"
+          multiline
+          rows={4}
+          fullWidth
+        />
+        <Box>
+          <Button variant="contained" onClick={handleSubmit(onSubmit)} loading={isSaving}>
+            Save Profile
+          </Button>
+        </Box>
+      </Stack>
+    </Paper>
   );
 }
 
@@ -1081,7 +873,6 @@ function ServicesTab() {
       spamDetection: true,
       silentFyiOnly: true,
       silentLargeList: true,
-      silentUnsubscribe: true,
       silentTodo: true,
       draftGeneration: true,
     },
@@ -1096,7 +887,6 @@ function ServicesTab() {
           spamDetection: actionPrefs.spamDetection ?? true,
           silentFyiOnly: actionPrefs.silentActions?.['silent-fyi-only'] ?? true,
           silentLargeList: actionPrefs.silentActions?.['silent-large-list'] ?? true,
-          silentUnsubscribe: actionPrefs.silentActions?.['silent-unsubscribe'] ?? true,
           silentTodo: actionPrefs.silentActions?.['silent-todo'] ?? true,
           draftGeneration: actionPrefs.draftGeneration ?? true,
         });
@@ -1122,7 +912,6 @@ function ServicesTab() {
         silentActions: {
           'silent-fyi-only': formData.silentFyiOnly,
           'silent-large-list': formData.silentLargeList,
-          'silent-unsubscribe': formData.silentUnsubscribe,
           'silent-todo': formData.silentTodo,
         },
         draftGeneration: formData.draftGeneration,
@@ -1285,12 +1074,26 @@ function ServicesTab() {
                 </Box>
               }
             />
+            <SwitchElement
+              name="draftGeneration"
+              control={actionControl}
+              label={
+                <Box>
+                  <Typography variant="body1">Draft Generation</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    When a written reply is needed, create a draft reply and upload it to your Drafts folder
+                  </Typography>
+                </Box>
+              }
+            />
             <Box>
               <Typography variant="body1" gutterBottom>
                 Organize Your Email
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Automatically move emails that do not require a response to a specific folder
+                Automatically move emails that do not require a response to a specific folder. Disabling will cause the email to be left in the inbox.
+                For example, a Docusign email that requires your signature will be put in your todo folder, or left if the inbox if disabled.
+                
               </Typography>
               <Stack spacing={2} sx={{ pl: 3 }}>
                 <SwitchElement
@@ -1298,7 +1101,8 @@ function ServicesTab() {
                   control={actionControl}
                   label={
                     <Typography variant="body2">
-                      FYI Only. <Typography component="span" variant="body2" color="text.secondary">Emails that do not require a response</Typography>
+                      FYI Only. <Typography component="span" variant="body2" color="text.secondary">Emails that do not require a
+                      response (e.g. emails addressed to other people you are CC&apos;d on, Uber receipts, updated invitations.)</Typography>
                     </Typography>
                   }
                 />
@@ -1307,16 +1111,7 @@ function ServicesTab() {
                   control={actionControl}
                   label={
                     <Typography variant="body2">
-                      Large Distribution Lists. <Typography component="span" variant="body2" color="text.secondary">Emails sent to many people</Typography>
-                    </Typography>
-                  }
-                />
-                <SwitchElement
-                  name="silentUnsubscribe"
-                  control={actionControl}
-                  label={
-                    <Typography variant="body2">
-                      Unsubscribe Candidates. <Typography component="span" variant="body2" color="text.secondary">Mailing list emails</Typography>
+                      Large Distribution Lists. <Typography component="span" variant="body2" color="text.secondary">Emails sent to many people (e.g. mailing lists, company-wide announcements)</Typography>
                     </Typography>
                   }
                 />
@@ -1325,24 +1120,12 @@ function ServicesTab() {
                   control={actionControl}
                   label={
                     <Typography variant="body2">
-                      Todo Items. <Typography component="span" variant="body2" color="text.secondary">Tasks to complete</Typography>
+                      Todo Items. <Typography component="span" variant="body2" color="text.secondary">Emails with a specific action other than a response (e.g. a signature request, authorizing a payment)</Typography>
                     </Typography>
                   }
                 />
               </Stack>
             </Box>
-            <SwitchElement
-              name="draftGeneration"
-              control={actionControl}
-              label={
-                <Box>
-                  <Typography variant="body1">Draft Generation</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Upload AI-generated reply drafts to your Drafts folder
-                  </Typography>
-                </Box>
-              }
-            />
             <Box>
               <Button variant="contained" onClick={handleActionSubmit(onActionSubmit)} loading={isSavingActions}>
                 Save Action Preferences
@@ -1356,7 +1139,7 @@ function ServicesTab() {
             Email Folder Preferences
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Configure folders for organizing emails based on AI recommendations
+            Set your folders for where to put new emails. 
           </Typography>
           {hasEmailAccounts ? (
             <Stack spacing={3}>
@@ -1374,7 +1157,7 @@ function ServicesTab() {
                 value={folderPreferences.noActionFolder}
                 onChange={(e) => setFolderPreferences((prev) => ({ ...prev, noActionFolder: e.target.value }))}
                 placeholder="e.g., *No Action"
-                helperText="FYI only, large lists, unsubscribe candidates"
+                helperText="FYI only, emails where you're just CC'd, newsletters, and other emails that don't need a response"
                 fullWidth
                 disabled={isLoading}
               />
@@ -1383,7 +1166,7 @@ function ServicesTab() {
                 value={folderPreferences.spamFolder}
                 onChange={(e) => setFolderPreferences((prev) => ({ ...prev, spamFolder: e.target.value }))}
                 placeholder="e.g., *Spam"
-                helperText="Emails identified as spam"
+                helperText="Emails identified as spam, junk, or unsolicited promotions"
                 fullWidth
                 disabled={isLoading}
               />
@@ -1392,7 +1175,7 @@ function ServicesTab() {
                 value={folderPreferences.todoFolder}
                 onChange={(e) => setFolderPreferences((prev) => ({ ...prev, todoFolder: e.target.value }))}
                 placeholder="e.g., *Todo"
-                helperText="Action items requiring you to do something outside of email"
+                helperText="Action items requiring you to do something other than reply."
                 fullWidth
                 disabled={isLoading}
               />
@@ -1493,15 +1276,28 @@ function ServicesTab() {
 function SignaturesTab() {
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Typography variant="sectionHeader" gutterBottom>
-        Email Signature Detection
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Configure patterns to automatically detect and remove your email signature when analyzing your writing style
-      </Typography>
-      <SignaturePatternsPanel />
-    </Paper>
+    <Stack spacing={3}>
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="sectionHeader" gutterBottom>
+          How You Sign Your Name in Emails
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Used to improve detection of your writing style by recognizing common ways you sign your name and to insert your signature above your signature block (just your name, not the full block or &quot;best, regards, etc.&quot;)
+        </Typography>
+        <TypedNameSettingsPanel />
+      </Paper>
+
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="sectionHeader" gutterBottom>
+          Email Signature Detection
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Regex to automatically remove your signature block when analyzing your writing style (if you have a work and personal signature, add both patterns. Add a pattern
+          if your work includes a disclaimer or confidentiality notice at the end of your emails.)
+        </Typography>
+        <SignaturePatternsPanel />
+      </Paper>
+    </Stack>
   );
 }
 
@@ -1669,7 +1465,7 @@ export default function MuiSettingsPage() {
           <Tab label="Profile" />
           <Tab label="Relationships" />
           <Tab label="Services" />
-          <Tab label="Signatures" />
+          <Tab label="Patterns" />
           <Tab label="Security" />
         </Tabs>
       </Box>

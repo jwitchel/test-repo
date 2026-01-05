@@ -297,6 +297,7 @@ if (!hasReplied) { /* duplicate logic */ }
 - **EmailStorageService** - Save emails with vectors and validation
 - **LLMClient** - All LLM calls (timeout, retry, multi-provider)
 - **SpamDetector** - Spam detection with auto-whitelist
+- **BotDetector** - Deterministic bot email detection via database patterns (bot is a valid sender from an unattended email box, e.g. no-reply@united.com)
 - **DraftGenerator** - Draft generation with tone learning
 - **EmailMover** - IMAP operations (upload drafts, move emails)
 - **VectorSearchService** - Dual vector search with filtering
@@ -487,11 +488,14 @@ function handleWebhook(payload: unknown): void {
 
 ```typescript
 // Server types
-server/src/types/email.ts         // Email-related types
-server/src/types/llm.ts           // LLM provider types
-server/src/types/express.d.ts     // Express Request extensions (user, session, isServiceToken)
-server/src/lib/vector/types.ts    // Vector search types
-server/src/lib/email-processing/types.ts  // Processing result types
+server/src/types/email.ts                  // Email-related types
+server/src/types/llm.ts                    // LLM provider types
+server/src/types/email-action-tracking.ts  // Email actions, labels, colors, helper functions
+server/src/types/express.d.ts              // Express Request extensions (user, session, isServiceToken)
+server/src/lib/relationships/types.ts      // Relationship types (SPOUSE, FAMILY, BOT, etc.)
+server/src/lib/validation.ts               // Shared validation (isValidEmail, isValidUUID)
+server/src/lib/vector/types.ts             // Vector search types
+server/src/lib/email-processing/types.ts   // Processing result types
 ```
 
 ### Extending Express Request Type

@@ -22,6 +22,23 @@ See server/src/routes/auth.ts for authentication endpoints.
 - Auto-whitelist: 2+ replies to sender = not spam
 - LLM analysis for unknown senders
 
+### Bot Detection (A bot is a valid sender from an unattended email box, e.g. no-reply@united.com)
+- BotDetector service (server/src/lib/email-processing/bot-detector.ts)
+- Database-driven regex patterns with domain-based filtering
+- Deterministic classification (no LLM needed)
+- Bot emails → SILENT_FYI_ONLY action, skip spam check and draft generation
+
+#### Bot Senders Management
+- Admin UI at /settings/bot-senders
+- CRUD operations for email patterns
+- Regex pattern testing before save
+- Categories: airlines, banks, ecommerce, payments, etc.
+
+#### Database Schema
+- `bot_senders` table with regex patterns
+- Domain-based indexing for O(1) lookup
+- `is_confirmed` flag for verified vs placeholder patterns
+
 ### Draft Generation
 - DraftGenerator service (server/src/lib/draft-generator.ts)
 - Tone learning via vector search
@@ -29,7 +46,13 @@ See server/src/routes/auth.ts for authentication endpoints.
 - Basic timeout protection (40s default)
 
 ### Action Routing
-See `EmailActions` and `ActionHelpers` in server/src/lib/email-actions.ts for action types and routing logic.
+- Draft actions: REPLY, REPLY_ALL, FORWARD, FORWARD_WITH_COMMENT
+- Silent actions: SILENT_FYI_ONLY, SILENT_SPAM, SILENT_LARGE_LIST, SILENT_TODO
+- Other: KEEP_IN_INBOX, PENDING, TRAINING, MANUALLY_HANDLED
+
+Helper functions: `isDraftAction()`, `isSilentAction()`, `isSpamAction()`, `isSystemOnly()`
+
+See server/src/types/email-action-tracking.ts for action types, labels, colors, and helper functions.
 
 ### Duplicate Prevention
 - BullMQ deterministic job IDs
@@ -37,6 +60,21 @@ See `EmailActions` and `ActionHelpers` in server/src/lib/email-actions.ts for ac
 
 ### API
 See server/src/routes/inbox.ts for email processing endpoints.
+
+### Bot Senders API
+Base path: `/api/bot-senders`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | List all bot senders (supports ?search, ?category, ?confirmed filters) |
+| GET | `/categories` | Get distinct categories |
+| GET | `/:id` | Get single bot sender |
+| POST | `/` | Create bot sender |
+| PUT | `/:id` | Update bot sender |
+| DELETE | `/:id` | Delete bot sender |
+| POST | `/test-pattern` | Test regex pattern against email |
+
+See server/src/routes/bot-senders.ts for bot sender management endpoints.
 
 ---
 
@@ -148,11 +186,18 @@ See server/src/routes/llm-providers.ts for LLM provider management endpoints.
 ## Relationships
 
 ### Types
-See `RelationshipType` enum in server/src/lib/relationships/relationship-detector.ts for relationship types.
+- SPOUSE, FAMILY, COLLEAGUE, FRIENDS, BOT, EXTERNAL, SPAM
+- See `RelationshipType` enum in server/src/lib/relationships/types.ts
+
+### BOT Relationship
+- Assigned to senders matching bot_senders patterns
+- Bypasses spam detection and draft generation
+- Emails routed to FYI-only folder
 
 ### Detection
 - Email domain analysis
 - Historical interaction patterns
+- Bot pattern matching
 - RelationshipDetector (server/src/lib/relationships/relationship-detector.ts)
 
 ### Management
@@ -163,6 +208,7 @@ See `RelationshipType` enum in server/src/lib/relationships/relationship-detecto
 ### Services
 - RelationshipService (server/src/lib/relationships/relationship-service.ts)
 - PersonService (server/src/lib/relationships/person-service.ts)
+- BotDetector (server/src/lib/email-processing/bot-detector.ts)
 
 ---
 

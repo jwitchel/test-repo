@@ -4,7 +4,7 @@ import { Box, Paper, Typography, Skeleton, Alert } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useSWR from 'swr';
 import ReactECharts from 'echarts-for-react';
-import { EmailActionType } from '../../../../../server/src/types/email-action-tracking';
+import { isDraftAction, isSpamAction, isMovedAction } from '../../../../../server/src/types/email-action-tracking';
 import { useChartColors, useEChartsTheme } from '@/hooks/use-echarts-theme';
 
 // Raw action counts from API (all possible actions)
@@ -39,11 +39,11 @@ function aggregateActions(raw: RawActionCounts): ActionCounts {
   };
 
   Object.entries(raw).forEach(([action, count]) => {
-    if (EmailActionType.isDraftAction(action)) {
+    if (isDraftAction(action)) {
       result.drafted += count;
-    } else if (EmailActionType.isSpamAction(action)) {
+    } else if (isSpamAction(action)) {
       result.spam += count;
-    } else if (EmailActionType.isMovedAction(action)) {
+    } else if (isMovedAction(action)) {
       result.moved += count;
     } else {
       result.noAction += count;

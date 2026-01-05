@@ -16,7 +16,7 @@ Supporting services:
 - **EmailActionRouter** (`../email-action-router.ts`) - Action determination logic
 - **EmailMover** (`email-mover.ts`) - IMAP folder operations
 - **EmailActionTracker** (`../email-action-tracker.ts`) - Duplicate detection via database
-- **EmailActions** (`../email-actions.ts`) - Action type constants and helpers
+- **EmailActionTypes** (`../../types/email-action-tracking.ts`) - Action type constants and helpers
 
 ## Configuration
 See .env and env.example for all configurations

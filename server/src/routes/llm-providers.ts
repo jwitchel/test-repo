@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { pool } from '../lib/db';
+import { isValidUUID } from '../lib/validation';
 import { withTransaction } from '../lib/db/transaction-utils';
 import { encryptPassword } from '../lib/crypto';
 import {
@@ -13,7 +14,7 @@ import {
 } from '../types/llm-provider';
 import { LLMClient } from '../lib/llm-client';
 import { userAlertService } from '../lib/user-alert-service';
-import { SourceType } from '../types/user-alerts';
+import { SourceType, AlertSourceId } from '../types/user-alerts';
 
 const router = express.Router();
 
@@ -72,9 +73,9 @@ router.post('/test', requireAuth, validateLLMProvider, async (req, res): Promise
         message: 'Unable to connect to the LLM provider. Please check your settings.'
       });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('LLM provider test error:', error);
-    
+
     if (error instanceof LLMProviderError) {
       if (error.code === 'INVALID_API_KEY') {
         res.status(401).json({ 
@@ -249,6 +250,11 @@ router.post('/', requireAuth, validateLLMProvider, async (req, res): Promise<voi
       return;
     }
 
+    // If this provider is now the default, resolve any "no default LLM" alerts
+    if (result.data.is_default) {
+      await userAlertService.resolveAlertsForSource(SourceType.LLM_PROVIDER, AlertSourceId.DEFAULT_LLM);
+    }
+
     res.status(201).json(result.data);
   } catch (error: unknown) {
     console.error('Error creating LLM provider:', error);
@@ -278,9 +284,7 @@ router.put('/:id', requireAuth, async (req, res): Promise<void> => {
     const providerId = req.params.id;
     const updates = req.body as UpdateLLMProviderRequest;
 
-    // Validate UUID format (before transaction)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(providerId)) {
+    if (!isValidUUID(providerId)) {
       res.status(400).json({ error: 'Invalid provider ID format' });
       return;
     }
@@ -403,6 +407,11 @@ router.put('/:id', requireAuth, async (req, res): Promise<void> => {
       return;
     }
 
+    // If this provider is now the default, resolve any "no default LLM" alerts
+    if (result.data.is_default) {
+      await userAlertService.resolveAlertsForSource(SourceType.LLM_PROVIDER, AlertSourceId.DEFAULT_LLM);
+    }
+
     res.json(result.data);
   } catch (error) {
     console.error('Error updating LLM provider:', error);
@@ -416,9 +425,7 @@ router.delete('/:id', requireAuth, async (req, res): Promise<void> => {
     const userId = req.user.id;
     const providerId = req.params.id;
     
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(providerId)) {
+    if (!isValidUUID(providerId)) {
       res.status(400).json({ error: 'Invalid provider ID format' });
       return;
     }

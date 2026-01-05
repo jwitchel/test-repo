@@ -8,3 +8,4 @@ export { StyledLink } from './styled-link';
 export { PageHeader } from './page-header';
 export { MuiThemeToggle } from './theme-toggle';
 export { MuiLogViewer } from '../mui-log-viewer';
+export { PersistentAlertBanner } from './persistent-alert-banner';

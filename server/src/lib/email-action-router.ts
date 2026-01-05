@@ -1,7 +1,7 @@
 import { ImapOperations } from './imap-operations';
-import { LLMMetadata } from './llm-client';
+import { ActionData } from './llm-client';
 import { FolderPreferences } from '../types/settings';
-import { EmailActionType } from '../types/email-action-tracking';
+import { EmailActionType, EMAIL_ACTION_DESCRIPTIONS } from '../types/email-action-tracking';
 
 export interface ActionRouteResult {
   folder: string;
@@ -43,7 +43,7 @@ export class EmailActionRouter {
   /**
    * Determine the destination folder and flags based on the recommended action
    */
-  getActionRoute(recommendedAction: LLMMetadata['recommendedAction']): ActionRouteResult {
+  getActionRoute(recommendedAction: ActionData['recommendedAction']): ActionRouteResult {
     const rootPath = this.folderPrefs.rootFolder ? `${this.folderPrefs.rootFolder}/` : '';
 
     switch (recommendedAction) {
@@ -59,7 +59,6 @@ export class EmailActionRouter {
 
       case EmailActionType.SILENT_FYI_ONLY:
       case EmailActionType.SILENT_LARGE_LIST:
-      case EmailActionType.SILENT_UNSUBSCRIBE:
         return {
           folder: `${rootPath}${this.folderPrefs.noActionFolder}`,
           flags: [],  // No-action items should not be marked as Seen
@@ -191,7 +190,7 @@ export class EmailActionRouter {
   /**
    * Get a human-readable description of the action
    */
-  getActionDescription(recommendedAction: LLMMetadata['recommendedAction']): string {
-    return EmailActionType.DESCRIPTIONS[recommendedAction] || 'Unknown action';
+  getActionDescription(recommendedAction: ActionData['recommendedAction']): string {
+    return EMAIL_ACTION_DESCRIPTIONS[recommendedAction];
   }
 }

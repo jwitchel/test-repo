@@ -3,6 +3,9 @@ import { requireAuth } from '../middleware/auth';
 import { pool } from '../lib/db';
 import { inboxProcessor } from '../lib/email-processing/inbox-processor';
 import PostalMime from 'postal-mime';
+import { EMAIL_ACTION_LABELS } from '../types/email-action-tracking';
+import { isValidUserAction } from '../types/action-rules';
+import { isValidUUID } from '../lib/validation';
 
 const router = express.Router();
 
@@ -156,6 +159,82 @@ router.get('/email/:accountId/:messageId', requireAuth, async (req, res): Promis
       relationship: llmResponse?.relationship
     }
   });
+});
+
+/**
+ * POST /api/inbox/reclassify/:id
+ * Reclassify a single email without creating a rule
+ * Updates action_taken in email_received and prepends user change note to key_considerations
+ */
+router.post('/reclassify/:id', requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  const { newAction, previousAction } = req.body;
+
+  // Validate ID
+  if (!isValidUUID(id)) {
+    res.status(400).json({ error: 'Invalid email ID format' });
+    return;
+  }
+
+  // Validate new action
+  if (!newAction || !isValidUserAction(newAction)) {
+    res.status(400).json({ error: `Invalid action: ${newAction}` });
+    return;
+  }
+
+  // Validate previous action (for the change note)
+  if (!previousAction) {
+    res.status(400).json({ error: 'previousAction is required' });
+    return;
+  }
+
+  try {
+    // Verify ownership and get the email
+    const emailResult = await pool.query(`
+      SELECT er.id, er.email_id, er.email_account_id
+      FROM email_received er
+      WHERE er.id = $1 AND er.user_id = $2
+    `, [id, userId]);
+
+    if (emailResult.rows.length === 0) {
+      res.status(404).json({ error: 'Email not found' });
+      return;
+    }
+
+    const email = emailResult.rows[0];
+    const previousLabel = EMAIL_ACTION_LABELS[previousAction];
+    const newLabel = EMAIL_ACTION_LABELS[newAction];
+    const changeNote = `User changed action from "${previousLabel}" to "${newLabel}"`;
+
+    // Update email_received action_taken
+    await pool.query(`
+      UPDATE email_received
+      SET action_taken = $1, updated_at = NOW()
+      WHERE id = $2 AND user_id = $3
+    `, [newAction, id, userId]);
+
+    // Update draft_tracking context_data to prepend the change note to keyConsiderations
+    await pool.query(`
+      UPDATE draft_tracking
+      SET context_data = jsonb_set(
+        context_data,
+        '{meta,keyConsiderations}',
+        (
+          SELECT jsonb_build_array($1::text) || COALESCE(context_data->'meta'->'keyConsiderations', '[]'::jsonb)
+        )
+      )
+      WHERE original_message_id = $2 AND user_id = $3
+    `, [changeNote, email.email_id, userId]);
+
+    res.json({
+      success: true,
+      message: `Email reclassified from ${previousLabel} to ${newLabel}`
+    });
+  } catch (error) {
+    console.error('Error reclassifying email:', error);
+    res.status(500).json({ error: 'Failed to reclassify email' });
+  }
 });
 
 export default router;

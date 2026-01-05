@@ -29,6 +29,7 @@ import MailIcon from '@mui/icons-material/Mail';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import AddIcon from '@mui/icons-material/Add';
 import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
 import { useMuiToast } from '@/hooks/use-mui-toast';
 import { useAuth } from '@/lib/auth-context';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -41,6 +42,7 @@ interface EmailAccount {
   id: string;
   email_address: string;
   monitoring_enabled: boolean;
+  last_sync: string | null;
 }
 
 interface LLMProvider {
@@ -115,7 +117,7 @@ export default function MuiDashboardPage() {
     data: emailAccounts,
     isLoading: accountsLoading,
     mutate: mutateAccounts,
-  } = useSWR<EmailAccount[]>('/api/email-accounts');
+  } = useSWR<EmailAccount[]>('/api/email-accounts', { refreshInterval: 60000 });
 
   const { data: providers, isLoading: providersLoading } = useSWR<LLMProvider[]>('/api/llm-providers');
 
@@ -223,6 +225,9 @@ export default function MuiDashboardPage() {
                   <ListItem key={account.id} disablePadding sx={{ py: 0.5 }}>
                     <ListItemText
                       primary={account.email_address}
+                      secondary={account.last_sync
+                        ? `Synced ${formatDistanceToNow(new Date(account.last_sync), { addSuffix: true })}`
+                        : 'Never synced'}
                       slotProps={{ primary: { variant: 'body2' } }}
                     />
                     <Switch

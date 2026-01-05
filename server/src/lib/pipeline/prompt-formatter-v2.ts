@@ -1,9 +1,10 @@
 import { SelectedExample } from './example-selector';
 import { TemplateManager, EnhancedRelationshipProfile } from './template-manager';
 import { WritingPatterns } from './writing-pattern-analyzer';
-import { EmailActionType } from '../../types/email-action-tracking';
+import { EmailActionType, isSystemOnly } from '../../types/email-action-tracking';
 import { SpamCheckResult } from './types';
 import { SimplifiedEmailMetadata } from './types';
+import { ActionData } from '../llm-client';
 
 export interface PromptFormatterParams {
   incomingEmail: string;
@@ -86,7 +87,7 @@ export class PromptFormatterV2 {
     };
   }
 
-  async formatSystemPrompt(data?: any): Promise<string> {
+  async formatSystemPrompt(data?: Record<string, unknown>): Promise<string> {
     await this.initialize();
     return this.templateManager.renderSystemPrompt('default', data);
   }
@@ -128,7 +129,7 @@ export class PromptFormatterV2 {
     // Generate dynamic enum values to prevent hardcoded template drift
     // Filter out system-only actions (pending, training, manually_handled)
     const allActions = Object.values(EmailActionType).filter((v): v is EmailActionType => typeof v === 'string');
-    const llmActions = allActions.filter(action => !EmailActionType.isSystemOnly(action));
+    const llmActions = allActions.filter(action => !isSystemOnly(action));
     const availableActions = llmActions.join('|');
     const addressedToOptions = 'you|group|someone-else';
     const urgencyOptions = 'low|medium|high|critical';
@@ -157,7 +158,7 @@ export class PromptFormatterV2 {
   }
 
   // Format response generation prompt (with tone/style)
-  async formatResponseGeneration(params: PromptFormatterParams & { actionMeta: any }): Promise<string> {
+  async formatResponseGeneration(params: PromptFormatterParams & { actionMeta: ActionData }): Promise<string> {
     await this.initialize();
     const templateData = {
       ...this.templateManager.prepareTemplateData(params),
