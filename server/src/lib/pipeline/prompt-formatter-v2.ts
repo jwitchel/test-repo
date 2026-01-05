@@ -4,7 +4,7 @@ import { WritingPatterns } from './writing-pattern-analyzer';
 import { EmailActionType, isSystemOnly } from '../../types/email-action-tracking';
 import { SpamCheckResult } from './types';
 import { SimplifiedEmailMetadata } from './types';
-import { LLMMetadata } from '../llm-client';
+import { ActionData } from '../llm-client';
 
 export interface PromptFormatterParams {
   incomingEmail: string;
@@ -158,7 +158,7 @@ export class PromptFormatterV2 {
   }
 
   // Format response generation prompt (with tone/style)
-  async formatResponseGeneration(params: PromptFormatterParams & { actionMeta: LLMMetadata }): Promise<string> {
+  async formatResponseGeneration(params: PromptFormatterParams & { actionMeta: ActionData }): Promise<string> {
     await this.initialize();
     const templateData = {
       ...this.templateManager.prepareTemplateData(params),

@@ -6,7 +6,7 @@
 
 import { ToneLearningOrchestrator } from '../pipeline/tone-learning-orchestrator';
 import { ProcessedEmail, EmailProcessingResult, DraftEmail, SpamCheckResult, SimplifiedEmailMetadata } from '../pipeline/types';
-import { LLMMetadata } from '../llm-client';
+import { ActionData } from '../llm-client';
 import { realTimeLogger } from '../real-time-logger';
 import { TypedNameRemover } from '../typed-name-remover';
 import { pool } from '../db';
@@ -37,7 +37,7 @@ interface RelationshipResult {
  * Result of email analysis (action determination without draft generation)
  */
 export interface EmailAnalysisResult {
-  meta: LLMMetadata;
+  meta: ActionData;
   relationship: RelationshipResult;
 }
 
@@ -253,7 +253,7 @@ export class DraftGenerator {
     maxExamples: number,
     incomingEmailMetadata: SimplifiedEmailMetadata,
     analysis: EmailAnalysisResult
-  ): Promise<{ body: string; meta: LLMMetadata; relationship: RelationshipResult }> {
+  ): Promise<{ body: string; meta: ActionData; relationship: RelationshipResult }> {
     const llmClient = orchestrator['patternAnalyzer']['llmClient']!;
 
     // Step 1: Select relevant examples
@@ -340,7 +340,7 @@ export class DraftGenerator {
    */
   private _buildBaseDraft(
     parsed: PostalMimeEmail,
-    meta: LLMMetadata,
+    meta: ActionData,
     relationship: RelationshipResult,
     userContext: UserContext,
     spamCheckResult: SpamCheckResult
@@ -372,7 +372,7 @@ export class DraftGenerator {
    */
   private _buildSilentDraft(
     parsed: PostalMimeEmail,
-    meta: LLMMetadata,
+    meta: ActionData,
     relationship: RelationshipResult,
     userContext: UserContext,
     spamCheckResult: SpamCheckResult
@@ -395,7 +395,7 @@ export class DraftGenerator {
     parsed: PostalMimeEmail,
     emailBody: string,
     cleanedBody: string,
-    meta: LLMMetadata,
+    meta: ActionData,
     relationship: RelationshipResult,
     userContext: UserContext,
     spamCheckResult: SpamCheckResult
@@ -575,7 +575,7 @@ ${originalHtml}
    */
   private _logDraftCompletion(
     userId: string,
-    aiResult: { body: string; meta: LLMMetadata; relationship: RelationshipResult }
+    aiResult: { body: string; meta: ActionData; relationship: RelationshipResult }
   ): void {
     realTimeLogger.log(userId, {
       userId,

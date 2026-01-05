@@ -1,5 +1,5 @@
 import { ImapOperations } from './imap-operations';
-import { LLMMetadata } from './llm-client';
+import { ActionData } from './llm-client';
 import { FolderPreferences } from '../types/settings';
 import { EmailActionType, EMAIL_ACTION_DESCRIPTIONS } from '../types/email-action-tracking';
 
@@ -43,7 +43,7 @@ export class EmailActionRouter {
   /**
    * Determine the destination folder and flags based on the recommended action
    */
-  getActionRoute(recommendedAction: LLMMetadata['recommendedAction']): ActionRouteResult {
+  getActionRoute(recommendedAction: ActionData['recommendedAction']): ActionRouteResult {
     const rootPath = this.folderPrefs.rootFolder ? `${this.folderPrefs.rootFolder}/` : '';
 
     switch (recommendedAction) {
@@ -190,7 +190,7 @@ export class EmailActionRouter {
   /**
    * Get a human-readable description of the action
    */
-  getActionDescription(recommendedAction: LLMMetadata['recommendedAction']): string {
+  getActionDescription(recommendedAction: ActionData['recommendedAction']): string {
     return EMAIL_ACTION_DESCRIPTIONS[recommendedAction];
   }
 }

@@ -7,7 +7,8 @@ import { LLMProviderConfig, LLMProviderError, LLMProviderType, getModelInfo } fr
 import { EmailActionType } from '../types/email-action-tracking';
 import { OAuthTokenService, OAuthTokens } from './oauth-token-service';
 import { userAlertService } from './user-alert-service';
-import { AlertType, AlertSeverity, SourceType } from '../types/user-alerts';
+import { AlertType, AlertSeverity, SourceType, AlertSourceId } from '../types/user-alerts';
+import { pool } from './db';
 
 /**
  * Optional context for alert tracking
@@ -43,12 +44,6 @@ export interface ActionData {
   contextFlags: ContextFlags;
 }
 
-/**
- * Complete metadata for email draft generation
- * Combines action analysis with context flags
- */
-export interface LLMMetadata extends ActionData {}
-
 export interface SpamCheckResponse {
   meta: {
     isSpam: boolean;
@@ -61,6 +56,7 @@ export interface ActionAnalysisResponse {
 }
 
 export class LLMClient {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK returns complex union types
   private model: any;
   private modelName: string;
   private alertContext?: LLMAlertContext;
@@ -71,6 +67,7 @@ export class LLMClient {
     this.alertContext = alertContext;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK returns complex union types
   private _createModel(config: LLMProviderConfig): any {
     switch (config.type) {
       case 'openai': {
@@ -145,7 +142,7 @@ export class LLMClient {
   }): Promise<string> {
     const maxRetries = parseInt(process.env.LLM_ACTION_RETRIES!);
     const llmTimeout = parseInt(process.env.EMAIL_PROCESSING_LLM_TIMEOUT!);
-    let lastError: any;
+    let lastError: unknown;
 
     // Truncate prompt if it exceeds model's context window
     const truncatedPrompt = this._truncatePromptToFit(prompt);
@@ -263,7 +260,6 @@ export class LLMClient {
   }): Promise<SpamCheckResponse> {
     try {
       const text = await this.generate(prompt, options);
-
       const parsed = this._extractJSON(text, 'spam check');
 
       this._validateJSON(
@@ -295,7 +291,6 @@ export class LLMClient {
   }): Promise<ActionAnalysisResponse> {
     try {
       const text = await this.generate(prompt, options);
-
       const parsed = this._extractJSON(text, 'action analysis');
 
       this._validateJSON(
@@ -324,7 +319,6 @@ export class LLMClient {
   }): Promise<string> {
     try {
       const text = await this.generate(prompt, options);
-
       const parsed = this._extractJSON(text, 'response generation');
 
       this._validateJSON(
@@ -396,6 +390,7 @@ export class LLMClient {
    * Extract and parse JSON from LLM response text
    * @private
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parsing external LLM JSON output
   private _extractJSON(text: string, context: string): any {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -417,7 +412,9 @@ export class LLMClient {
    * @private
    */
   private _validateJSON(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- external LLM JSON
     parsed: any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- external LLM JSON
     validator: (parsed: any) => boolean,
     errorMessage: string,
     context: string
@@ -432,6 +429,7 @@ export class LLMClient {
    * Handle JSON parsing errors consistently
    * @private
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- error from catch block
   private _handleJSONError(error: any, context: string): never {
     if (error.message?.includes('JSON')) {
       console.error(`${context} JSON parse error:`, error.message);
@@ -443,7 +441,8 @@ export class LLMClient {
   /**
    * Handle errors from Vercel AI SDK
    */
-  private _handleError(error: any): Error {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- error from catch block
+  private _handleError(error: any): never {
     // The Vercel AI SDK throws specific error types
     if (error.message?.includes('API key')) {
       throw new LLMProviderError('Invalid API key', 'INVALID_API_KEY');
@@ -454,10 +453,7 @@ export class LLMClient {
     } else if (error.message?.includes('connection') || error.code === 'ECONNREFUSED') {
       throw new LLMProviderError('Connection failed', 'CONNECTION_FAILED');
     } else {
-      throw new LLMProviderError(
-        error.message || 'Unknown error occurred',
-        'UNKNOWN'
-      );
+      throw new LLMProviderError(error.message || 'Unknown error occurred', 'UNKNOWN');
     }
   }
 
@@ -566,7 +562,53 @@ export class LLMClient {
         'qwen2.5-coder'
       ]
     };
-    
+
     return models[providerType] || [];
+  }
+
+  /**
+   * Get the default LLM provider ID for a user
+   * Creates an alert if no default provider is configured
+   * @throws Error if no default provider exists
+   */
+  static async getDefaultProviderId(userId: string): Promise<string> {
+    const result = await pool.query(
+      'SELECT id FROM llm_providers WHERE user_id = $1 AND is_default = true AND is_active = true LIMIT 1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      await LLMClient._createConfigurationAlert(
+        userId,
+        AlertType.DEFAULT_LLM_NOT_SET,
+        'No default LLM provider configured. Email processing requires a default provider.'
+      );
+      throw new Error('No default LLM provider configured. Please set a default provider in settings.');
+    }
+
+    return result.rows[0].id;
+  }
+
+  /**
+   * Create an alert for LLM configuration errors (no provider context)
+   * Parallel to instance method _createLLMAlert for runtime errors
+   * @private
+   */
+  private static async _createConfigurationAlert(
+    userId: string,
+    alertType: AlertType,
+    message: string
+  ): Promise<void> {
+    await userAlertService.createAlert({
+      userId,
+      alertType,
+      severity: AlertSeverity.ERROR,
+      sourceType: SourceType.LLM_PROVIDER,
+      sourceId: AlertSourceId.DEFAULT_LLM,
+      sourceName: 'Default LLM Provider',
+      message,
+      actionUrl: '/settings/llm-providers',
+      actionLabel: 'Set Default',
+    });
   }
 }
