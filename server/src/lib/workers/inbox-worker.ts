@@ -9,8 +9,28 @@ import { realTimeLogger } from '../real-time-logger';
 import { inboxProcessor } from '../email-processing/inbox-processor';
 import { pool } from '../db';
 import { sharedConnection as connection } from '../redis-connection';
+import { LLMClient } from '../llm-client';
 
-async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
+// Result types for inbox job processing
+interface FanOutJobResult {
+  success: true;
+  fanOut: true;
+  accountsProcessed: number;
+  childJobs: (string | undefined)[];
+}
+
+interface ProcessingJobResult {
+  success: true;
+  processed: number;
+  draftsGenerated: number;
+  silentActions: number;
+  errors: number;
+  elapsed: number;
+}
+
+type InboxJobResult = FanOutJobResult | ProcessingJobResult;
+
+async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<InboxJobResult> {
   const { userId, accountId, fanOut, folderName, since } = job.data;
 
   // Check if this is a fan-out job (parent job that spawns child jobs)
@@ -78,17 +98,8 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
     }
   });
 
-  // Get user's default LLM provider
-  const providerResult = await pool.query(
-    'SELECT id FROM llm_providers WHERE user_id = $1 AND is_default = true AND is_active = true LIMIT 1',
-    [userId]
-  );
-
-  if (providerResult.rows.length === 0) {
-    throw new Error('No default LLM provider configured. Please set a default provider in settings.');
-  }
-
-  const providerId = providerResult.rows[0].id;
+  // Get user's default LLM provider (creates alert if not configured)
+  const providerId = await LLMClient.getDefaultProviderId(userId);
   const batchSize = parseInt(process.env.NEXT_PUBLIC_INBOX_BATCH_SIZE!, 10);
 
   // Process batch
@@ -101,6 +112,12 @@ async function processInboxJob(job: Job<ProcessInboxJobData>): Promise<any> {
     force: false,
     since: since ? new Date(since) : undefined  // Convert ISO string to Date
   });
+
+  // Update last_sync timestamp
+  await pool.query(
+    'UPDATE email_accounts SET last_sync = CURRENT_TIMESTAMP WHERE id = $1',
+    [accountId]
+  );
 
   // Log completion
   realTimeLogger.log(userId, {
@@ -138,11 +155,7 @@ const inboxWorker = new Worker(
       return await processInboxJob(job as Job<ProcessInboxJobData>);
 
     } catch (error: unknown) {
-      // Check if this is a permanent failure (account not found, user deleted account, etc.)
-      // Permanent failures should not retry - they're configuration issues
-      const isPermanent = error instanceof Error && (error as any).permanent === true;
-
-      // Log error once
+      // Log error
       realTimeLogger.log(userId, {
         userId,
         emailAccountId: (job.data as ProcessInboxJobData).accountId || 'unknown',
@@ -150,22 +163,11 @@ const inboxWorker = new Worker(
         channel: 'jobs',
         command: 'INBOX_ERROR',
         data: {
-          raw: `Job failed${isPermanent ? ' (permanent)' : ''}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          raw: `Job failed: ${error instanceof Error ? error.message : 'Unknown error'}`
         }
       });
 
-      // For permanent failures, don't retry - just mark as failed
-      if (isPermanent) {
-        // BullMQ will not retry if we don't throw
-        console.log(`[InboxWorker] Job ${job.id} marked as permanent failure - will not retry`);
-        return {
-          success: false,
-          permanent: true,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-
-      // For retryable errors (LLM timeout, network issues), throw to trigger retry
+      // Re-throw to trigger BullMQ retry
       throw error;
     }
   },

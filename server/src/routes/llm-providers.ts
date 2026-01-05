@@ -14,7 +14,7 @@ import {
 } from '../types/llm-provider';
 import { LLMClient } from '../lib/llm-client';
 import { userAlertService } from '../lib/user-alert-service';
-import { SourceType } from '../types/user-alerts';
+import { SourceType, AlertSourceId } from '../types/user-alerts';
 
 const router = express.Router();
 
@@ -250,6 +250,11 @@ router.post('/', requireAuth, validateLLMProvider, async (req, res): Promise<voi
       return;
     }
 
+    // If this provider is now the default, resolve any "no default LLM" alerts
+    if (result.data.is_default) {
+      await userAlertService.resolveAlertsForSource(SourceType.LLM_PROVIDER, AlertSourceId.DEFAULT_LLM);
+    }
+
     res.status(201).json(result.data);
   } catch (error: unknown) {
     console.error('Error creating LLM provider:', error);
@@ -400,6 +405,11 @@ router.put('/:id', requireAuth, async (req, res): Promise<void> => {
       if (result.message) response.message = result.message;
       res.status(result.status).json(response);
       return;
+    }
+
+    // If this provider is now the default, resolve any "no default LLM" alerts
+    if (result.data.is_default) {
+      await userAlertService.resolveAlertsForSource(SourceType.LLM_PROVIDER, AlertSourceId.DEFAULT_LLM);
     }
 
     res.json(result.data);
