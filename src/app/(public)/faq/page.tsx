@@ -21,36 +21,36 @@ interface FAQ {
 
 const faqs: FAQ[] = [
   {
-    question: 'Will the emails actually sound like me?',
-    answer: 'Yes. We read your sent emails and learn how you write—to your spouse, your boss, your friends. Each relationship gets its own style. When you email your wife, it sounds like you emailing your wife. Not like a robot pretending to be you.',
+    question: 'Will it actually sound like me?',
+    answer: 'Yes. We learn how you write to each person—your spouse, your team, your clients. Each relationship gets its own style. Not a robot pretending to be you. You.',
   },
   {
     question: 'Will it send emails without asking?',
-    answer: 'Never. Drafts go to your Drafts folder. You review them. You send them. We believe email is too important to automate completely. The human stays in the loop.',
+    answer: 'Never. Drafts go to your Drafts folder. You review. You send. You stay in control.',
   },
   {
-    question: 'Is my email data safe?',
-    answer: 'Yes. Gmail users connect via OAuth—we never see your password. Other providers use encrypted credentials. Your data trains your model, not a shared one. And if you want maximum privacy, run the AI locally with Ollama. Your emails never leave your machine.',
+    question: 'Is my data safe?',
+    answer: 'Yes. Gmail connects via OAuth—we never see your password. Your emails train your model, not ours. Want maximum privacy? Run the AI locally with Ollama. Your emails never leave your machine.',
   },
   {
-    question: 'What email providers work?',
-    answer: 'Gmail, Outlook, Yahoo, iCloud, Fastmail, ProtonMail—anything that supports IMAP. If you can access your email from a desktop client, you can use Time to Just.',
+    question: 'Which email providers work?',
+    answer: 'Gmail, Outlook, Yahoo, iCloud, Fastmail, ProtonMail—anything with IMAP. If a desktop email client can access it, we can too.',
   },
   {
     question: 'How long does setup take?',
-    answer: 'About five minutes. Connect your email, pick an AI provider, and wait while we read your sent messages. After that, new emails automatically get drafts.',
+    answer: 'Five minutes. Connect your email, pick an AI provider, wait while we learn from your sent messages. After that, drafts appear automatically.',
   },
   {
     question: "What if I don't like a draft?",
-    answer: "Edit it. That's the point. Drafts are starting points, not final products. And when you edit, we learn. Future drafts get better.",
+    answer: "Edit it. That's the point. Drafts are starting points. And when you edit, we learn. Future drafts get better.",
   },
   {
     question: 'What about junk email?',
-    answer: 'We catch it. Flight confirmations, shipping updates, bank alerts—these get filed automatically, no draft needed. Spam from strangers gets filtered. Only real emails from real people get drafts.',
+    answer: 'Flight confirmations, shipping updates, bank alerts—filed automatically, no draft needed. Spam from strangers caught. Only real emails from real people get drafts.',
   },
   {
-    question: 'Can I use multiple email accounts?',
-    answer: 'Yes. Each account learns its own style. Your work emails stay professional. Your personal emails stay casual.',
+    question: 'Multiple email accounts?',
+    answer: 'Yes. Each account learns its own style. Work stays professional. Personal stays casual.',
   },
   {
     question: 'Which AI does it use?',
@@ -58,7 +58,7 @@ const faqs: FAQ[] = [
   },
   {
     question: 'What does it cost?',
-    answer: 'Time to Just is free during early access. You pay for your own AI usage—or use Ollama and pay nothing. Costs are transparent. No surprises.',
+    answer: 'Free during early access. You pay for your own AI usage—or use Ollama and pay nothing. No surprises.',
   },
 ];
 
@@ -131,7 +131,7 @@ export default function FAQPage() {
                 variant="contained"
                 endIcon={<ArrowForwardIcon />}
               >
-                Get Started Free
+                Try Free
               </Button>
             </Stack>
           </Stack>
