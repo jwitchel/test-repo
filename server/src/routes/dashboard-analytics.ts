@@ -79,12 +79,28 @@ router.get('/actions-summary', requireAuth, async (req, res) => {
 /**
  * Get recent actions with email details
  * Returns paginated list of recent actions for the table
+ * Supports optional search by subject, sender email, or sender name
  */
 router.get('/recent-actions', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
+    const search = (req.query.search as string)?.trim();
+
+    // Build WHERE clause with optional search
+    const params: (string | number)[] = [userId];
+    let whereClause = 'WHERE er.user_id = $1';
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      const searchParam = `$${params.length}`;
+      whereClause += ` AND (
+        LOWER(er.subject) LIKE ${searchParam}
+        OR LOWER(pe.email_address) LIKE ${searchParam}
+        OR LOWER(p.name) LIKE ${searchParam}
+      )`;
+    }
 
     // Get recent actions from email_received with related info
     const result = await pool.query(
@@ -104,18 +120,20 @@ router.get('/recent-actions', requireAuth, async (req, res) => {
        JOIN email_accounts ea ON er.email_account_id = ea.id
        LEFT JOIN person_emails pe ON er.sender_person_email_id = pe.id
        LEFT JOIN people p ON pe.person_id = p.id
-       WHERE er.user_id = $1
+       ${whereClause}
        ORDER BY er.updated_at DESC
-       LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
 
-    // Get total count
+    // Get total count (with same search filter)
     const countResult = await pool.query(
       `SELECT COUNT(*)::int as total
-       FROM email_received
-       WHERE user_id = $1`,
-      [userId]
+       FROM email_received er
+       LEFT JOIN person_emails pe ON er.sender_person_email_id = pe.id
+       LEFT JOIN people p ON pe.person_id = p.id
+       ${whereClause}`,
+      params
     );
 
     res.json({

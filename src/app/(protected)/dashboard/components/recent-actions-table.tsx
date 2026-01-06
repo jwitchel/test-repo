@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -13,7 +13,10 @@ import {
   List,
   ListItem,
   ListItemText,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import { useTheme } from '@mui/material/styles';
 import { DataGrid, GridColDef, GridRenderCellParams, GridPaginationModel } from '@mui/x-data-grid';
 import Link from 'next/link';
@@ -182,7 +185,8 @@ function getColumns(config: ColumnConfig): GridColDef<RecentAction>[] {
 
 export function RecentActionsTable() {
   // Responsive - DataGrid needs conditional render, not CSS hide
-  const isMobile = useMediaQuery('(max-width:899px)');
+  // Use noSsr to avoid hydration mismatch (server doesn't know viewport)
+  const isMobile = useMediaQuery('(max-width:899px)', { noSsr: true });
   const theme = useTheme();
   const actionColorsMap = useActionColors();
 
@@ -192,12 +196,29 @@ export function RecentActionsTable() {
     pageSize: 10,
   });
 
+  // Search state with debouncing
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      // Reset to first page when search changes
+      if (searchInput !== debouncedSearch) {
+        setPaginationModel(prev => ({ ...prev, page: 0 }));
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput, debouncedSearch]);
+
   // Get theme-aware relationship colors
   const relColors = relationshipColors[theme.palette.mode];
 
-  // Build URL with pagination params
+  // Build URL with pagination and search params
   const offset = paginationModel.page * paginationModel.pageSize;
-  const apiUrl = `/api/dashboard/recent-actions?limit=${paginationModel.pageSize}&offset=${offset}`;
+  const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : '';
+  const apiUrl = `/api/dashboard/recent-actions?limit=${paginationModel.pageSize}&offset=${offset}${searchParam}`;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<RecentActionsData>(
     apiUrl,
@@ -254,12 +275,32 @@ export function RecentActionsTable() {
   if (!data || data.actions.length === 0) {
     return (
       <Box>
-        <Typography variant="sectionHeader" gutterBottom>
-          Recent Emails
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+          <Typography variant="sectionHeader">
+            Recent Emails
+          </Typography>
+          <TextField
+            size="small"
+            placeholder="Search emails..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+            sx={{ width: 200 }}
+          />
+        </Box>
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">
-            No emails processed yet. Start processing emails to see activity here.
+            {debouncedSearch
+              ? `No emails matching "${debouncedSearch}"`
+              : 'No emails processed yet. Start processing emails to see activity here.'}
           </Typography>
         </Paper>
       </Box>
@@ -273,8 +314,24 @@ export function RecentActionsTable() {
           Recent Emails
         </Typography>
 
-        {/* Email Account Legend */}
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        {/* Search and Email Account Legend */}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder="Search emails..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+            sx={{ width: 200 }}
+          />
           {uniqueEmails.map(({ email, color }) => (
             <Box key={email} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Box
