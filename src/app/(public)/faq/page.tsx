@@ -1,104 +1,142 @@
 'use client';
 
-import { Box, Container, Typography, Accordion, AccordionSummary, AccordionDetails, Stack, Link } from '@mui/material';
+import Link from 'next/link';
+import {
+  Typography,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Stack,
+  Button,
+} from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { MuiPublicLayout, PageHeader } from '@/components/mui';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { MuiPublicLayout, PageHeader, PublicPageWrapper, ContentCard, useContentColors } from '@/components/mui';
 import { usePageTitle } from '@/hooks/use-page-title';
 
-const faqs = [
+interface FAQ {
+  question: string;
+  answer: string;
+}
+
+const faqs: FAQ[] = [
   {
-    question: 'How does Time to Just learn my writing style?',
-    answer:
-      'Time to Just analyzes your sent emails to understand your unique communication patterns. It learns your tone, vocabulary, greeting styles, sign-offs, and how you communicate differently with various contacts (e.g., more casual with friends, more formal with clients).',
+    question: 'Will the emails actually sound like me?',
+    answer: 'Yes. We read your sent emails and learn how you write—to your spouse, your boss, your friends. Each relationship gets its own style. When you email your wife, it sounds like you emailing your wife. Not like a robot pretending to be you.',
   },
   {
-    question: 'Is my email data secure?',
-    answer:
-      'Yes, security is our top priority. We use OAuth for Gmail connections (your password is never stored), encrypt all data at rest and in transit, and never share your email content with third parties. Your data is only used to generate personalized drafts for you.',
+    question: 'Will it send emails without asking?',
+    answer: 'Never. Drafts go to your Drafts folder. You review them. You send them. We believe email is too important to automate completely. The human stays in the loop.',
   },
   {
-    question: 'Which email providers are supported?',
-    answer:
-      'Time to Just supports Gmail (via secure OAuth), Outlook/Office 365, Yahoo Mail, iCloud, and any email provider that supports IMAP. For Gmail, we recommend OAuth for the most secure connection.',
+    question: 'Is my email data safe?',
+    answer: 'Yes. Gmail users connect via OAuth—we never see your password. Other providers use encrypted credentials. Your data trains your model, not a shared one. And if you want maximum privacy, run the AI locally with Ollama. Your emails never leave your machine.',
   },
   {
-    question: 'Where do the draft replies appear?',
-    answer:
-      "Draft replies are automatically saved to your email provider's Drafts folder. You can find them there, review and edit as needed, then send directly from your regular email client.",
+    question: 'What email providers work?',
+    answer: 'Gmail, Outlook, Yahoo, iCloud, Fastmail, ProtonMail—anything that supports IMAP. If you can access your email from a desktop client, you can use Time to Just.',
   },
   {
-    question: 'Can I edit the AI-generated drafts?',
-    answer:
-      'Absolutely! The drafts are starting points designed to save you time. You can edit them as much as you want before sending. Time to Just also learns from your edits to improve future suggestions.',
+    question: 'How long does setup take?',
+    answer: 'About five minutes. Connect your email, pick an AI provider, and wait while we read your sent messages. After that, new emails automatically get drafts.',
   },
   {
-    question: "What happens to emails I don't want to reply to?",
-    answer:
-      'Time to Just intelligently categorizes your emails. Spam is automatically detected and moved. FYI-only emails, large distribution lists, and newsletters are organized without generating drafts. You control which categories get automatic draft generation.',
+    question: "What if I don't like a draft?",
+    answer: "Edit it. That's the point. Drafts are starting points, not final products. And when you edit, we learn. Future drafts get better.",
   },
   {
-    question: 'How accurate are the generated drafts?',
-    answer:
-      'Draft accuracy improves over time as the AI learns more about your style. Most users find they need to make only minor edits, if any. The system is particularly good at matching your tone for people you email frequently.',
+    question: 'What about junk email?',
+    answer: 'We catch it. Flight confirmations, shipping updates, bank alerts—these get filed automatically, no draft needed. Spam from strangers gets filtered. Only real emails from real people get drafts.',
   },
   {
-    question: 'Can I use Time to Just with multiple email accounts?',
-    answer:
-      'Yes! You can connect multiple email accounts and Time to Just will learn the different styles you use for each. This is great if you have separate work and personal emails.',
+    question: 'Can I use multiple email accounts?',
+    answer: 'Yes. Each account learns its own style. Your work emails stay professional. Your personal emails stay casual.',
   },
   {
-    question: 'What if I want to disable draft generation temporarily?',
-    answer:
-      'You can easily toggle draft generation on/off in Settings. You can also disable specific processing features like spam detection or email organization independently.',
+    question: 'Which AI does it use?',
+    answer: 'Your choice. OpenAI, Anthropic, Google, or Ollama for local. Switch anytime. Use your own API keys. No lock-in.',
   },
   {
-    question: 'How do I get started?',
-    answer:
-      "Simply sign up for a free account, connect your email via OAuth (recommended for Gmail) or IMAP, and Time to Just will begin learning your style immediately. You'll start seeing drafts for new emails within minutes.",
+    question: 'What does it cost?',
+    answer: 'Time to Just is free during early access. You pay for your own AI usage—or use Ollama and pay nothing. Costs are transparent. No surprises.',
   },
 ];
 
-export default function MuiFaqPage() {
+export default function FAQPage() {
   usePageTitle('FAQ');
+  const colors = useContentColors();
+
   return (
     <MuiPublicLayout>
-      <Container maxWidth="md" sx={{ py: { xs: 6, md: 10 } }}>
-        <PageHeader
-          title="Frequently Asked Questions"
-          description="Everything you need to know about Time to Just"
-          centered
-        />
+      <PublicPageWrapper backgroundImage="/images/auth-bg.jpg">
+        <PageHeader title="Questions" centered />
 
-        <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+        <Stack spacing={0}>
           {faqs.map((faq, index) => (
-            <Accordion key={index} disableGutters>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="subtitle1">
+            <Accordion
+              key={index}
+              disableGutters
+              sx={{
+                bgcolor: colors.cardBg,
+                backdropFilter: 'blur(8px)',
+                border: `1px solid ${colors.cardBorder}`,
+                '&:not(:last-child)': {
+                  borderBottom: 0,
+                },
+                '&::before': {
+                  display: 'none',
+                },
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
+              >
+                <Typography sx={{ fontWeight: 500 }}>
                   {faq.question}
                 </Typography>
               </AccordionSummary>
-              <AccordionDetails>
-                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+              <AccordionDetails sx={{ pt: 0, pb: 3 }}>
+                <Typography sx={{ color: colors.secondaryText, lineHeight: 1.8 }}>
                   {faq.answer}
                 </Typography>
               </AccordionDetails>
             </Accordion>
           ))}
-        </Box>
-
-        <Stack spacing={2} alignItems="center" sx={{ mt: 8 }}>
-          <Typography variant="sectionHeader">
-            Still have questions?
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Contact us at{' '}
-            <Link href="mailto:support@timetojust.com" underline="hover">
-              support@timetojust.com
-            </Link>{' '}
-            and we&apos;ll be happy to help.
-          </Typography>
         </Stack>
-      </Container>
+
+        <ContentCard sx={{ mt: 6 }}>
+          <Stack spacing={2} alignItems="center" sx={{ textAlign: 'center' }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Still have questions?
+            </Typography>
+            <Typography sx={{ color: colors.secondaryText }}>
+              We read every email. (And yes, we use Time to Just to reply.)
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <Button
+                component={Link}
+                href="/contact"
+                variant="outlined"
+              >
+                Contact Us
+              </Button>
+              <Button
+                component={Link}
+                href="/signup"
+                variant="contained"
+                endIcon={<ArrowForwardIcon />}
+              >
+                Get Started Free
+              </Button>
+            </Stack>
+          </Stack>
+        </ContentCard>
+      </PublicPageWrapper>
     </MuiPublicLayout>
   );
 }

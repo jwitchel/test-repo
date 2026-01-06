@@ -15,6 +15,7 @@ import {
   Container,
   TextField,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { useAuth } from '@/lib/auth-context';
 import { useMuiToast } from '@/hooks/use-mui-toast';
 import { MuiPublicLayout, AuthCardHeader, StyledLink } from '@/components/mui';
@@ -30,6 +31,8 @@ type SignInFormData = z.infer<typeof signInSchema>;
 export default function MuiSignInPage() {
   usePageTitle('Sign In');
   const router = useRouter();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const { user, signIn } = useAuth();
   const { success, error: showError } = useMuiToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,9 +72,32 @@ export default function MuiSignInPage() {
 
   return (
     <MuiPublicLayout>
-      <Container maxWidth="sm" sx={{ py: 8 }}>
-        <Box display="flex" justifyContent="center">
-          <Card sx={{ width: '100%', maxWidth: 400 }}>
+      <Box
+        sx={{
+          py: 8,
+          minHeight: 'calc(100vh - 200px)',
+          display: 'flex',
+          alignItems: 'center',
+          backgroundImage: 'url(/images/auth-bg.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed',
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: isDark ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.78)',
+            minHeight: 'inherit',
+          },
+        }}
+      >
+        <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
+          <Box display="flex" justifyContent="center">
+            <Card sx={{ width: '100%', maxWidth: 400, backdropFilter: 'blur(8px)' }}>
             <CardContent sx={{ p: 4 }}>
               <AuthCardHeader
                 title="Sign In"
@@ -131,8 +157,9 @@ export default function MuiSignInPage() {
               </Typography>
             </CardContent>
           </Card>
-        </Box>
-      </Container>
+          </Box>
+        </Container>
+      </Box>
     </MuiPublicLayout>
   );
 }

@@ -9,3 +9,5 @@ export { PageHeader } from './page-header';
 export { MuiThemeToggle } from './theme-toggle';
 export { MuiLogViewer } from '../mui-log-viewer';
 export { PersistentAlertBanner } from './persistent-alert-banner';
+export { PublicPageWrapper } from './public-page-wrapper';
+export { ContentCard, useContentColors } from './content-card';
