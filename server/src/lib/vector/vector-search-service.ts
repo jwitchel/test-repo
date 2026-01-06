@@ -217,7 +217,7 @@ export class VectorSearchService {
       this._validateVector(semanticResult.vector, this.config.semanticDimension, 'semantic');
       this._validateVector(styleVector, this.config.styleDimension, 'style');
 
-      // Store in PostgreSQL
+      // Store in PostgreSQL (with user_id check for multi-tenant isolation)
       const tableName = params.emailType === 'sent' ? 'email_sent' : 'email_received';
 
       await this.pool.query(`
@@ -226,8 +226,8 @@ export class VectorSearchService {
           semantic_vector = $1,
           style_vector = $2,
           vector_generated_at = NOW()
-        WHERE id = $3
-      `, [semanticResult.vector, styleVector, params.emailId]);
+        WHERE id = $3 AND user_id = $4
+      `, [semanticResult.vector, styleVector, params.emailId, params.userId]);
 
       return {
         success: true,

@@ -224,6 +224,7 @@ export class EmailRepository {
 
   /**
    * Update the action taken for a received email
+   * @param userId - The user ID (for multi-tenant isolation)
    * @param emailId - The message ID of the email
    * @param accountId - The email account ID
    * @param action - The action taken
@@ -231,6 +232,7 @@ export class EmailRepository {
    * @param client - Optional transaction client
    */
   async updateReceivedEmailAction(
+    userId: string,
     emailId: string,
     accountId: string,
     action: EmailActionType,
@@ -245,8 +247,8 @@ export class EmailRepository {
       SET action_taken = $1,
           destination_folder = $2,
           updated_at = NOW()
-      WHERE email_id = $3 AND email_account_id = $4
-    `, [action, destination || null, normalizedEmailId, accountId]);
+      WHERE email_id = $3 AND email_account_id = $4 AND user_id = $5
+    `, [action, destination || null, normalizedEmailId, accountId, userId]);
   }
 
   /**
@@ -279,12 +281,14 @@ export class EmailRepository {
 
   /**
    * Get action information for multiple emails
+   * @param userId - The user ID (for multi-tenant isolation)
    * @param accountId - The email account ID
    * @param emailIds - Array of message IDs
    * @param client - Optional transaction client
    * @returns Map of emailId to action info
    */
   async getReceivedEmailActions(
+    userId: string,
     accountId: string,
     emailIds: string[],
     client?: PoolClient
@@ -297,7 +301,8 @@ export class EmailRepository {
       FROM email_received
       WHERE email_account_id = $1
         AND email_id = ANY($2)
-    `, [accountId, normalizedIds]);
+        AND user_id = $3
+    `, [accountId, normalizedIds, userId]);
 
     const map = new Map<string, { action: EmailActionType; destination?: string }>();
     for (const row of result.rows) {
@@ -311,11 +316,13 @@ export class EmailRepository {
 
   /**
    * Reset an email's action to 'pending' (for reprocessing)
+   * @param userId - The user ID (for multi-tenant isolation)
    * @param accountId - The email account ID
    * @param emailId - The message ID of the email
    * @param client - Optional transaction client
    */
   async resetReceivedEmailAction(
+    userId: string,
     accountId: string,
     emailId: string,
     client?: PoolClient
@@ -328,7 +335,7 @@ export class EmailRepository {
       SET action_taken = $1,
           destination_folder = NULL,
           updated_at = NOW()
-      WHERE email_id = $2 AND email_account_id = $3
-    `, [EmailActionType.PENDING, normalizedEmailId, accountId]);
+      WHERE email_id = $2 AND email_account_id = $3 AND user_id = $4
+    `, [EmailActionType.PENDING, normalizedEmailId, accountId, userId]);
   }
 }

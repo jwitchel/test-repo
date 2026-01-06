@@ -213,8 +213,10 @@ export class EmailMover {
       }
 
       // Update the action in email_received with the action the user chose
+      // SECURITY: userId is required for multi-tenant isolation
       const emailRepository = new EmailRepository(pool);
       await emailRepository.updateReceivedEmailAction(
+        userId,
         messageId,
         emailAccountId,
         recommendedAction as EmailActionType,

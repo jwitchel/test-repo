@@ -296,6 +296,7 @@ export class InboxProcessor {
   /**
    * Build processing context from parameters
    * Fetches account email and preferences ONCE - passed through to all subsequent methods
+   * Verifies account ownership for multi-tenant security
    * @private
    */
   private async _buildContext(params: ProcessEmailParams): Promise<ProcessingContext> {
@@ -303,9 +304,14 @@ export class InboxProcessor {
 
     // Fetch account email and preferences in parallel
     const [accountResult, preferences] = await Promise.all([
-      pool.query('SELECT email_address FROM email_accounts WHERE id = $1', [accountId]),
+      pool.query('SELECT email_address FROM email_accounts WHERE id = $1 AND user_id = $2', [accountId, userId]),
       preferencesService.getPreferences(userId)
     ]);
+
+    // Fail if account not found or not owned by user
+    if (accountResult.rows.length === 0) {
+      throw new Error(`Email account ${accountId} not found or not owned by user`);
+    }
 
     return {
       message,
@@ -1028,7 +1034,7 @@ export class InboxProcessor {
       const fullMessages = await imapOps.getMessagesRaw('INBOX', uids);
 
       // Filter messages to only those that haven't been processed
-      const toProcess = await this._filterUnprocessedMessages(fullMessages, accountId, force);
+      const toProcess = await this._filterUnprocessedMessages(fullMessages, userId, accountId, force);
 
       // Process each message
       const results: ProcessEmailResult[] = [];
@@ -1054,6 +1060,7 @@ export class InboxProcessor {
    */
   private async _filterUnprocessedMessages(
     messages: EmailMessageWithRaw[],
+    userId: string,
     accountId: string,
     force: boolean
   ): Promise<EmailMessageWithRaw[]> {
@@ -1061,7 +1068,8 @@ export class InboxProcessor {
       .map(msg => msg.messageId)
       .filter((id): id is string => !!id);
 
-    const actionTracking = await this.emailRepository.getReceivedEmailActions(accountId, messageIds);
+    // SECURITY: userId is required for multi-tenant isolation
+    const actionTracking = await this.emailRepository.getReceivedEmailActions(userId, accountId, messageIds);
 
     return messages.filter(msg => {
       if (!msg.messageId) return false;
