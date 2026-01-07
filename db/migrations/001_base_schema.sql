@@ -1,4 +1,8 @@
--- Note: The "user" table is created by better-auth-schema.sql
+-- Migration: 001_base_schema.sql
+-- Description: Core application tables (email_accounts, draft_tracking)
+-- Note: This was originally db/schema.sql
+
+-- Note: The "user" table is created by 000_better_auth_schema.sql
 -- We reference it with TEXT user_id columns
 
 CREATE TABLE IF NOT EXISTS email_accounts (
@@ -16,7 +20,7 @@ CREATE TABLE IF NOT EXISTS email_accounts (
 CREATE TABLE IF NOT EXISTS draft_tracking (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE,
-  email_account_id UUID REFERENCES email_accounts(id) ON DELETE CASCADE,
+  email_account_id UUID REFERENCES email_accounts(id) ON DELETE SET NULL,
   original_message_id VARCHAR(255) NOT NULL,
   draft_message_id VARCHAR(255) NOT NULL,
   generated_content TEXT NOT NULL,

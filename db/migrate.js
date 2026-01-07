@@ -30,6 +30,22 @@ async function recordMigration(client, name) {
   );
 }
 
+// Map old schema names to new migration files for backwards compatibility
+const LEGACY_SCHEMA_MAP = {
+  'better-auth-schema': '000_better_auth_schema.sql',
+  'base-schema': '001_base_schema.sql',
+  'relationship-schema': '002_relationship_schema.sql'
+};
+
+async function migrateLegacySchemaRecords(client) {
+  // If old schema records exist, map them to new migration names
+  for (const [oldName, newName] of Object.entries(LEGACY_SCHEMA_MAP)) {
+    if (await isMigrationApplied(client, oldName)) {
+      await recordMigration(client, newName);
+    }
+  }
+}
+
 async function runMigration() {
   const client = await pool.connect();
 
@@ -37,58 +53,29 @@ async function runMigration() {
     // Create migrations tracking table first
     await ensureMigrationsTable(client);
 
-    // Run better-auth schema (idempotent - uses IF NOT EXISTS)
-    if (!(await isMigrationApplied(client, 'better-auth-schema'))) {
-      const betterAuthSchema = fs.readFileSync(path.join(__dirname, 'better-auth-schema.sql'), 'utf8');
-      await client.query(betterAuthSchema);
-      await recordMigration(client, 'better-auth-schema');
-      console.log('Better-auth schema migration completed');
-    } else {
-      console.log('Better-auth schema already applied, skipping');
-    }
+    // Migrate legacy schema records to new naming convention
+    await migrateLegacySchemaRecords(client);
 
-    // Run the original schema (idempotent - uses IF NOT EXISTS)
-    if (!(await isMigrationApplied(client, 'base-schema'))) {
-      const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-      await client.query(schema);
-      await recordMigration(client, 'base-schema');
-      console.log('Base schema migration completed');
-    } else {
-      console.log('Base schema already applied, skipping');
-    }
-
-    // Run the relationship schema (idempotent - uses IF NOT EXISTS)
-    if (!(await isMigrationApplied(client, 'relationship-schema'))) {
-      const relationshipSchema = fs.readFileSync(path.join(__dirname, 'relationship-schema.sql'), 'utf8');
-      await client.query(relationshipSchema);
-      await recordMigration(client, 'relationship-schema');
-      console.log('Relationship schema migration completed');
-    } else {
-      console.log('Relationship schema already applied, skipping');
-    }
-
-    // Run numbered migrations in order from db/migrations
+    // Run all migrations in order from db/migrations
     const migrationsDir = path.join(__dirname, 'migrations');
-    if (fs.existsSync(migrationsDir)) {
-      const migrationFiles = fs.readdirSync(migrationsDir)
-        .filter(file => file.endsWith('.sql'))
-        .sort();
+    const migrationFiles = fs.readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort();
 
-      for (const file of migrationFiles) {
-        if (await isMigrationApplied(client, file)) {
-          console.log(`Migration ${file} already applied, skipping`);
-          continue;
-        }
+    for (const file of migrationFiles) {
+      if (await isMigrationApplied(client, file)) {
+        console.log(`Migration ${file} already applied, skipping`);
+        continue;
+      }
 
-        try {
-          const migration = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-          await client.query(migration);
-          await recordMigration(client, file);
-          console.log(`Migration ${file} completed`);
-        } catch (error) {
-          console.error(`Migration ${file} failed:`, error.message);
-          throw error; // Stop on failure - don't continue with broken state
-        }
+      try {
+        const migration = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+        await client.query(migration);
+        await recordMigration(client, file);
+        console.log(`Migration ${file} completed`);
+      } catch (error) {
+        console.error(`Migration ${file} failed:`, error.message);
+        throw error; // Stop on failure - don't continue with broken state
       }
     }
 

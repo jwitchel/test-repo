@@ -1,6 +1,7 @@
--- Migration: 003_create_relationship_tables.sql
--- Description: Create people-based relationship management schema for tone profiles
--- Dependencies: user table must exist (from better-auth)
+-- Migration: 002_relationship_schema.sql
+-- Description: People-based relationship management schema for tone profiles
+-- Note: This was originally db/relationship-schema.sql
+-- Dependencies: user table must exist (from 000_better_auth_schema.sql)
 
 -- People (individuals who may have multiple email addresses)
 CREATE TABLE IF NOT EXISTS people (
@@ -51,8 +52,8 @@ CREATE TABLE IF NOT EXISTS person_relationships (
 );
 
 -- Ensure only one primary relationship per person
-CREATE UNIQUE INDEX IF NOT EXISTS idx_one_primary_per_person 
-ON person_relationships(user_id, person_id) 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_primary_per_person
+ON person_relationships(user_id, person_id)
 WHERE is_primary = TRUE;
 
 -- Tone preferences per relationship (simplified)

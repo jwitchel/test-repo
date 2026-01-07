@@ -1,3 +1,7 @@
+-- Migration: 000_better_auth_schema.sql
+-- Description: Better-auth required tables (user, session, account, verification)
+-- Note: This was originally db/better-auth-schema.sql
+
 -- Better-auth required tables
 CREATE TABLE IF NOT EXISTS "user" (
     id TEXT PRIMARY KEY,
