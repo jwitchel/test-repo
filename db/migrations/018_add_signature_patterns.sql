@@ -1,6 +1,6 @@
 -- Add signature_patterns field to user table
-ALTER TABLE "user" 
-ADD COLUMN signature_patterns TEXT[] DEFAULT '{}';
+ALTER TABLE "user"
+ADD COLUMN IF NOT EXISTS signature_patterns TEXT[] DEFAULT '{}';
 
 -- Add comment explaining the field
 COMMENT ON COLUMN "user".signature_patterns IS 'Array of regex patterns to match and remove email signatures';

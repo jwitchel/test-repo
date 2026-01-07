@@ -9,17 +9,27 @@ ALTER TABLE email_received ADD COLUMN IF NOT EXISTS sender_person_email_id UUID;
 -- Note: This is a no-op if the columns already have data
 
 -- Step 3: Add foreign key constraints
-ALTER TABLE email_sent
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_email_sent_recipient_person_email') THEN
+    ALTER TABLE email_sent
     ADD CONSTRAINT fk_email_sent_recipient_person_email
     FOREIGN KEY (recipient_person_email_id)
     REFERENCES person_emails(id)
     ON DELETE CASCADE;
+  END IF;
+END $$;
 
-ALTER TABLE email_received
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_email_received_sender_person_email') THEN
+    ALTER TABLE email_received
     ADD CONSTRAINT fk_email_received_sender_person_email
     FOREIGN KEY (sender_person_email_id)
     REFERENCES person_emails(id)
     ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- Step 4: Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_email_sent_recipient_person_email

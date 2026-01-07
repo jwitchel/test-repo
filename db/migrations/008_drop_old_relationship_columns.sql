@@ -11,13 +11,18 @@ ALTER TABLE person_relationships
 DROP CONSTRAINT IF EXISTS person_relationships_user_id_person_id_relationship_type_key;
 
 -- Step 3: Drop the relationship_type column from person_relationships
-ALTER TABLE person_relationships 
-DROP COLUMN relationship_type;
+ALTER TABLE person_relationships
+DROP COLUMN IF EXISTS relationship_type;
 
 -- Step 4: Add new unique constraint using user_relationship_id
-ALTER TABLE person_relationships 
-ADD CONSTRAINT person_relationships_user_id_person_id_user_relationship_id_key 
-UNIQUE (user_id, person_id, user_relationship_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'person_relationships_user_id_person_id_user_relationship_id_key') THEN
+    ALTER TABLE person_relationships
+    ADD CONSTRAINT person_relationships_user_id_person_id_user_relationship_id_key
+    UNIQUE (user_id, person_id, user_relationship_id);
+  END IF;
+END $$;
 
 -- Note: We keep target_identifier in tone_preferences as it's still needed for:
 -- - 'aggregate' preference type (no relationship)

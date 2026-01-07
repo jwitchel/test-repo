@@ -1,7 +1,7 @@
 -- Generic user alerts table for any provider errors
 -- Supports email accounts, LLM providers, and future integrations
 
-CREATE TABLE user_alerts (
+CREATE TABLE IF NOT EXISTS user_alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
 
@@ -30,20 +30,20 @@ CREATE TABLE user_alerts (
 );
 
 -- Partial unique index: only one active alert per source/type combination
-CREATE UNIQUE INDEX idx_user_alerts_unique_active
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_alerts_unique_active
   ON user_alerts(user_id, source_type, source_id, alert_type)
   WHERE resolved_at IS NULL;
 
 -- Index for efficient active alert queries
-CREATE INDEX idx_user_alerts_active
+CREATE INDEX IF NOT EXISTS idx_user_alerts_active
   ON user_alerts(user_id, resolved_at)
   WHERE resolved_at IS NULL;
 
 -- Index for source lookups (used by resolveAlertsForSource)
-CREATE INDEX idx_user_alerts_source
+CREATE INDEX IF NOT EXISTS idx_user_alerts_source
   ON user_alerts(source_type, source_id);
 
 -- Index for notification job (find alerts needing email notification)
-CREATE INDEX idx_user_alerts_needs_notify
+CREATE INDEX IF NOT EXISTS idx_user_alerts_needs_notify
   ON user_alerts(error_count, notified_at)
   WHERE resolved_at IS NULL AND notified_at IS NULL;
