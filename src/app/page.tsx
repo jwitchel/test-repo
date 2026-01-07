@@ -448,9 +448,8 @@ export default function HomePage() {
                 sx={{
                   fontWeight: 600,
                   mb: 3,
-                  fontSize: { xs: '1.75rem', md: '2rem' },
+                  fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
                   lineHeight: 1.2,
-                  whiteSpace: 'nowrap',
                 }}
               >
                 We catch that last 10% of spam.

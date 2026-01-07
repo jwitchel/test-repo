@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, ReactNode } from 'react'
-import { authClient } from './auth-client'
+import { authClient, signInWithGoogle as googleSignIn } from './auth-client'
 
 interface User {
   id: string
@@ -20,6 +20,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, name?: string) => Promise<void>
   signOut: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   clearError: () => void
 }
@@ -107,6 +108,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function signInWithGoogle() {
+    try {
+      setError(null)
+      await googleSignIn()
+      // Redirect happens automatically via callbackURL
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Google sign-in failed'
+      setError(message)
+      throw err
+    }
+  }
+
   function clearError() {
     setError(null)
   }
@@ -120,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        signInWithGoogle,
         changePassword,
         clearError,
       }}

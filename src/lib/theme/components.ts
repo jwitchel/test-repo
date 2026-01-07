@@ -382,6 +382,11 @@ export function getComponents(theme: Theme): Components<Theme> {
           borderRadius: 2,
         },
       },
+      defaultProps: {
+        variant: 'scrollable',
+        scrollButtons: 'auto',
+        allowScrollButtonsMobile: true,
+      },
     },
 
     MuiTab: {
@@ -390,6 +395,12 @@ export function getComponents(theme: Theme): Components<Theme> {
           textTransform: 'none',
           fontWeight: 500,
           minHeight: 48,
+          minWidth: 'auto',
+          padding: '12px 16px',
+          [theme.breakpoints.down('sm')]: {
+            padding: '12px 12px',
+            fontSize: '0.8rem',
+          },
         },
       },
     },

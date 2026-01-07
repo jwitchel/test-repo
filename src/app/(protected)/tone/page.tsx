@@ -520,7 +520,7 @@ export default function MuiTonePage() {
                   <Box
                     sx={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
                       gap: 3,
                       mt: 2,
                     }}
@@ -549,7 +549,7 @@ export default function MuiTonePage() {
                   <Box
                     sx={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
                       gap: 3,
                     }}
                   >
@@ -652,7 +652,7 @@ export default function MuiTonePage() {
                         <Box
                           sx={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(2, 1fr)',
+                            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
                             gap: 3,
                           }}
                         >
@@ -706,11 +706,11 @@ export default function MuiTonePage() {
                   </Paper>
                 )}
 
-                {/* Valedictions and Name Signature - Side by side */}
+                {/* Valedictions and Name Signature - Side by side on desktop, stacked on mobile */}
                 <Box
                   sx={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
                     gap: 3,
                   }}
                 >

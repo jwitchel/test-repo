@@ -19,17 +19,21 @@ import { SourceType } from '../types/user-alerts';
 
 const router = express.Router();
 
-// IMAP provider configuration
+// IMAP provider configuration (from env)
 export const IMAP_HOSTS = {
-  GMAIL: 'imap.gmail.com',
-  OUTLOOK: 'outlook.office365.com',
-  OUTLOOK_LEGACY: 'imap-mail.outlook.com'
+  GMAIL: process.env.GMAIL_IMAP_HOST!,
+  OUTLOOK: process.env.OUTLOOK_IMAP_HOST!,
+  OUTLOOK_LEGACY: process.env.OUTLOOK_LEGACY_IMAP_HOST!
 } as const;
 
 export const SENT_FOLDERS = {
-  GMAIL: '[Gmail]/Sent Mail',
-  OUTLOOK: 'Sent Items',
-  DEFAULT: 'Sent'
+  GMAIL: process.env.GMAIL_SENT_FOLDER!,
+  OUTLOOK: process.env.OUTLOOK_SENT_FOLDER!,
+  DEFAULT: process.env.DEFAULT_SENT_FOLDER!
+} as const;
+
+export const IMAP_PORTS = {
+  GMAIL: parseInt(process.env.GMAIL_IMAP_PORT!, 10),
 } as const;
 
 // Detect sent folder based on IMAP host

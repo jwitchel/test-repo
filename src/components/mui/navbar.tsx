@@ -140,10 +140,10 @@ export function MuiNavbar({ variant, user, onSignOut }: MuiNavbarProps) {
               {variant === 'public' ? (
                 /* Public: Sign In / Sign Up buttons */
                 <>
-                  <Button component={Link} href="/signin" color="inherit">
+                  <Button component={Link} href="/signin" color="inherit" size={isMobile ? 'small' : 'medium'}>
                     Sign In
                   </Button>
-                  <Button component={Link} href="/signup" variant="contained">
+                  <Button component={Link} href="/signup" variant="contained" size={isMobile ? 'small' : 'medium'}>
                     Sign Up
                   </Button>
                 </>
