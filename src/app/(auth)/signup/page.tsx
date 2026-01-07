@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -38,7 +38,7 @@ const signUpSchema = z
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
-export default function MuiSignUpPage() {
+function SignUpContent() {
   usePageTitle('Sign Up');
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -238,5 +238,13 @@ export default function MuiSignUpPage() {
         </Container>
       </Box>
     </MuiPublicLayout>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense>
+      <SignUpContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -31,7 +31,7 @@ const signInSchema = z.object({
 
 type SignInFormData = z.infer<typeof signInSchema>;
 
-export default function MuiSignInPage() {
+function SignInContent() {
   usePageTitle('Sign In');
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -200,5 +200,13 @@ export default function MuiSignInPage() {
         </Container>
       </Box>
     </MuiPublicLayout>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInContent />
+    </Suspense>
   );
 }
