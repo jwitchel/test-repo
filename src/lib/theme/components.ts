@@ -510,6 +510,8 @@ export function getComponents(theme: Theme): Components<Theme> {
       styleOverrides: {
         root: {
           fontWeight: 500,
+          // Lighter color when unfocused (acting as placeholder)
+          color: theme.palette.text.disabled,
           '&.Mui-focused': {
             color: theme.palette.primary.main,
           },

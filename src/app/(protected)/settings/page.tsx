@@ -261,50 +261,35 @@ function TypedNameSettingsPanel() {
     <>
       <Stack spacing={3}>
         <Box>
-          <Typography variant="body2" fontWeight="medium" gutterBottom>
-            Name Removal Pattern (Regex)
-          </Typography>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
             <TextFieldElement
               name="removalRegex"
               control={control}
+              label="Name Removal Pattern (Regex)"
               placeholder="e.g., ^[-\s]*(?:John|J)\s*$"
+              helperText="Regular expression to match and remove your typed name from emails during training. Searches from bottom to top and removes only the first match found."
               fullWidth
-              size="small"
               slotProps={{
                 input: { style: { fontFamily: 'monospace', fontSize: '0.875rem' } },
               }}
             />
-            <Button variant="outlined" onClick={() => setRegexDialogOpen(true)} size="small">
+            <Button variant="outlined" onClick={() => setRegexDialogOpen(true)} sx={{ mt: 1 }}>
               Test
             </Button>
           </Stack>
-          <Typography variant="caption" color="text.secondary">
-            Regular expression to match and remove your typed name from emails during training.
-            Searches from bottom to top and removes only the first match found.
-          </Typography>
         </Box>
-        <Box>
-          <Typography variant="body2" fontWeight="medium" gutterBottom>
-            Name to Append
-          </Typography>
-          <TextFieldElement
-            name="appendString"
-            control={control}
-            placeholder="e.g., -John"
-            fullWidth
-            size="small"
-          />
-          <Typography variant="caption" color="text.secondary">
-            Your personal signature used in generated email responses. Leave empty if it&apos;s included in your signature block.
-          </Typography>
-        </Box>
-        <Box>
-          <Button variant="contained" onClick={handleSubmit(onSubmit)} disabled={isSaving}>
-            {isSaving ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-            Save Typed Name Settings
-          </Button>
-        </Box>
+        <TextFieldElement
+          name="appendString"
+          control={control}
+          label="Name to Append"
+          placeholder="e.g., -John"
+          helperText="Your personal signature used in generated email responses. Leave empty if it's included in your signature block."
+          fullWidth
+        />
+        <Button variant="contained" onClick={handleSubmit(onSubmit)} disabled={isSaving}>
+          {isSaving ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
+          Save Typed Name Settings
+        </Button>
       </Stack>
 
       <RegexTesterDialog
@@ -553,38 +538,27 @@ function ActionRulesPanel() {
   const RuleRow = ({ rule }: { rule: ActionRule }) => {
     const isRelationship = rule.conditionType === 'relationship';
     const colors = relationshipColors.light as Record<string, string>;
-    const conditionColor = isRelationship
-      ? colors[rule.conditionValue] || colors.unknown
-      : undefined;
-    const conditionLabel = isRelationship
-      ? relationshipLabels[rule.conditionValue] || rule.conditionValue
-      : rule.conditionValue;
+    const conditionColor = isRelationship ? colors[rule.conditionValue] || colors.unknown : undefined;
+    const conditionLabel = isRelationship ? relationshipLabels[rule.conditionValue] || rule.conditionValue : rule.conditionValue;
     const actionColor = ACTION_COLORS[rule.targetAction] || ACTION_COLORS.pending;
     const actionLabel = ACTION_LABELS[rule.targetAction] || rule.targetAction;
 
     return (
       <Stack
-        direction="row"
-        alignItems="center"
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
         justifyContent="space-between"
-        sx={{ py: 1, px: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}
+        spacing={1}
+        sx={{ py: 1.5, px: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}
       >
-        <Stack direction="row" alignItems="center" spacing={1}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap: 'wrap' }}>
           <Chip
             label={conditionLabel}
             size="small"
-            sx={
-              isRelationship
-                ? { bgcolor: conditionColor, color: 'white', fontWeight: 500 }
-                : { fontWeight: 400 }
-            }
+            sx={isRelationship ? { bgcolor: conditionColor, color: 'white' } : undefined}
           />
           <Typography color="text.secondary">→</Typography>
-          <Chip
-            label={actionLabel}
-            size="small"
-            sx={{ bgcolor: actionColor, color: 'white', fontWeight: 500 }}
-          />
+          <Chip label={actionLabel} size="small" sx={{ bgcolor: actionColor, color: 'white' }} />
         </Stack>
         <Button
           variant="outlined"
@@ -1304,8 +1278,46 @@ function SignaturesTab() {
 // Security Tab Component
 function SecurityTab() {
   const { success, error: showError } = useMuiToast();
+  const { signOut } = useAuth();
+  const showConfirm = useConfirm();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      const response = await fetch('/api/me', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        success('Account deleted successfully');
+        await signOut();
+        window.location.href = '/';
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error);
+      }
+    } catch {
+      showError('Network error. Please try again.');
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const confirmDeleteAccount = () => {
+    showConfirm({
+      title: 'Delete Account',
+      description:
+        'Are you sure you want to delete your account? This action cannot be undone. All your data, including email accounts, sent emails, received emails, and preferences will be permanently deleted.',
+      confirmationText: 'Delete Account',
+      cancellationText: 'Cancel',
+      confirmationButtonProps: { color: 'error' },
+      onConfirm: handleDeleteAccount,
+    });
+  };
 
   const { control, handleSubmit, reset } = useForm<PasswordFormData>({
     defaultValues: {
@@ -1376,8 +1388,13 @@ function SecurityTab() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Irreversible actions
           </Typography>
-          <Button variant="contained" color="error">
-            Delete Account
+          <Button
+            variant="contained"
+            color="error"
+            onClick={confirmDeleteAccount}
+            disabled={isDeletingAccount}
+          >
+            {isDeletingAccount ? 'Deleting...' : 'Delete Account'}
           </Button>
         </Paper>
       </Stack>

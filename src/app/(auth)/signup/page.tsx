@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,9 +14,12 @@ import {
   Stack,
   Container,
   TextField,
+  Divider,
 } from '@mui/material';
+import GoogleIcon from '@mui/icons-material/Google';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '@/lib/auth-context';
+import { getAuthErrorMessage } from '@/lib/auth-client';
 import { useMuiToast } from '@/hooks/use-mui-toast';
 import { MuiPublicLayout, AuthCardHeader, StyledLink } from '@/components/mui';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -38,11 +41,23 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 export default function MuiSignUpPage() {
   usePageTitle('Sign Up');
   const router = useRouter();
+  const searchParams = useSearchParams();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const { user, signUp } = useAuth();
+  const { user, signUp, signInWithGoogle } = useAuth();
   const { success, error: showError } = useMuiToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Handle error query params from OAuth redirects
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error) {
+      showError(getAuthErrorMessage(error));
+      // Clean up the URL
+      router.replace('/signup', { scroll: false });
+    }
+  }, [searchParams, showError, router]);
 
   const {
     control,
@@ -77,6 +92,17 @@ export default function MuiSignUpPage() {
       showError(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Google sign-up failed';
+      showError(message);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -186,6 +212,19 @@ export default function MuiSignUpPage() {
                   </Button>
                 </Stack>
               </Box>
+
+              <Divider sx={{ my: 3 }}>or</Divider>
+
+              <Button
+                variant="outlined"
+                fullWidth
+                size="large"
+                startIcon={<GoogleIcon />}
+                onClick={handleGoogleSignUp}
+                disabled={isSubmitting || isGoogleLoading}
+              >
+                {isGoogleLoading ? 'Connecting...' : 'Sign up with Google'}
+              </Button>
 
               <Typography variant="body2" sx={{ mt: 3 }}>
                 Already have an account?{' '}
