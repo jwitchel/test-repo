@@ -743,7 +743,7 @@ export default function MuiJobsPage() {
     });
   }, [jobs]);
 
-  // Show nothing while loading auth - protected layout handles redirect
+  // Admin Layout handles auth check - show loading state while user is null
   if (!user) return null;
 
   return (

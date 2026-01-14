@@ -386,7 +386,7 @@ export default function BotSendersPage() {
     });
   };
 
-  // Show nothing while loading auth
+  // Admin Layout handles auth check - show loading state while user is null
   if (!user) return null;
 
   if (error) {

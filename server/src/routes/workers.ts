@@ -1,12 +1,15 @@
 import express from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 import { workerManager } from '../lib/worker-manager';
 import { jobSchedulerManager } from '../lib/job-scheduler-manager';
 
 const router = express.Router();
 
+// All routes require admin access
+router.use(requireAuth, requireAdmin);
+
 // Get worker status
-router.get('/status', requireAuth, async (req, res): Promise<void> => {
+router.get('/status', async (req, res): Promise<void> => {
   try {
     const userId = req.user.id;
     const status = await workerManager.getStatus();
@@ -28,7 +31,7 @@ router.get('/status', requireAuth, async (req, res): Promise<void> => {
 });
 
 // Pause all workers
-router.post('/pause', requireAuth, async (_req, res): Promise<void> => {
+router.post('/pause', async (_req, res): Promise<void> => {
   try {
     await workerManager.pauseAllWorkers(false); // false = wait for active jobs to complete
     const status = await workerManager.getStatus();
@@ -47,7 +50,7 @@ router.post('/pause', requireAuth, async (_req, res): Promise<void> => {
 });
 
 // Resume all workers
-router.post('/resume', requireAuth, async (_req, res): Promise<void> => {
+router.post('/resume', async (_req, res): Promise<void> => {
   try {
     await workerManager.resumeAllWorkers();
     const status = await workerManager.getStatus();
@@ -66,7 +69,7 @@ router.post('/resume', requireAuth, async (_req, res): Promise<void> => {
 });
 
 // Toggle workers
-router.post('/toggle', requireAuth, async (_req, res): Promise<void> => {
+router.post('/toggle', async (_req, res): Promise<void> => {
   try {
     const isActive = await workerManager.toggleWorkers();
     const status = await workerManager.getStatus();
@@ -86,7 +89,7 @@ router.post('/toggle', requireAuth, async (_req, res): Promise<void> => {
 });
 
 // Emergency pause all queues
-router.post('/emergency-pause', requireAuth, async (_req, res): Promise<void> => {
+router.post('/emergency-pause', async (_req, res): Promise<void> => {
   try {
     await workerManager.emergencyPauseQueues();
     const status = await workerManager.getStatus();
@@ -105,7 +108,7 @@ router.post('/emergency-pause', requireAuth, async (_req, res): Promise<void> =>
 });
 
 // Resume queues after emergency pause
-router.post('/resume-queues', requireAuth, async (_req, res): Promise<void> => {
+router.post('/resume-queues', async (_req, res): Promise<void> => {
   try {
     await workerManager.resumeQueues();
     const status = await workerManager.getStatus();

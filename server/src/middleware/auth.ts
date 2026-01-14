@@ -2,7 +2,9 @@
 import express from 'express';
 import { auth } from '../lib/auth';
 
-// Protected route middleware
+/**
+ * Protected route middleware - requires authenticated session or service token
+ */
 export const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> => {
   // Check for service token first
   const authHeader = req.headers.authorization;
@@ -50,4 +52,34 @@ export const requireAuth = async (req: express.Request, res: express.Response, n
     console.error('Auth middleware error:', error);
     res.status(401).json({ error: 'Invalid session' });
   }
+};
+
+/**
+ * Admin role middleware - must be used AFTER requireAuth
+ * Blocks service tokens and non-admin users
+ */
+export const requireAdmin = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+): void => {
+  // Defensive check - requireAuth must run first
+  if (!req.user) {
+    console.error('[SECURITY] requireAdmin called without requireAuth');
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  // Service tokens cannot be admins (system operations only)
+  if (req.isServiceToken) {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  if (req.user.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  next();
 };

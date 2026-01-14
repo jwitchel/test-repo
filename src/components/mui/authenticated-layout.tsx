@@ -10,6 +10,7 @@ interface MuiAuthenticatedLayoutProps {
   user: {
     name?: string;
     email: string;
+    role?: string | null;
   };
   onSignOut: () => Promise<void>;
 }

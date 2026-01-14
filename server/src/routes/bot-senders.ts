@@ -4,11 +4,14 @@
  * Uses regex patterns with domain-based filtering
  */
 import express from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 import { pool } from '../lib/db';
 import { extractDomainFromPattern } from '../lib/email-processing/bot-detector';
 
 const router = express.Router();
+
+// All routes require admin access
+router.use(requireAuth, requireAdmin);
 
 // Types
 interface BotSender {
@@ -78,7 +81,7 @@ function validateBotSender(req: express.Request, res: express.Response, next: ex
 }
 
 // Get bot senders with server-side pagination
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { category, search, active, page = '0', pageSize = '25' } = req.query;
 
@@ -142,7 +145,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // Get categories with counts
-router.get('/categories', requireAuth, async (_req, res) => {
+router.get('/categories', async (_req, res) => {
   try {
     const result = await pool.query(`
       SELECT category, COUNT(*) as count, SUM(CASE WHEN is_confirmed THEN 1 ELSE 0 END) as confirmed_count
@@ -159,7 +162,7 @@ router.get('/categories', requireAuth, async (_req, res) => {
 });
 
 // Add or update bot sender (upsert)
-router.post('/', requireAuth, validateBotSender, async (req, res): Promise<void> => {
+router.post('/', validateBotSender, async (req, res): Promise<void> => {
   const data = req.body as CreateBotSenderRequest;
   const patternLower = data.email_pattern.toLowerCase();
   const domain = extractDomainFromPattern(patternLower)!; // Validated in middleware
@@ -200,7 +203,7 @@ router.post('/', requireAuth, validateBotSender, async (req, res): Promise<void>
 });
 
 // Update bot sender
-router.put('/:id', requireAuth, async (req, res): Promise<void> => {
+router.put('/:id', async (req, res): Promise<void> => {
   const { id } = req.params;
   const updates = req.body as UpdateBotSenderRequest;
 
@@ -287,7 +290,7 @@ router.put('/:id', requireAuth, async (req, res): Promise<void> => {
 });
 
 // Delete bot sender
-router.delete('/:id', requireAuth, async (req, res): Promise<void> => {
+router.delete('/:id', async (req, res): Promise<void> => {
   const { id } = req.params;
 
   const result = await pool.query(

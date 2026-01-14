@@ -11,6 +11,15 @@ interface User {
   createdAt?: Date | string
   updatedAt?: Date | string
   image?: string | null
+  role?: string | null
+}
+
+/**
+ * Check if user has admin role
+ * Caller must ensure user exists before calling
+ */
+export function isAdmin(user: User): boolean {
+  return user.role === 'admin'
 }
 
 interface AuthContextType {

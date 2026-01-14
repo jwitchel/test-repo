@@ -41,6 +41,7 @@ interface MuiNavbarProps {
   user?: {
     name?: string;
     email: string;
+    role?: string | null;
   };
   onSignOut?: () => Promise<void>;
 }
@@ -51,15 +52,18 @@ const publicNavLinks: NavLink[] = [
   { href: '/faq', label: 'FAQ' },
 ];
 
-const authenticatedMenuItems = [
+const commonMenuItems = [
   { href: '/tone', label: 'Tone Analysis', icon: TuneIcon },
   { divider: true },
   { href: '/settings', label: 'Settings', icon: SettingsIcon },
   { href: '/settings/email-accounts', label: 'Email Accounts', icon: MailIcon },
   { href: '/settings/llm-providers', label: 'LLM Providers', icon: SmartToyIcon },
+];
+
+const adminMenuItems = [
   { divider: true, label: 'Development Tools' },
-  { href: '/dashboard/jobs', label: 'Jobs', icon: WorkIcon },
-  { href: '/settings/bot-senders', label: 'Bot Senders', icon: PrecisionManufacturingIcon },
+  { href: '/jobs', label: 'Jobs', icon: WorkIcon },
+  { href: '/bot-senders', label: 'Bot Senders', icon: PrecisionManufacturingIcon },
 ];
 
 export function MuiNavbar({ variant, user, onSignOut }: MuiNavbarProps) {
@@ -71,6 +75,10 @@ export function MuiNavbar({ variant, user, onSignOut }: MuiNavbarProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isLocalhost, setIsLocalhost] = useState(false);
   const menuOpen = Boolean(anchorEl);
+
+  const menuItems = user?.role === 'admin'
+    ? [...commonMenuItems, ...adminMenuItems]
+    : commonMenuItems;
 
   useEffect(() => {
     setIsLocalhost(window.location.hostname === 'localhost');
@@ -166,7 +174,7 @@ export function MuiNavbar({ variant, user, onSignOut }: MuiNavbarProps) {
                     transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                     slotProps={{ paper: { sx: { minWidth: 200 } } }}
                   >
-                    {authenticatedMenuItems.map((item, index) => {
+                    {menuItems.map((item, index) => {
                       if ('divider' in item && item.divider) {
                         return item.label ? (
                           <MenuItem key={index} disabled sx={{ opacity: 1 }}>

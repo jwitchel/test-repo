@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { admin } from 'better-auth/plugins';
 import { pool } from './db';
 import { sharedConnection } from './redis-connection';
 import crypto from 'crypto';
@@ -15,6 +16,12 @@ import {
 const auth = betterAuth({
   database: pool,
   baseURL: process.env.APP_URL!,
+  plugins: [
+    admin({
+      defaultRole: 'user',
+      adminRoles: ['admin'],
+    }),
+  ],
   secondaryStorage: {
     get: async (key) => {
       return sharedConnection.get(key);

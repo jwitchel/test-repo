@@ -1,6 +1,6 @@
 import express from 'express';
 import { Queue } from 'bullmq';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 import {
   inboxQueue,
   trainingQueue,
@@ -12,6 +12,9 @@ import {
 import { pool } from '../lib/db';
 
 const router = express.Router();
+
+// All routes require admin access
+router.use(requireAuth, requireAdmin);
 
 /**
  * Get queue by name, returns null if invalid name
@@ -32,7 +35,7 @@ function getTotalJobCount(counts: { [key: string]: number }): number {
 }
 
 // Queue a new job
-router.post('/queue', requireAuth, async (req, res): Promise<void> => {
+router.post('/queue', async (req, res): Promise<void> => {
   try {
     const userId = req.user.id;
     const { type, data, priority = 'normal', force = false } = req.body;
@@ -101,7 +104,7 @@ router.post('/queue', requireAuth, async (req, res): Promise<void> => {
 });
 
 // Get job status from specific queue
-router.get('/:queueName/:jobId/status', requireAuth, async (req, res): Promise<void> => {
+router.get('/:queueName/:jobId/status', async (req, res): Promise<void> => {
   try {
     const { queueName, jobId } = req.params;
 
@@ -142,7 +145,7 @@ router.get('/:queueName/:jobId/status', requireAuth, async (req, res): Promise<v
 });
 
 // List jobs directly from BullMQ
-router.get('/list', requireAuth, async (req, res): Promise<void> => {
+router.get('/list', async (req, res): Promise<void> => {
   try {
     const { status = 'all', limit = 20, offset = 0 } = req.query;
 
@@ -220,7 +223,7 @@ router.get('/list', requireAuth, async (req, res): Promise<void> => {
 });
 
 // Cancel a job from specific queue
-router.delete('/:queueName/:jobId', requireAuth, async (req, res): Promise<void> => {
+router.delete('/:queueName/:jobId', async (req, res): Promise<void> => {
   try {
     const { queueName, jobId } = req.params;
 
@@ -254,7 +257,7 @@ router.delete('/:queueName/:jobId', requireAuth, async (req, res): Promise<void>
 });
 
 // Retry a failed job from specific queue
-router.post('/:queueName/:jobId/retry', requireAuth, async (req, res): Promise<void> => {
+router.post('/:queueName/:jobId/retry', async (req, res): Promise<void> => {
   try {
     const { queueName, jobId } = req.params;
 
@@ -314,7 +317,7 @@ router.post('/:queueName/:jobId/retry', requireAuth, async (req, res): Promise<v
 });
 
 // Get job statistics directly from BullMQ
-router.get('/stats', requireAuth, async (_req, res): Promise<void> => {
+router.get('/stats', async (_req, res): Promise<void> => {
   try {
     // Get counts from both queues
     const emailCounts = await inboxQueue.getJobCounts();
@@ -361,7 +364,7 @@ router.get('/stats', requireAuth, async (_req, res): Promise<void> => {
 });
 
 // Clear pending jobs (queued/prioritized) from all queues
-router.post('/clear-pending-jobs', requireAuth, async (_req, res): Promise<void> => {
+router.post('/clear-pending-jobs', async (_req, res): Promise<void> => {
   try {
     console.log('Clearing pending jobs from all queues...');
     
@@ -426,7 +429,7 @@ router.post('/clear-pending-jobs', requireAuth, async (_req, res): Promise<void>
 });
 
 // Clear all jobs from all queues - complete unconditional cleanup
-router.post('/clear-all-queues', requireAuth, async (_req, res): Promise<void> => {
+router.post('/clear-all-queues', async (_req, res): Promise<void> => {
   try {
     console.log('Starting complete queue obliteration...');
     
@@ -479,7 +482,7 @@ router.post('/clear-all-queues', requireAuth, async (_req, res): Promise<void> =
 });
 
 // Keep old endpoint for backward compatibility (calls the new one)
-router.post('/clear-queue', requireAuth, async (_req, res): Promise<void> => {
+router.post('/clear-queue', async (_req, res): Promise<void> => {
   try {
     console.log('Legacy /clear-queue endpoint called, redirecting to /clear-all-queues');
 
