@@ -371,7 +371,7 @@ export class InboxProcessor {
     _context: ProcessingContext,
     parsedData: ParsedEmailData
   ): Promise<BotCheckResult> {
-    const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase();
+    const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase().trim();
     const botDetector = getBotDetector();
     return botDetector.checkBot({ senderEmail });
   }
@@ -395,7 +395,7 @@ export class InboxProcessor {
       };
     }
 
-    const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase();
+    const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase().trim();
 
     // GATE: Whitelisted senders cannot be spam
     const whitelistResult = this._isWhitelistedSender(senderEmail, context.preferences.relationshipConfig);
@@ -403,7 +403,7 @@ export class InboxProcessor {
       return whitelistResult;
     }
 
-    const replyTo = parsedData.processedEmail.replyTo[0]?.address?.toLowerCase();
+    const replyTo = parsedData.processedEmail.replyTo[0]?.address?.toLowerCase().trim();
 
     const spamDetector = await getSpamDetector(context.providerId, context.userId);
     return spamDetector.checkSpam({
@@ -722,7 +722,7 @@ export class InboxProcessor {
     }
 
     // Check user-defined action rules FIRST (before spam/LLM)
-    const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase();
+    const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase().trim();
     const ruleResult = await this._checkUserRules(context, senderEmail);
     if (ruleResult.matched && ruleResult.action) {
       const ruleDescription = `User rule: ${ruleResult.rule?.conditionType}=${ruleResult.rule?.conditionValue} -> ${ruleResult.action}`;
@@ -946,7 +946,7 @@ export class InboxProcessor {
     if (botResult.isBot) {
       console.log(`[InboxProcessor] Bot detected: ${botResult.indicators.join(', ')}`);
 
-      const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase();
+      const senderEmail = parsedData.processedEmail.from[0].address.toLowerCase().trim();
       const senderName = parsedData.processedEmail.from[0].name ?? senderEmail;
 
       // Create person with BOT relationship

@@ -84,10 +84,10 @@ export class SpamDetector {
        FROM email_sent es
        INNER JOIN person_emails pe ON es.recipient_person_email_id = pe.id
        WHERE es.user_id = $1 AND pe.email_address = $2`,
-      [userId, senderEmail.toLowerCase()]
+      [userId, senderEmail.toLowerCase().trim()]
     );
 
-    return result.rows[0]?.total;
+    return result.rows[0].total;
   }
 
 

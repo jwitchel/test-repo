@@ -90,7 +90,7 @@ export class RelationshipDetector {
     email: string,
     config: RelationshipConfig
   ): RelationshipType | null {
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.toLowerCase().trim();
     const domain = normalizedEmail.split('@')[1];
 
     // Priority 1: Spouse (beats family and work)
@@ -211,7 +211,7 @@ export class RelationshipDetector {
     }
 
     // Step 3: Use domain-based heuristics (prefer Reply-To if available)
-    const email = (replyToEmail || recipientEmail).toLowerCase();
+    const email = (replyToEmail || recipientEmail).toLowerCase().trim();
     let relationship = RelationshipType.EXTERNAL;
     let confidence = 0.5;
 

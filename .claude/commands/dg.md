@@ -18,6 +18,7 @@ Apply our Design Principles to the following request:
 - Use `??` only for protocol-optional fields (like RFC 5322 optional email headers)
 - Use non-null assertions (`!`) when you know the value exists
 - Reuse existing services/utilities - don't duplicate
+- **Comments describe the present** - Write comments for how the code works NOW, not what was fixed or changed. No "Fixed:", "Changed:", or past-tense explanations.
 
 Now apply these principles to:
 
