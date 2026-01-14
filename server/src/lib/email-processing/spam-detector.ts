@@ -114,12 +114,21 @@ export class SpamDetector {
       responseCount = Math.max(responseCount, replyToResponseCount);
     }
 
-    // Step 2: Auto-whitelist if user has replied 2+ times to either address
-    if (responseCount >= 2) {
+    // Look up person once for use in Steps 2 and 3
+    const person = await personService.findPersonByEmail(senderEmail, userId);
+
+    // Step 2: Auto-whitelist if user has sent 1+ emails to this sender
+    // If user has communicated with someone, they clearly don't consider them spam
+    if (responseCount >= 1) {
+      // Clear spam classification in database if sender was previously marked as spam
+      if (person?.relationship_type === RelationshipType.SPAM && !person.relationship_user_set) {
+        // Update to EXTERNAL (neutral relationship) since user has communicated with them
+        await personService.setRelationshipByEmail(senderEmail, RelationshipType.EXTERNAL, userId);
+      }
       const result: SpamCheckResult = {
         isSpam: false,
         indicators: [
-          `Not unsolicited - user has replied ${responseCount} times to this sender`
+          `Not unsolicited - user has sent ${responseCount} email(s) to this sender`
         ],
         senderResponseCount: responseCount
       };
@@ -127,7 +136,6 @@ export class SpamDetector {
     }
 
     // Step 3: Check existing relationship - skip LLM if already classified
-    const person = await personService.findPersonByEmail(senderEmail, userId);
     if (person && person.relationship_type) {
       if (person.relationship_type === RelationshipType.SPAM) {
         return {

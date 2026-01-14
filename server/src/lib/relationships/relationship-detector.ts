@@ -161,8 +161,14 @@ export class RelationshipDetector {
     }
 
     if (person && person.relationship_type) {
-      // Relationship is now directly on the person
-      return this._buildResult(person, person.relationship_type, person.relationship_confidence);
+      // If person was marked as SPAM but user is now sending to them,
+      // clear the spam classification - user explicitly wants to communicate.
+      // Continue to Step 2/3 to re-detect relationship and update database.
+      if (person.relationship_type !== RelationshipType.SPAM || person.relationship_user_set) {
+        // Return existing relationship (unless it's auto-detected SPAM)
+        return this._buildResult(person, person.relationship_type, person.relationship_confidence);
+      }
+      // SPAM and not user-set: fall through to re-detect
     }
 
     // Step 2: Check configured relationships for BOTH addresses
@@ -254,7 +260,23 @@ export class RelationshipDetector {
         confidence
       }, client);
     } else {
-      console.log(`[RelationshipDetector] ✓ Found existing person: email=${recipientEmail}, relationship=${relationship}, confidence=${confidence}`);
+      // Person exists - check if we need to update their relationship
+      // This handles the case where someone was previously marked as SPAM
+      // but the user is now actively sending to them
+      if (person.relationship_type !== relationship && !person.relationship_user_set) {
+        console.log(`[RelationshipDetector] 🔄 Updating person relationship: email=${recipientEmail}, ${person.relationship_type} → ${relationship}`);
+        // Use findOrCreatePerson which updates relationship while keeping relationship_user_set = false
+        const emailToStore = replyToEmail || recipientEmail;
+        person = await this.personService.findOrCreatePerson({
+          userId,
+          name: person.name, // Keep existing name
+          emailAddress: emailToStore,
+          relationshipType: relationship,
+          confidence
+        }, client);
+      } else {
+        console.log(`[RelationshipDetector] ✓ Found existing person: email=${recipientEmail}, relationship=${person.relationship_type}`);
+      }
     }
 
     // Return with person data - will extract primaryEmail at end
