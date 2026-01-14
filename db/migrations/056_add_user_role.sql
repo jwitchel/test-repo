@@ -5,6 +5,9 @@
 -- Default to 'user' for all existing and new users
 ALTER TABLE "user" ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
 
+-- Backfill existing users with NULL role (created before this migration)
+UPDATE "user" SET role = 'user' WHERE role IS NULL;
+
 -- Set admin role for jwitchel
 UPDATE "user" SET role = 'admin' WHERE email = 'jwitchel@colevalleygroup.com';
 
