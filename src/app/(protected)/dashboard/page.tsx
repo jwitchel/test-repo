@@ -34,6 +34,7 @@ import { useMuiToast } from '@/hooks/use-mui-toast';
 import { useAuth } from '@/lib/auth-context';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { MuiAuthenticatedLayout } from '@/components/mui';
+import { SetupChecklist, useOnboardingStatus } from '@/components/mui/setup-checklist';
 import { ActionsSummaryChart } from './components/actions-summary-chart';
 import { RecentActionsTable } from './components/recent-actions-table';
 
@@ -108,10 +109,12 @@ const getLookBackLabel = (option: string): string => {
 export default function MuiDashboardPage() {
   usePageTitle('Dashboard');
   const { user, signOut } = useAuth();
-  const isMobile = useMediaQuery('(max-width:899px)');
+  const isMobile = useMediaQuery('(max-width:899px)', { noSsr: true });
   const { success, error: showError } = useMuiToast();
   const [lookBackOption, setLookBackOption] = useState<string>('15min');
   const [lookBackDialogOpen, setLookBackDialogOpen] = useState(false);
+  const [setupChecklistOpen, setSetupChecklistOpen] = useState(true);
+  const { hasOnboardingAlerts, completedSteps, totalSteps } = useOnboardingStatus();
 
   const {
     data: emailAccounts,
@@ -187,9 +190,19 @@ export default function MuiDashboardPage() {
   return (
     <MuiAuthenticatedLayout user={user} onSignOut={signOut}>
       {/* Page Header */}
-      <Typography variant="h4" sx={{ mb: 4 }}>
-        Dashboard
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Typography variant="h4">
+          Dashboard
+        </Typography>
+        {hasOnboardingAlerts && !setupChecklistOpen && (
+          <Button variant="contained" onClick={() => setSetupChecklistOpen(true)}>
+            Continue Setup ({completedSteps}/{totalSteps})
+          </Button>
+        )}
+      </Box>
+
+      {/* Setup Checklist Modal */}
+      <SetupChecklist open={setupChecklistOpen} onClose={() => setSetupChecklistOpen(false)} />
 
       {/* Recent Actions Table - Shows first on mobile */}
       {isMobile && <Box sx={{ mb: 4 }}><RecentActionsTable /></Box>}

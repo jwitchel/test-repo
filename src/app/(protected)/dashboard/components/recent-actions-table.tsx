@@ -300,7 +300,7 @@ export function RecentActionsTable() {
           <Typography color="text.secondary">
             {debouncedSearch
               ? `No emails matching "${debouncedSearch}"`
-              : 'No emails processed yet. Start processing emails to see activity here.'}
+              : 'No emails processed yet. Activate your email account in Account Summary above to start.'}
           </Typography>
         </Paper>
       </Box>

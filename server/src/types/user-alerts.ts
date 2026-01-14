@@ -9,6 +9,7 @@
  * Alert type constants - define once, use everywhere
  */
 export const AlertType = {
+  // Error types
   REAUTH_REQUIRED: 'reauth_required',
   CONNECTION_FAILED: 'connection_failed',
   INVALID_CREDENTIALS: 'invalid_credentials',
@@ -16,6 +17,13 @@ export const AlertType = {
   QUOTA_EXCEEDED: 'quota_exceeded',
   SERVICE_UNAVAILABLE: 'service_unavailable',
   DEFAULT_LLM_NOT_SET: 'default_llm_not_set',
+  // Onboarding setup tasks
+  SETUP_LLM_PROVIDER: 'setup_llm_provider',
+  SETUP_EMAIL_ACCOUNT: 'setup_email_account',
+  SETUP_FOLDERS: 'setup_folders',
+  SETUP_PROFILE: 'setup_profile',
+  SETUP_RELATIONSHIPS: 'setup_relationships',
+  SETUP_TRAINING: 'setup_training',
 } as const;
 
 export type AlertType = (typeof AlertType)[keyof typeof AlertType];
@@ -37,7 +45,7 @@ export type AlertSeverity = (typeof AlertSeverity)[keyof typeof AlertSeverity];
 export const SourceType = {
   EMAIL_ACCOUNT: 'email_account',
   LLM_PROVIDER: 'llm_provider',
-  // Future: SLACK: 'slack',
+  ONBOARDING: 'onboarding',
 } as const;
 
 export type SourceType = (typeof SourceType)[keyof typeof SourceType];
@@ -52,6 +60,18 @@ export const PERSISTENT_ERROR_THRESHOLD = 3;
  */
 export const AlertSourceId = {
   DEFAULT_LLM: 'default-llm',
+} as const;
+
+/**
+ * Source IDs for onboarding setup alerts
+ */
+export const OnboardingSourceId = {
+  LLM_PROVIDER: 'setup-llm-provider',
+  EMAIL_ACCOUNT: 'setup-email-account',
+  FOLDERS: 'setup-folders',
+  PROFILE: 'setup-profile',
+  RELATIONSHIPS: 'setup-relationships',
+  TRAINING: 'setup-training',
 } as const;
 
 /**

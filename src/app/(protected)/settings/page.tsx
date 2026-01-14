@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { useForm } from 'react-hook-form';
 import { TextFieldElement, SwitchElement } from 'react-hook-form-mui';
@@ -1455,11 +1456,25 @@ function SecurityTab() {
   );
 }
 
+// Tab name to index mapping
+const TAB_NAMES: Record<string, number> = {
+  profile: 0,
+  relationships: 1,
+  services: 2,
+  patterns: 3,
+  security: 4,
+};
+
 // Main Component
 export default function MuiSettingsPage() {
   usePageTitle('Settings');
   const { user, signOut } = useAuth();
-  const [tabValue, setTabValue] = useState(0);
+  const searchParams = useSearchParams();
+
+  // Initialize tab from URL param
+  const tabParam = searchParams.get('tab');
+  const initialTab = tabParam ? (TAB_NAMES[tabParam] ?? 0) : 0;
+  const [tabValue, setTabValue] = useState(initialTab);
 
   // Show nothing while loading auth - protected layout handles redirect
   if (!user) return null;

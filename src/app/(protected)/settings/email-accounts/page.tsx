@@ -556,7 +556,7 @@ export default function MuiEmailAccountsPage() {
   usePageTitle('Email Accounts');
   const { user, signOut } = useAuth();
   // Responsive - DataGrid needs conditional render, not CSS hide
-  const isMobile = useMediaQuery('(max-width:899px)');
+  const isMobile = useMediaQuery('(max-width:899px)', { noSsr: true });
 
   // Data fetching
   const { data: accounts, error, isLoading } = useSWR<EmailAccountResponse[]>('/api/email-accounts');

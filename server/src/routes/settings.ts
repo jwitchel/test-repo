@@ -7,6 +7,8 @@ import { withImapContext } from '../lib/imap-context';
 import { relationshipService } from '../lib/relationships/relationship-service';
 import { relationshipDetector } from '../lib/relationships/relationship-detector';
 import { preferencesService } from '../lib/preferences-service';
+import { userAlertService } from '../lib/user-alert-service';
+import { SourceType, OnboardingSourceId } from '../types/user-alerts';
 
 const router = express.Router();
 
@@ -131,6 +133,14 @@ router.post('/profile', requireAuth, async (req, res) => {
       const updatedPrefs = await preferencesService.getPreferences(userId);
 
       recategorization = await relationshipService.recategorizePeople(userId, updatedPrefs.relationshipConfig);
+    }
+
+    // Resolve onboarding alerts based on what was updated
+    if (name || signatureBlock) {
+      await userAlertService.resolveAlertsForSource(SourceType.ONBOARDING, OnboardingSourceId.PROFILE);
+    }
+    if (workDomainsCSV || familyEmailsCSV || spouseEmailsCSV) {
+      await userAlertService.resolveAlertsForSource(SourceType.ONBOARDING, OnboardingSourceId.RELATIONSHIPS);
     }
 
     return res.json({
@@ -295,6 +305,11 @@ router.post('/folder-preferences', requireAuth, async (req, res) => {
       spamFolder,
       todoFolder
     });
+
+    // Resolve onboarding alert for folder configuration
+    if (rootFolder || noActionFolder || spamFolder || todoFolder) {
+      await userAlertService.resolveAlertsForSource(SourceType.ONBOARDING, OnboardingSourceId.FOLDERS);
+    }
 
     return res.json({
       success: true,

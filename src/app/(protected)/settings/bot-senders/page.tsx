@@ -319,7 +319,7 @@ function BotSenderDialog({ open, onClose, sender, onSuccess }: BotSenderDialogPr
 export default function BotSendersPage() {
   usePageTitle('Bot Senders');
   const { user, signOut } = useAuth();
-  const isMobile = useMediaQuery('(max-width:899px)');
+  const isMobile = useMediaQuery('(max-width:899px)', { noSsr: true });
 
   // Toast notifications
   const { success, error: showError } = useMuiToast();

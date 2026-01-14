@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { Alert, Button, Stack } from '@mui/material';
 import { useAlerts } from '@/lib/alert-context';
-import { AlertSeverity } from '@server/types/user-alerts';
+import { AlertSeverity, SourceType } from '@server/types/user-alerts';
 
 /**
  * Persistent alert banner using MUI Alert component
@@ -11,14 +11,19 @@ import { AlertSeverity } from '@server/types/user-alerts';
  */
 export function PersistentAlertBanner() {
   const router = useRouter();
-  const { alerts, resolveAlert, hasAlerts } = useAlerts();
+  const { alerts, resolveAlert } = useAlerts();
 
-  if (!hasAlerts) {
+  // Filter OUT onboarding alerts - they show in SetupChecklist, not here
+  const errorAlerts = alerts.filter(
+    (a) => a.sourceType !== SourceType.ONBOARDING
+  );
+
+  if (errorAlerts.length === 0) {
     return null;
   }
 
   // Sort by severity (errors first)
-  const sortedAlerts = [...alerts].sort((a, b) => {
+  const sortedAlerts = [...errorAlerts].sort((a, b) => {
     if (a.severity === AlertSeverity.ERROR && b.severity !== AlertSeverity.ERROR) return -1;
     if (a.severity !== AlertSeverity.ERROR && b.severity === AlertSeverity.ERROR) return 1;
     return 0;

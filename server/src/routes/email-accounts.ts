@@ -15,7 +15,7 @@ import { ImapOperations } from '../lib/imap-operations';
 import { realTimeLogger } from '../lib/real-time-logger';
 import { jobSchedulerManager, SchedulerId } from '../lib/job-scheduler-manager';
 import { userAlertService } from '../lib/user-alert-service';
-import { SourceType } from '../types/user-alerts';
+import { SourceType, OnboardingSourceId } from '../types/user-alerts';
 
 const router = express.Router();
 
@@ -250,6 +250,9 @@ router.post('/', requireAuth, validateEmailAccount, async (req, res): Promise<vo
       created_at: result.rows[0].created_at.toISOString(),
       updated_at: new Date().toISOString() // Not in DB, use current time
     };
+
+    // Resolve onboarding alert for email account setup
+    await userAlertService.resolveAlertsForSource(SourceType.ONBOARDING, OnboardingSourceId.EMAIL_ACCOUNT);
 
     res.status(201).json(account);
   } catch (error) {

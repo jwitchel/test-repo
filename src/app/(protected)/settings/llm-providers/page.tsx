@@ -388,7 +388,7 @@ export default function MuiLLMProvidersPage() {
   usePageTitle('LLM Providers');
   const { user, signOut } = useAuth();
   // Responsive - DataGrid needs conditional render, not CSS hide
-  const isMobile = useMediaQuery('(max-width:899px)');
+  const isMobile = useMediaQuery('(max-width:899px)', { noSsr: true });
 
   // Data fetching
   const { data: providers, error, isLoading } = useSWR<LLMProvider[]>('/api/llm-providers');

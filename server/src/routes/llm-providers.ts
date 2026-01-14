@@ -14,7 +14,7 @@ import {
 } from '../types/llm-provider';
 import { LLMClient } from '../lib/llm-client';
 import { userAlertService } from '../lib/user-alert-service';
-import { SourceType, AlertSourceId } from '../types/user-alerts';
+import { SourceType, AlertSourceId, OnboardingSourceId } from '../types/user-alerts';
 
 const router = express.Router();
 
@@ -254,6 +254,9 @@ router.post('/', requireAuth, validateLLMProvider, async (req, res): Promise<voi
     if (result.data.is_default) {
       await userAlertService.resolveAlertsForSource(SourceType.LLM_PROVIDER, AlertSourceId.DEFAULT_LLM);
     }
+
+    // Resolve onboarding alert for LLM provider setup
+    await userAlertService.resolveAlertsForSource(SourceType.ONBOARDING, OnboardingSourceId.LLM_PROVIDER);
 
     res.status(201).json(result.data);
   } catch (error: unknown) {

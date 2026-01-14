@@ -9,6 +9,8 @@ import { pool } from '../lib/db';
 import { emailStorageService } from '../lib/email-storage-service';
 import { vectorSearchService } from '../lib/vector';
 import { EmailDirection } from '../types/email-action-tracking';
+import { userAlertService } from '../lib/user-alert-service';
+import { SourceType, OnboardingSourceId } from '../types/user-alerts';
 
 const router = express.Router();
 
@@ -620,7 +622,10 @@ router.post('/analyze-patterns', requireAuth, async (req, res): Promise<void> =>
         raw: `Pattern analysis complete: ${totalEmailsAnalyzed} emails, ${relationships.length + 1} relationships in ${durationSeconds}s`
       }
     });
-    
+
+    // Resolve onboarding alert for training
+    await userAlertService.resolveAlertsForSource(SourceType.ONBOARDING, OnboardingSourceId.TRAINING);
+
     res.json({
       success: true,
       emailsAnalyzed: totalEmailsAnalyzed,
