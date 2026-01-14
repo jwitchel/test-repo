@@ -1,9 +1,14 @@
 -- Migration: 056_add_user_role.sql
--- Description: Add role column for RBAC support via better-auth admin plugin
+-- Description: Add columns required by better-auth admin plugin
 
--- Add role column to user table (better-auth admin plugin requirement)
--- Default to 'user' for all existing and new users
+-- User table columns required by admin plugin
 ALTER TABLE "user" ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+ALTER TABLE "user" ADD COLUMN IF NOT EXISTS banned BOOLEAN DEFAULT FALSE;
+ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "banReason" TEXT;
+ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "banExpires" TIMESTAMPTZ;
+
+-- Session table column for admin impersonation
+ALTER TABLE "session" ADD COLUMN IF NOT EXISTS "impersonatedBy" TEXT;
 
 -- Backfill existing users with NULL role (created before this migration)
 UPDATE "user" SET role = 'user' WHERE role IS NULL;
