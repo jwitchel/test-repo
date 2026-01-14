@@ -198,13 +198,6 @@ export function SetupChecklist({ open, onClose }: SetupChecklistProps) {
                   sx={{ ...listItemTextSx, flex: 1 }}
                 />
                 <Stack direction="row" spacing={1} sx={{ ml: 2 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleAction(alert.actionUrl)}
-                  >
-                    {alert.actionLabel}
-                  </Button>
                   {canSkip && (
                     <Button
                       size="small"
@@ -214,6 +207,13 @@ export function SetupChecklist({ open, onClose }: SetupChecklistProps) {
                       Skip
                     </Button>
                   )}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleAction(alert.actionUrl)}
+                  >
+                    {alert.actionLabel}
+                  </Button>
                 </Stack>
               </ListItem>
             );
