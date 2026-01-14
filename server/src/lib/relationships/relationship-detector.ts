@@ -161,14 +161,9 @@ export class RelationshipDetector {
     }
 
     if (person && person.relationship_type) {
-      // If person was marked as SPAM but user is now sending to them,
-      // clear the spam classification - user explicitly wants to communicate.
-      // Continue to Step 2/3 to re-detect relationship and update database.
-      if (person.relationship_type !== RelationshipType.SPAM || person.relationship_user_set) {
-        // Return existing relationship (unless it's auto-detected SPAM)
-        return this._buildResult(person, person.relationship_type, person.relationship_confidence);
-      }
-      // SPAM and not user-set: fall through to re-detect
+      // Return existing relationship - don't overwrite established classifications.
+      // SPAM clearing is handled by spam-detector when user sends to the contact.
+      return this._buildResult(person, person.relationship_type, person.relationship_confidence);
     }
 
     // Step 2: Check configured relationships for BOTH addresses
